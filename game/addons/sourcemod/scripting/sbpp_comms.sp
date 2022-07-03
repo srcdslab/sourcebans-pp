@@ -335,6 +335,7 @@ public Action Event_OnPlayerName(Handle event, const char[] name, bool dontBroad
 	int client = GetClientOfUserId(GetEventInt(event, "userid"));
 	if (client > 0 && IsClientInGame(client))
 		GetEventString(event, "newname", g_sName[client], sizeof(g_sName[]));
+	return Plugin_Continue;
 }
 
 public void BaseComm_OnClientMute(int client, bool muteState)
@@ -600,6 +601,7 @@ public int Handle_Commands(TopMenu menu, TopMenuAction action, TopMenuObject obj
 		case TopMenuAction_DisplayTitle:
 			Format(buffer, maxlength, "%T", "AdminMenu_Select_Main", param1);
 	}
+	return 0;
 }
 
 public int Handle_MenuGag(TopMenu menu, TopMenuAction action, TopMenuObject object_id, int param1, char[] buffer, int maxlength)
@@ -611,6 +613,7 @@ public int Handle_MenuGag(TopMenu menu, TopMenuAction action, TopMenuObject obje
 		case TopMenuAction_SelectOption:
 			AdminMenu_Target(param1, TYPE_GAG);
 	}
+	return 0;
 }
 
 public int Handle_MenuUnGag(TopMenu menu, TopMenuAction action, TopMenuObject object_id, int param1, char[] buffer, int maxlength)
@@ -622,6 +625,7 @@ public int Handle_MenuUnGag(TopMenu menu, TopMenuAction action, TopMenuObject ob
 		case TopMenuAction_SelectOption:
 			AdminMenu_Target(param1, TYPE_UNGAG);
 	}
+	return 0;
 }
 
 public int Handle_MenuMute(TopMenu menu, TopMenuAction action, TopMenuObject object_id, int param1, char[] buffer, int maxlength)
@@ -633,6 +637,7 @@ public int Handle_MenuMute(TopMenu menu, TopMenuAction action, TopMenuObject obj
 		case TopMenuAction_SelectOption:
 			AdminMenu_Target(param1, TYPE_MUTE);
 	}
+	return 0;
 }
 
 public int Handle_MenuUnMute(TopMenu menu, TopMenuAction action, TopMenuObject object_id, int param1, char[] buffer, int maxlength)
@@ -644,6 +649,7 @@ public int Handle_MenuUnMute(TopMenu menu, TopMenuAction action, TopMenuObject o
 		case TopMenuAction_SelectOption:
 			AdminMenu_Target(param1, TYPE_UNMUTE);
 	}
+	return 0;
 }
 
 public int Handle_MenuSilence(TopMenu menu, TopMenuAction action, TopMenuObject object_id, int param1, char[] buffer, int maxlength)
@@ -655,6 +661,7 @@ public int Handle_MenuSilence(TopMenu menu, TopMenuAction action, TopMenuObject 
 		case TopMenuAction_SelectOption:
 			AdminMenu_Target(param1, TYPE_SILENCE);
 	}
+	return 0;
 }
 
 public int Handle_MenuUnSilence(TopMenu menu, TopMenuAction action, TopMenuObject object_id, int param1, char[] buffer, int maxlength)
@@ -666,6 +673,7 @@ public int Handle_MenuUnSilence(TopMenu menu, TopMenuAction action, TopMenuObjec
 		case TopMenuAction_SelectOption:
 			AdminMenu_Target(param1, TYPE_UNSILENCE);
 	}
+	return 0;
 }
 
 public int Handle_MenuList(TopMenu menu, TopMenuAction action, TopMenuObject object_id, int param1, char[] buffer, int maxlength)
@@ -680,6 +688,7 @@ public int Handle_MenuList(TopMenu menu, TopMenuAction action, TopMenuObject obj
 			AdminMenu_List(param1, 0);
 		}
 	}
+	return 0;
 }
 
 void AdminMenu_Target(int client, int type)
@@ -821,6 +830,7 @@ public int MenuHandler_MenuTarget(Menu menu, MenuAction action, int param1, int 
 			}
 		}
 	}
+	return 0;
 }
 
 void AdminMenu_Duration(int client, int target, int type)
@@ -874,6 +884,7 @@ public int MenuHandler_MenuDuration(Menu menu, MenuAction action, int param1, in
 			}
 		}
 	}
+	return 0;
 }
 
 void AdminMenu_Reason(int client, int target, int type, int lengthIndex)
@@ -930,6 +941,7 @@ public int MenuHandler_MenuReason(Menu menu, MenuAction action, int param1, int 
 			}
 		}
 	}
+	return 0;
 }
 
 void AdminMenu_List(int client, int index)
@@ -988,6 +1000,7 @@ public int MenuHandler_MenuList(Menu menu, MenuAction action, int param1, int pa
 				AdminMenu_List(param1, GetMenuSelectionPosition());
 		}
 	}
+	return 0;
 }
 
 void AdminMenu_ListTarget(int client, int target, int index, int viewMute = 0, int viewGag = 0)
@@ -1168,6 +1181,7 @@ public int MenuHandler_MenuListTarget(Menu menu, MenuAction action, int param1, 
 
 		}
 	}
+	return 0;
 }
 
 void AdminMenu_ListTargetReason(int client, int target, int showMute, int showGag)
@@ -1233,6 +1247,7 @@ public int PanelHandler_ListTargetReason(Menu menu, MenuAction action, int param
 			g_iPeskyPanels[param1][viewingMute],
 			g_iPeskyPanels[param1][viewingGag]);
 	}
+	return 0;
 }
 
 
@@ -1786,12 +1801,13 @@ public Action ClientRecheck(Handle timer, any userid)
 
 	int client = GetClientOfUserId(userid);
 	if (!client)
-		return;
+		return Plugin_Continue;
 
 	if (IsClientConnected(client))
 		OnClientPostAdminCheck(client);
 
 	g_hPlayerRecheck[client] = null;
+	return Plugin_Continue;
 }
 
 public Action Timer_MuteExpire(Handle timer, DataPack dataPack)
@@ -1801,7 +1817,7 @@ public Action Timer_MuteExpire(Handle timer, DataPack dataPack)
 
 	int client = GetClientOfUserId(dataPack.ReadCell());
 	if (!client)
-		return;
+		return Plugin_Continue;
 
 	#if defined DEBUG
 	char clientAuth[64];
@@ -1814,6 +1830,7 @@ public Action Timer_MuteExpire(Handle timer, DataPack dataPack)
 	MarkClientAsUnMuted(client);
 	if (IsClientInGame(client))
 		BaseComm_SetClientMute(client, false);
+	return Plugin_Continue;
 }
 
 public Action Timer_GagExpire(Handle timer, DataPack dataPack)
@@ -1823,7 +1840,7 @@ public Action Timer_GagExpire(Handle timer, DataPack dataPack)
 
 	int client = GetClientOfUserId(dataPack.ReadCell());
 	if (!client)
-		return;
+		return Plugin_Continue;
 
 	#if defined DEBUG
 	char clientAuth[64];
@@ -1836,12 +1853,14 @@ public Action Timer_GagExpire(Handle timer, DataPack dataPack)
 	MarkClientAsUnGagged(client);
 	if (IsClientInGame(client))
 		BaseComm_SetClientGag(client, false);
+	return Plugin_Continue;
 }
 
 public Action Timer_StopWait(Handle timer, any data)
 {
 	g_DatabaseState = DatabaseState_None;
 	DB_Connect();
+	return Plugin_Continue;
 }
 
 // PARSER //
