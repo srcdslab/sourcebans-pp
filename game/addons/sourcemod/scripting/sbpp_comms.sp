@@ -1397,14 +1397,6 @@ public void Query_AddBlockInsert(Database db, DBResultSet results, const char[] 
 	dataPack.Reset();
 
 	char reason[256];
-
-	int iAdminUserId = dataPack.ReadCell();
-	int iAdmin = 0;
-
-	if(iAdminUserId > 0) {
-		iAdmin = GetClientOfUserId(iAdminUserId);
-	}
-
 	int iTarget = GetClientOfUserId(dataPack.ReadCell());
 
 	if (!iTarget) {
@@ -3246,7 +3238,6 @@ stock void SavePunishment(int admin = 0, int target, int type, int length = -1, 
 
 		// all data cached before calling asynchronous functions
 		DataPack dataPack = new DataPack();
-		dataPack.WriteCell(admin > 0 ? g_iUserIDs[admin] : 0);
 		dataPack.WriteCell(g_iUserIDs[target]);
 		dataPack.WriteCell(length);
 		dataPack.WriteCell(type);
