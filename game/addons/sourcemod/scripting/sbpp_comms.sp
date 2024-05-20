@@ -114,7 +114,8 @@ float RetryTime = 15.0;
 bool 
 	g_bLate
 	, g_bPlayerAuthentified[MAXPLAYERS + 1] // Bots and players with invalid Steam ID format will always be FALSE
-	, g_bPlayerStatus[MAXPLAYERS + 1]; // Player block check status
+	, g_bPlayerStatus[MAXPLAYERS + 1] // Player block check status
+	, g_bPlayerVerified[MAXPLAYERS + 1]; // Player has been verified into the database
 
 int 
 	iNumReasons
@@ -136,7 +137,6 @@ SMCParser ConfigParser;
 Handle 
 	g_hFwd_OnPlayerPunished
 	, g_hFwd_OnPlayerUnpunished
-	, g_hPlayerRecheck[MAXPLAYERS + 1] = { null, ... }
 	, g_hGagExpireTimer[MAXPLAYERS + 1] = { null, ... }
 	, g_hMuteExpireTimer[MAXPLAYERS + 1] = { null, ... };
 
@@ -278,7 +278,6 @@ public void OnMapEnd()
 // CLIENT CONNECTION FUNCTIONS //
 public void OnClientDisconnect(int client)
 {
-	ClosePlayerRecheckTimer(client);
 	CloseMuteExpireTimer(client);
 	CloseGagExpireTimer(client);
 
@@ -302,6 +301,7 @@ public bool OnClientConnect(int client, char[] rejectmsg, int maxlen)
 	FormatEx(g_sPlayerIP[client], sizeof(g_sPlayerIP[]), "%s", sIP);
 	FormatEx(g_sName[client], sizeof(g_sName[]), "%N", client);
 	g_iUserIDs[client] = GetClientUserId(client);
+	g_bPlayerVerified[client] = false;
 
 	if (IsInvalidSteamID(client))
 		g_bPlayerAuthentified[client] = false;
@@ -327,7 +327,7 @@ public void OnClientPostAdminCheck(int client)
 
 	/* Player is not ingame yet, recheck is needed */
 	if (!IsClientInGame(client))
-		ClientRecheck(client, false);
+		ClientRecheck(client);
 	else
 		VerifyBlock(client);
 }
@@ -1786,7 +1786,7 @@ public void Query_VerifyBlock(Database db, DBResultSet results, const char[] err
 	if (DB_Conn_Lost(results))
 	{
 		LogError("Query_VerifyBlock failed: %s", error);
-		ClientRecheck(client, false);
+		ClientRecheck(client);
 		return;
 	}
 
@@ -1869,40 +1869,28 @@ public void Query_VerifyBlock(Database db, DBResultSet results, const char[] err
 		}
 	}
 
+	g_bPlayerVerified[client] = true;
 	g_bPlayerStatus[client] = true;
 }
 
 
 // TIMER CALL BACKS //
 
-public Action Timer_CheckClientInGame(Handle timer, any userid)
+public Action Timer_ClientRecheck(Handle timer, DataPack RetryDP)
 {
-	#if defined DEBUG
-	PrintToServer("Timer_CheckClientInGame(userid: %d)", userid);
-	#endif
-
+	RetryDP.Reset();
+	int userid = RetryDP.ReadCell();
 	int client = GetClientOfUserId(userid);
+	delete RetryDP;
+
 	if (!client)
 		return Plugin_Stop;
 
-	g_hPlayerRecheck[client] = INVALID_HANDLE;
-	OnClientPostAdminCheck(client);
-
-	return Plugin_Continue;
-}
-
-public Action Timer_ClientRecheck(Handle timer, any userid)
-{
 	#if defined DEBUG
 	PrintToServer("Timer_ClientRecheck(userid: %d)", userid);
 	#endif
 
-	int client = GetClientOfUserId(userid);
-	if (!client)
-		return Plugin_Stop;
-
-	g_hPlayerRecheck[client] = INVALID_HANDLE;
-	VerifyBlock(client);
+	OnClientPostAdminCheck(client);
 
 	return Plugin_Continue;
 }
@@ -2158,14 +2146,11 @@ stock void setMute(int client, int length, const char[] clientAuth)
 	}
 }
 
-stock void ClientRecheck(int client, bool IsInGame)
+stock void ClientRecheck(int client)
 {
-	ClosePlayerRecheckTimer(client);
-
-	if (IsInGame)
-		g_hPlayerRecheck[client] = CreateTimer(1.0, Timer_ClientRecheck, g_iUserIDs[client]);
-	else
-		g_hPlayerRecheck[client] = CreateTimer(1.0, Timer_CheckClientInGame, g_iUserIDs[client]);
+	DataPack RetryDP = new DataPack();
+	RetryDP.WriteCell(g_iUserIDs[client]);
+	CreateTimer(1.0, Timer_ClientRecheck, RetryDP, TIMER_FLAG_NO_MAPCHANGE);
 }
 
 stock bool IsInvalidSteamID(int client)
@@ -2977,12 +2962,12 @@ stock void ForcePlayersRecheck()
 {
 	for (int i = 1; i <= MaxClients; i++)
 	{
-		if (IsClientInGame(i) && g_bPlayerAuthentified[i] && g_hPlayerRecheck[i] == INVALID_HANDLE)
+		if (IsClientInGame(i) && g_bPlayerAuthentified[i] && !g_bPlayerVerified[i])
 		{
 			#if defined DEBUG
 			PrintToServer("Creating Recheck timer for %s", g_sSteamIDs[i]);
 			#endif
-			ClientRecheck(i, true);
+			OnClientPostAdminCheck(i);
 		}
 	}
 }
@@ -3066,12 +3051,6 @@ stock void CloseGagExpireTimer(int target)
 {
 	if (g_hGagExpireTimer[target] != INVALID_HANDLE && CloseHandle(g_hGagExpireTimer[target]))
 		g_hGagExpireTimer[target] = INVALID_HANDLE;
-}
-
-stock void ClosePlayerRecheckTimer(int target)
-{
-	if (g_hPlayerRecheck[target] != INVALID_HANDLE && CloseHandle(g_hPlayerRecheck[target]))
-		g_hPlayerRecheck[target] = INVALID_HANDLE;
 }
 
 stock void CreateMuteExpireTimer(int target, int remainingTime = 0)
