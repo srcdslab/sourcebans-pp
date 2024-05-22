@@ -454,17 +454,19 @@ public Action CommandComms(int client, int args)
 		GetCmdArg(1, sArg, sizeof(sArg));
 		int target = FindTarget(client, sArg, false, true);
 
-		if (!CanUserTarget(client, target))
-		{
-			PrintToChat(client, "%s%t", PREFIX, "Unable to target");
+		if (target == -1)
 			return Plugin_Handled;
-		}
-
-		if (target != -1)
+		else
 		{
 			if (!IsClientInGame(target))
 			{
 				ReplyToCommand(client, "%s%t", PREFIX, "Target is not in game");
+				return Plugin_Handled;
+			}
+
+			if (!CanUserTarget(client, target))
+			{
+				PrintToChat(client, "%s%t", PREFIX, "Unable to target");
 				return Plugin_Handled;
 			}
 
