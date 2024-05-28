@@ -363,12 +363,18 @@ public void OnClientConnected(int client)
 		PlayerStatus[client] = true;
 		return;
 	}
+}
+
+public void OnClientAuthorized(int client, const char[] auth)
+{
+	if (PlayerStatus[client])
+		return;
 
 	char Query[256];
-	FormatEx(Query, sizeof(Query), "SELECT bid, ip FROM %s_bans WHERE ((type = 0 AND authid REGEXP '^STEAM_[0-9]:%s$') OR (type = 1 AND ip = '%s')) AND (length = '0' OR ends > UNIX_TIMESTAMP()) AND RemoveType IS NULL", DatabasePrefix, auth[8], g_sPlayerIP[client]);
+	FormatEx(Query, sizeof(Query), "SELECT bid, ip FROM %s_bans WHERE ((type = 0 AND authid REGEXP '^STEAM_[0-9]:%s$') OR (type = 1 AND ip = '%s')) AND (length = '0' OR ends > UNIX_TIMESTAMP()) AND RemoveType IS NULL", DatabasePrefix, g_sSteamIDs[client][8], g_sPlayerIP[client]);
 
 	#if defined DEBUG
-	LogToFile(logFile, "Checking ban for: %s", auth);
+	LogToFile(logFile, "Checking ban for: %s", g_sSteamIDs[client]);
 	#endif
 
 	DB.Query(VerifyBan, Query, g_iUserIDs[client], DBPrio_High);
