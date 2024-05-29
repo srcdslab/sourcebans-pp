@@ -1,7 +1,7 @@
 // *************************************************************************
 //  This file is part of SourceBans++.
 //
-//  Copyright (C) 2014-2023 SourceBans++ Dev Team <https://github.com/sbpp>
+//  Copyright (C) 2014-2024 SourceBans++ Dev Team <https://github.com/sbpp>
 //
 //  SourceBans++ is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -35,7 +35,7 @@
 
 #pragma newdecls required
 
-#define SB_VERSION "1.8.0"
+#define SB_VERSION "1.8.1"
 
 #if defined _updater_included
 #define UPDATE_URL "https://sbpp.github.io/updater/updatefile.txt"
@@ -65,12 +65,12 @@ State ConfigState;
 
 #define Prefix "\x04[SourceBans++]\x01 "
 
-/* Admin Stuff*/
+/* Admin Stuff */
 AdminCachePart loadPart;
 
 AdminFlag g_FlagLetters[FLAG_LETTERS_SIZE];
 
-/* Cvar handle*/
+/* Cvar handle */
 ConVar CvarHostIp;
 ConVar CvarPort;
 
@@ -88,7 +88,10 @@ char
 	, groupsLoc[128] /* Admin KeyValues */
 	, adminsLoc[128]
 	, overridesLoc[128]
-	, logFile[256]; /* Log Stuff */
+	, logFile[256] /* Log Stuff */
+	, g_sSteamIDs[MAXPLAYERS + 1][MAX_AUTHID_LENGTH]
+	, g_sName[MAXPLAYERS + 1][MAX_NAME_LENGTH]
+	, g_sPlayerIP[MAXPLAYERS + 1][16];
 
 float RetryTime = 15.0;
 
@@ -111,7 +114,8 @@ int
 	, serverID = -1
 	, ProcessQueueTime = 5
 	, g_ownReasons[MAXPLAYERS + 1] =  { false, ... } /* Own Chat Reason */
-	, CommandDisable; /* Disable of addban and unban */
+	, CommandDisable /* Disable of addban and unban */
+	, g_iUserIDs[MAXPLAYERS + 1];
 
 
 SMCParser ConfigParser;
@@ -178,16 +182,9 @@ public void OnPluginStart()
 	RegConsoleCmd("say", ChatHook);
 	RegConsoleCmd("say_team", ChatHook);
 
-	sb_id = CreateConVar
-	(
-		"sb_id",
-		"-1",
-		"Set to a value other than -1 to override the serverid in sourcebans.cfg",
-		FCVAR_NONE,
-		true,
-		-1.0,
-		false
-	);
+	HookEvent("player_changename", Event_OnPlayerName, EventHookMode_Post);
+
+	sb_id = CreateConVar("sb_id", "-1", "Set to a value other than -1 to override the serverid in sourcebans.cfg", FCVAR_NONE, true, -1.0, false);
 	HookConVarChange(sb_id, sbid_reload);
 
 	if ((TimeMenuHandle = CreateMenu(MenuHandler_BanTimeList, MenuAction_Select|MenuAction_Cancel|MenuAction_DrawItem)) != INVALID_HANDLE)
@@ -254,7 +251,7 @@ public void OnPluginStart()
 #if defined _updater_included
 public void OnLibraryAdded(const char[] name)
 {
-	if (StrEqual(name, "updater"))
+	if (strcmp(name, "updater", false) == 0)
 	{
 		Updater_AddPlugin(UPDATE_URL);
 	}
@@ -326,10 +323,14 @@ public void OnClientDisconnect(int client)
 {
 	if (PlayerRecheck[client] != INVALID_HANDLE)
 	{
-		KillTimer(PlayerRecheck[client]);
-		PlayerRecheck[client] = INVALID_HANDLE;
+		delete PlayerRecheck[client];
 	}
+
+	FormatEx(g_sSteamIDs[client], sizeof(g_sSteamIDs[]), "\0");
+	FormatEx(g_sPlayerIP[client], sizeof(g_sPlayerIP[]), "\0");
+	FormatEx(g_sName[client], sizeof(g_sName[]), "\0");
 	g_ownReasons[client] = false;
+	g_iUserIDs[client] = -1;
 }
 
 public bool OnClientConnect(int client, char[] rejectmsg, int maxlen)
@@ -338,26 +339,45 @@ public bool OnClientConnect(int client, char[] rejectmsg, int maxlen)
 	return true;
 }
 
-public void OnClientAuthorized(int client, const char[] auth)
+public void OnClientConnected(int client)
 {
+	char sIP[16], auth[MAX_AUTHID_LENGTH];
+	GetClientIP(client, sIP, sizeof(sIP));
+	FormatEx(g_sPlayerIP[client], sizeof(g_sPlayerIP[]), "%s", sIP);
+
+	GetClientAuthId(client, AuthId_Steam2, auth, sizeof(auth));
+	FormatEx(g_sSteamIDs[client], sizeof(g_sSteamIDs[]), "%s", auth);
+
+	FormatEx(g_sName[client], sizeof(g_sName[]), "%N", client);
+
+	g_iUserIDs[client] = GetClientUserId(client);
+
+	// If the authid is detected as SteamID Pending, try to get the real SteamID
+	// by skip the backend validation status. #948
+	if (strncmp(auth[6], "ID_", 3) == 0)
+		GetClientAuthId(client, AuthId_Steam2, g_sSteamIDs[client], sizeof(g_sSteamIDs[]), false);
+
 	/* Do not check bots nor check player with lan steamid. */
 	if (auth[0] == 'B' || auth[9] == 'L' || DB == INVALID_HANDLE)
 	{
 		PlayerStatus[client] = true;
 		return;
 	}
+}
 
-	char Query[256], ip[30];
+public void OnClientAuthorized(int client, const char[] auth)
+{
+	if (PlayerStatus[client])
+		return;
 
-	GetClientIP(client, ip, sizeof(ip));
-
-	FormatEx(Query, sizeof(Query), "SELECT bid, ip FROM %s_bans WHERE ((type = 0 AND authid REGEXP '^STEAM_[0-9]:%s$') OR (type = 1 AND ip = '%s')) AND (length = '0' OR ends > UNIX_TIMESTAMP()) AND RemoveType IS NULL", DatabasePrefix, auth[8], ip);
+	char Query[256];
+	FormatEx(Query, sizeof(Query), "SELECT bid, ip FROM %s_bans WHERE ((type = 0 AND authid REGEXP '^STEAM_[0-9]:%s$') OR (type = 1 AND ip = '%s')) AND (length = '0' OR ends > UNIX_TIMESTAMP()) AND RemoveType IS NULL", DatabasePrefix, g_sSteamIDs[client][8], g_sPlayerIP[client]);
 
 	#if defined DEBUG
-	LogToFile(logFile, "Checking ban for: %s", auth);
+	LogToFile(logFile, "Checking ban for: %s", g_sSteamIDs[client]);
 	#endif
 
-	DB.Query(VerifyBan, Query, GetClientUserId(client), DBPrio_High);
+	DB.Query(VerifyBan, Query, g_iUserIDs[client], DBPrio_High);
 }
 
 public void OnRebuildAdminCache(AdminCachePart part)
@@ -383,6 +403,15 @@ public void OnRebuildAdminCache(AdminCachePart part)
 	}
 }
 
+// OTHER CLIENT CODE //
+
+public void Event_OnPlayerName(Handle event, const char[] name, bool dontBroadcast)
+{
+	int client = GetClientOfUserId(GetEventInt(event, "userid"));
+	if (client > 0 && IsClientInGame(client))
+		GetEventString(event, "newname", g_sName[client], sizeof(g_sName[]));
+}
+
 // COMMAND CODE //
 
 public Action ChatHook(int client, int args)
@@ -397,7 +426,7 @@ public Action ChatHook(int client, int args)
 
 		g_ownReasons[client] = false;
 
-		if (StrEqual(reason[0], "!noreason"))
+		if (strcmp(reason[0], "!noreason", false) == 0)
 		{
 			PrintToChat(client, "%s%t", Prefix, "Chat Reason Aborted");
 			return Plugin_Handled;
@@ -446,6 +475,13 @@ public Action CommandBan(int client, int args)
 		return Plugin_Handled;
 	}
 
+	if (!PlayerStatus[target])
+	{
+		// The target has not been banned verify. It must be completed before you can ban anyone.
+		ReplyToCommand(admin, "%s%t", Prefix, "Ban Not Verified");
+		return Plugin_Handled;
+	}
+
 	// Get the ban time
 	GetCmdArg(2, buffer, sizeof(buffer));
 
@@ -483,14 +519,6 @@ public Action CommandBan(int client, int args)
 	g_BanTarget[client] = target;
 	g_BanTime[client] = time;
 
-	if (!PlayerStatus[target])
-	{
-		// The target has not been banned verify. It must be completed before you can ban anyone.
-		ReplyToCommand(admin, "%s%t", Prefix, "Ban Not Verified");
-		return Plugin_Handled;
-	}
-
-
 	CreateBan(client, target, time, reason);
 	return Plugin_Handled;
 }
@@ -504,7 +532,7 @@ public Action CommandBanIp(int client, int args)
 	}
 
 	int len, next_len;
-	char Arguments[256], arg[50], time[20], targetName[MAX_NAME_LENGTH];
+	char Arguments[256], arg[MAX_AUTHID_LENGTH], time[20];
 
 	GetCmdArgString(Arguments, sizeof(Arguments));
 	len = BreakString(Arguments, arg, sizeof(arg));
@@ -525,26 +553,17 @@ public Action CommandBanIp(int client, int args)
 
 	int target = -1;
 
-	if (ProcessTargetString(
-			arg,
-			client,
-			target_list,
-			1,
-			COMMAND_FILTER_CONNECTED | COMMAND_FILTER_NO_MULTI,
-			target_name,
-			sizeof(target_name),
-			tn_is_ml) > 0)
+	if (ProcessTargetString(arg, client, target_list, 1, COMMAND_FILTER_CONNECTED | COMMAND_FILTER_NO_MULTI, target_name, sizeof(target_name), tn_is_ml) > 0)
 	{
 		target = target_list[0];
-
-		if (!IsFakeClient(target) && CanUserTarget(client, target))
-		{
-			GetClientName(target, targetName, sizeof(targetName));
-			GetClientIP(target, arg, sizeof(arg));
-		}
 	}
 
-	char adminIp[24], adminAuth[64];
+	if (target == -1)
+	{
+		return Plugin_Handled;
+	}
+
+	char adminIp[16], adminAuth[MAX_AUTHID_LENGTH];
 	int minutes = StringToInt(time);
 
 	if (!StringToIntEx(time, minutes) || minutes < 0)
@@ -564,8 +583,8 @@ public Action CommandBanIp(int client, int args)
 		strcopy(adminAuth, sizeof(adminAuth), "STEAM_ID_SERVER");
 		strcopy(adminIp, sizeof(adminIp), ServerIp);
 	} else {
-		GetClientIP(client, adminIp, sizeof(adminIp));
-		GetClientAuthId(client, AuthId_Steam2, adminAuth, sizeof(adminAuth));
+		strcopy(adminAuth, sizeof(adminAuth), g_sSteamIDs[client]);
+		strcopy(adminIp, sizeof(adminIp), g_sPlayerIP[client]);
 	}
 
 	// Pack everything into a data pack so we can retain it
@@ -573,8 +592,9 @@ public Action CommandBanIp(int client, int args)
 	dataPack.WriteCell(client);
 	dataPack.WriteCell(minutes);
 	dataPack.WriteString(Arguments[len]);
-	dataPack.WriteString(arg);
-	dataPack.WriteString(targetName);
+	dataPack.WriteString(g_sPlayerIP[target]);
+	dataPack.WriteString(g_sName[target]);
+	dataPack.WriteString(g_sSteamIDs[target]);
 	dataPack.WriteString(adminAuth);
 	dataPack.WriteString(adminIp);
 
@@ -604,7 +624,7 @@ public Action CommandUnban(int client, int args)
 	}
 
 	int len;
-	char Arguments[256], arg[50], adminAuth[64];
+	char Arguments[256], arg[MAX_AUTHID_LENGTH], adminAuth[MAX_AUTHID_LENGTH];
 
 	GetCmdArgString(Arguments, sizeof(Arguments));
 
@@ -618,17 +638,17 @@ public Action CommandUnban(int client, int args)
 		// setup dummy adminAuth and adminIp for server
 		strcopy(adminAuth, sizeof(adminAuth), "STEAM_ID_SERVER");
 	} else {
-		GetClientAuthId(client, AuthId_Steam2, adminAuth, sizeof(adminAuth));
+		strcopy(adminAuth, sizeof(adminAuth), g_sSteamIDs[client]);
 	}
 
 	// Pack everything into a data pack so we can retain it
 	DataPack dataPack = new DataPack();
 	dataPack.WriteCell(client);
-	dataPack.WriteString(Arguments[len]);
-	dataPack.WriteString(arg);
-	dataPack.WriteString(adminAuth);
+	dataPack.WriteString(Arguments[len]); // Reason
+	dataPack.WriteString(arg); // Steamid - IP
+	dataPack.WriteString(adminAuth); // Admin SteamID
 
-	char query[200];
+	char query[256];
 
 	if (strncmp(arg, "STEAM_", 6) == 0)
 	{
@@ -657,7 +677,7 @@ public Action CommandAddBan(int client, int args)
 		return Plugin_Handled;
 	}
 
-	char arg_string[256], time[50], authid[50];
+	char arg_string[256], time[16], authid[MAX_AUTHID_LENGTH];
 
 	GetCmdArgString(arg_string, sizeof(arg_string));
 
@@ -682,7 +702,8 @@ public Action CommandAddBan(int client, int args)
 		arg_string[0] = '\0';
 	}
 
-	char adminIp[24], adminAuth[64];
+	char adminIp[16], adminAuth[MAX_AUTHID_LENGTH];
+
 	int minutes = StringToInt(time);
 
 	if (!StringToIntEx(time, minutes) || minutes < 0)
@@ -702,8 +723,8 @@ public Action CommandAddBan(int client, int args)
 		strcopy(adminAuth, sizeof(adminAuth), "STEAM_ID_SERVER");
 		strcopy(adminIp, sizeof(adminIp), ServerIp);
 	} else {
-		GetClientIP(client, adminIp, sizeof(adminIp));
-		GetClientAuthId(client, AuthId_Steam2, adminAuth, sizeof(adminAuth));
+		strcopy(adminAuth, sizeof(adminAuth), g_sSteamIDs[client]);
+		strcopy(adminIp, sizeof(adminIp), g_sPlayerIP[client]);
 	}
 
 	// Pack everything into a data pack so we can retain it
@@ -828,13 +849,13 @@ public int ReasonSelected(Menu menu, MenuAction action, int param1, int param2)
 
 			menu.GetItem(param2, key, sizeof(key), _, info, sizeof(info));
 
-			if (StrEqual("Hacking", key))
+			if (strcmp("Hacking", key, false) == 0)
 			{
 				HackingMenuHandle.Display(param1, MENU_TIME_FOREVER);
 				return 0;
 			}
 
-			else if (StrEqual("Own Reason", key)) // admin wants to use his own reason
+			else if (strcmp("Own Reason", key, false) == 0) // admin wants to use his own reason
 			{
 				g_ownReasons[param1] = true;
 				PrintToChat(param1, "%s%t", Prefix, "Chat Reason");
@@ -936,7 +957,7 @@ public int MenuHandler_BanPlayerList(Menu menu, MenuAction action, int param1, i
 
 		case MenuAction_Select:
 		{
-			char info[32], name[32];
+			char info[32], name[MAX_NAME_LENGTH];
 			int userid, target;
 
 			menu.GetItem(param2, info, sizeof(info), _, name, sizeof(name));
@@ -1008,17 +1029,16 @@ stock void DisplayBanTargetMenu(int client)
 
 	Menu menu = new Menu(MenuHandler_BanPlayerList); // Create a new menu, pass it the handler.
 
-	char title[100];
+	char title[128];
 
 	FormatEx(title, sizeof(title), "%T:", "Ban player", client);
 
 	menu.SetTitle(title); // Set the title
 	menu.ExitBackButton = true; // Yes we want back/exit
 
-	AddTargetsToMenu(menu,  // Add clients to our menu
-		client,  // The client that called the display
-		false,  // We want to see people connecting
-		false); // And dead people
+	AddTargetsToMenu2(menu, // Add clients to our menu
+		client, // The client that called the display
+		COMMAND_FILTER_NO_BOTS); // We dont want FakeClients
 
 	menu.Display(client, MENU_TIME_FOREVER); // Show the menu to the client FOREVER!
 }
@@ -1029,7 +1049,7 @@ stock void DisplayBanTimeMenu(int client)
 	LogToFile(logFile, "DisplayBanTimeMenu()");
 	#endif
 
-	char title[100];
+	char title[128];
 	FormatEx(title, sizeof(title), "%T:", "Ban player", client);
 	SetMenuTitle(TimeMenuHandle, title);
 
@@ -1081,14 +1101,14 @@ public void GotDatabase(Database db, const char[] error, any data)
 
 	if (loadOverrides)
 	{
-		Format(query, 1024, "SELECT type, name, flags FROM %s_overrides", DatabasePrefix);
+		Format(query, sizeof(query), "SELECT type, name, flags FROM %s_overrides", DatabasePrefix);
 		DB.Query(OverridesDone, query);
 		loadOverrides = false;
 	}
 
 	if (loadGroups && enableAdmins)
 	{
-		FormatEx(query, 1024, "SELECT name, flags, immunity, groups_immune   \
+		FormatEx(query, sizeof(query), "SELECT name, flags, immunity, groups_immune   \
 					FROM %s_srvgroups ORDER BY id", DatabasePrefix);
 		curLoading++;
 		DB.Query(GroupsDone, query);
@@ -1108,7 +1128,7 @@ public void GotDatabase(Database db, const char[] error, any data)
 
 		if (serverID == -1)
 		{
-			FormatEx(query, 1024, "SELECT authid, srv_password, (SELECT name FROM %s_srvgroups WHERE name = srv_group AND flags != '') AS srv_group, srv_flags, user, immunity  \
+			FormatEx(query, sizeof(query), "SELECT authid, srv_password, (SELECT name FROM %s_srvgroups WHERE name = srv_group AND flags != '') AS srv_group, srv_flags, user, immunity  \
 						FROM %s_admins_servers_groups AS asg \
 						LEFT JOIN %s_admins AS a ON a.aid = asg.admin_id \
 						WHERE %s (server_id = (SELECT sid FROM %s_servers WHERE ip = '%s' AND port = '%s' LIMIT 0,1)  \
@@ -1116,7 +1136,7 @@ public void GotDatabase(Database db, const char[] error, any data)
 						GROUP BY aid, authid, srv_password, srv_group, srv_flags, user",
 				DatabasePrefix, DatabasePrefix, DatabasePrefix, queryLastLogin, DatabasePrefix, ServerIp, ServerPort, DatabasePrefix, DatabasePrefix, ServerIp, ServerPort);
 		} else {
-			FormatEx(query, 1024, "SELECT authid, srv_password, (SELECT name FROM %s_srvgroups WHERE name = srv_group AND flags != '') AS srv_group, srv_flags, user, immunity  \
+			FormatEx(query, sizeof(query), "SELECT authid, srv_password, (SELECT name FROM %s_srvgroups WHERE name = srv_group AND flags != '') AS srv_group, srv_flags, user, immunity  \
 						FROM %s_admins_servers_groups AS asg \
 						LEFT JOIN %s_admins AS a ON a.aid = asg.admin_id \
 						WHERE %s server_id = %d  \
@@ -1157,7 +1177,7 @@ public void VerifyInsert(Database db, DBResultSet results, const char[] error, D
 
 		DataPack reasonPack = dataPack.ReadCell();
 
-		char reason[128], name[50], auth[30], ip[20], adminAuth[30], adminIp[20];
+		char reason[128], name[MAX_NAME_LENGTH], auth[MAX_AUTHID_LENGTH], ip[16], adminAuth[MAX_AUTHID_LENGTH], adminIp[16];
 
 		reasonPack.ReadString(reason, sizeof reason);
 
@@ -1188,7 +1208,7 @@ public void VerifyInsert(Database db, DBResultSet results, const char[] error, D
 
 	DataPack ReasonPack = dataPack.ReadCell();
 
-	char Name[64], Reason[128];
+	char Name[MAX_NAME_LENGTH], Reason[128];
 
 	dataPack.ReadString(Name, sizeof(Name));
 	ReasonPack.ReadString(Reason, sizeof(Reason));
@@ -1219,7 +1239,7 @@ public void VerifyInsert(Database db, DBResultSet results, const char[] error, D
 	}
 
 	// Kick player
-	if (GetClientUserId(client) == UserId)
+	if (g_iUserIDs[client] == UserId)
 	{
 		char length[32];
 		if(time == 0)
@@ -1234,8 +1254,8 @@ public void VerifyInsert(Database db, DBResultSet results, const char[] error, D
 public void SelectBanIpCallback(Database db, DBResultSet results, const char[] error, DataPack dataPack)
 {
 	int admin, minutes;
-	char adminAuth[30], adminIp[30], banReason[256], ip[16], reason[128], Query[512];
-	char targetName[MAX_NAME_LENGTH], sTEscapedName[MAX_NAME_LENGTH * 2 + 1];
+	char adminAuth[MAX_AUTHID_LENGTH], adminIp[16], banReason[256], ip[16], reason[128], Query[512];
+	char targetName[MAX_NAME_LENGTH], sTEscapedName[MAX_NAME_LENGTH * 2 + 1], targetAuth[MAX_AUTHID_LENGTH];
 
 	dataPack.Reset();
 	admin = dataPack.ReadCell();
@@ -1243,10 +1263,13 @@ public void SelectBanIpCallback(Database db, DBResultSet results, const char[] e
 	dataPack.ReadString(reason, sizeof(reason));
 	dataPack.ReadString(ip, sizeof(ip));
 	dataPack.ReadString(targetName, sizeof(targetName));
+	dataPack.ReadString(targetAuth, sizeof(targetAuth));
 	dataPack.ReadString(adminAuth, sizeof(adminAuth));
 	dataPack.ReadString(adminIp, sizeof(adminIp));
 	DB.Escape(reason, banReason, sizeof(banReason));
 	DB.Escape(targetName, sTEscapedName, sizeof(sTEscapedName));
+
+	LogMessage("******************************Tagetauth: %s", targetAuth);
 
 	if (results == null)
 	{
@@ -1269,15 +1292,15 @@ public void SelectBanIpCallback(Database db, DBResultSet results, const char[] e
 	}
 	if (serverID == -1)
 	{
-		FormatEx(Query, sizeof(Query), "INSERT INTO %s_bans (type, ip, name, created, ends, length, reason, aid, adminIp, sid, country) VALUES \
-						(1, '%s', '%s', UNIX_TIMESTAMP(), UNIX_TIMESTAMP() + %d, %d, '%s', (SELECT aid FROM %s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), '%s', \
+		FormatEx(Query, sizeof(Query), "INSERT INTO %s_bans (type, ip, authid, name, created, ends, length, reason, aid, adminIp, sid, country) VALUES \
+						(1, '%s', '%s', '%s', UNIX_TIMESTAMP(), UNIX_TIMESTAMP() + %d, %d, '%s', (SELECT aid FROM %s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), '%s', \
 						(SELECT sid FROM %s_servers WHERE ip = '%s' AND port = '%s' LIMIT 0,1), ' ')",
-			DatabasePrefix, ip, sTEscapedName, (minutes * 60), (minutes * 60), banReason, DatabasePrefix, adminAuth, adminAuth[8], adminIp, DatabasePrefix, ServerIp, ServerPort);
+			DatabasePrefix, ip, targetAuth, sTEscapedName, (minutes * 60), (minutes * 60), banReason, DatabasePrefix, adminAuth, adminAuth[8], adminIp, DatabasePrefix, ServerIp, ServerPort);
 	} else {
-		FormatEx(Query, sizeof(Query), "INSERT INTO %s_bans (type, ip, name, created, ends, length, reason, aid, adminIp, sid, country) VALUES \
-						(1, '%s', '%s', UNIX_TIMESTAMP(), UNIX_TIMESTAMP() + %d, %d, '%s', (SELECT aid FROM %s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), '%s', \
+		FormatEx(Query, sizeof(Query), "INSERT INTO %s_bans (type, ip, authid, name, created, ends, length, reason, aid, adminIp, sid, country) VALUES \
+						(1, '%s', '%s', '%s', UNIX_TIMESTAMP(), UNIX_TIMESTAMP() + %d, %d, '%s', (SELECT aid FROM %s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), '%s', \
 						%d, ' ')",
-			DatabasePrefix, ip, sTEscapedName, (minutes * 60), (minutes * 60), banReason, DatabasePrefix, adminAuth, adminAuth[8], adminIp, serverID);
+			DatabasePrefix, ip, targetAuth, sTEscapedName, (minutes * 60), (minutes * 60), banReason, DatabasePrefix, adminAuth, adminAuth[8], adminIp, serverID);
 	}
 
 	db.Query(InsertBanIpCallback, Query, dataPack, DBPrio_High);
@@ -1289,7 +1312,7 @@ public void InsertBanIpCallback(Database db, DBResultSet results, const char[] e
 	int admin, minutes;
 	int target = -1;
 	char reason[128];
-	char targetIP[30];
+	char targetIP[16];
 
 	if (dataPack != null)
 	{
@@ -1303,10 +1326,8 @@ public void InsertBanIpCallback(Database db, DBResultSet results, const char[] e
 		{
 			if(!IsClientInGame(i) || IsFakeClient(i))
 				continue;
-			
-			char ip[30];
-			GetClientIP(i, ip, sizeof(ip));
-			if(StrEqual(targetIP, ip, false))
+
+			if(strcmp(targetIP, g_sPlayerIP[i], false) == 0)
 			{
 				target = i;
 				break;
@@ -1352,14 +1373,14 @@ public void InsertBanIpCallback(Database db, DBResultSet results, const char[] e
 public void SelectUnbanCallback(Database db, DBResultSet results, const char[] error, DataPack dataPack)
 {
 	int admin;
-	char arg[30], adminAuth[30], unbanReason[256];
+	char arg[MAX_AUTHID_LENGTH], adminAuth[MAX_AUTHID_LENGTH], unbanReason[256];
 	char reason[128];
 
 	dataPack.Reset();
 	admin = dataPack.ReadCell();
-	dataPack.ReadString(reason, sizeof(reason));
-	dataPack.ReadString(arg, sizeof(arg));
-	dataPack.ReadString(adminAuth, sizeof(adminAuth));
+	dataPack.ReadString(reason, sizeof(reason)); // Reason
+	dataPack.ReadString(arg, sizeof(arg)); // SteamID - IP
+	dataPack.ReadString(adminAuth, sizeof(adminAuth)); // Admin SteamID
 
 	db.Escape(reason, unbanReason, sizeof(unbanReason));
 
@@ -1394,7 +1415,7 @@ public void SelectUnbanCallback(Database db, DBResultSet results, const char[] e
 		// Get the values from the existing ban record
 		int bid = results.FetchInt(0);
 
-		char query[1000];
+		char query[1024];
 		Format(query, sizeof(query), "UPDATE %s_bans SET RemovedBy = (SELECT aid FROM %s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), RemoveType = 'U', RemovedOn = UNIX_TIMESTAMP(), ureason = '%s' WHERE bid = %d",
 			DatabasePrefix, DatabasePrefix, adminAuth, adminAuth[8], unbanReason, bid);
 
@@ -1407,15 +1428,15 @@ public void InsertUnbanCallback(Database db, DBResultSet results, const char[] e
 {
 	// if the pack is good unpack it and close the handle
 	int admin;
-	char arg[30];
+	char arg[MAX_AUTHID_LENGTH];
 	char reason[128];
 
 	if (dataPack != null)
 	{
 		dataPack.Reset();
 		admin = dataPack.ReadCell();
-		dataPack.ReadString(reason, sizeof(reason));
-		dataPack.ReadString(arg, sizeof(arg));
+		dataPack.ReadString(reason, sizeof(reason)); // Reason
+		dataPack.ReadString(arg, sizeof(arg)); // SteamID - IP
 		delete dataPack;
 	} else {
 		// Technically this should not be possible
@@ -1444,7 +1465,7 @@ public void InsertUnbanCallback(Database db, DBResultSet results, const char[] e
 public void SelectAddbanCallback(Database db, DBResultSet results, const char[] error, DataPack dataPack)
 {
 	int admin, minutes;
-	char adminAuth[30], adminIp[30], authid[20], banReason[256], Query[512];
+	char adminAuth[MAX_AUTHID_LENGTH], adminIp[16], authid[MAX_AUTHID_LENGTH], banReason[256], Query[512];
 	char reason[128];
 
 	dataPack.Reset();
@@ -1495,7 +1516,7 @@ public void SelectAddbanCallback(Database db, DBResultSet results, const char[] 
 public void InsertAddbanCallback(Database db, DBResultSet results, const char[] error, DataPack dataPack)
 {
 	int admin, minutes;
-	char authid[20];
+	char authid[MAX_AUTHID_LENGTH];
 	char reason[128];
 
 	dataPack.Reset();
@@ -1533,16 +1554,16 @@ public void ProcessQueueCallback(Database db, DBResultSet results, const char[] 
 		return;
 	}
 
-	char auth[30];
+	char auth[MAX_AUTHID_LENGTH];
 	int time;
 	int startTime;
 	char reason[128];
-	char name[64];
-	char ip[20];
-	char adminAuth[30];
-	char adminIp[20];
+	char name[MAX_NAME_LENGTH];
+	char ip[16];
+	char adminAuth[MAX_AUTHID_LENGTH];
+	char adminIp[16];
 	char query[1024];
-	char banName[128];
+	char banName[MAX_NAME_LENGTH];
 	char banReason[256];
 	while (results.MoreRows)
 	{
@@ -1597,7 +1618,7 @@ public void ProcessQueueCallback(Database db, DBResultSet results, const char[] 
 public void AddedFromSQLiteCallback(Database db, DBResultSet results, const char[] error, DataPack dataPack)
 {
 	char buffer[512];
-	char auth[40];
+	char auth[MAX_AUTHID_LENGTH];
 
 	dataPack.ReadString(auth, sizeof(auth));
 	if (results == null)
@@ -1656,7 +1677,7 @@ public void ErrorCheckCallback(Database db, DBResultSet results, const char[] er
 
 public void VerifyBan(Database db, DBResultSet results, const char[] error, int userid)
 {
-	char clientName[64], clientAuth[64], clientIp[64];
+	char clientAuth[MAX_AUTHID_LENGTH], clientIp[16];
 
 	int client = GetClientOfUserId(userid);
 
@@ -1671,18 +1692,17 @@ public void VerifyBan(Database db, DBResultSet results, const char[] error, int 
 		return;
 	}
 
-	GetClientIP(client, clientIp, sizeof(clientIp));
-	GetClientAuthId(client, AuthId_Steam2, clientAuth, sizeof(clientAuth));
-	GetClientName(client, clientName, sizeof(clientName));
+	strcopy(clientAuth, sizeof(clientAuth), g_sSteamIDs[client]);
+	strcopy(clientIp, sizeof(clientIp), g_sPlayerIP[client]);
 
 	if (results.RowCount > 0)
 	{
-		char buffer[40], Name[128], Query[512];
+		char buffer[40], Name[MAX_NAME_LENGTH], Query[512];
 
 		// Amending to ban record's IP field
 		if (results.FetchRow())
 		{
-			char sIP[32];
+			char sIP[16];
 
 			int iBid = results.FetchInt(0);
 			results.FetchString(1, sIP, sizeof sIP);
@@ -1697,7 +1717,7 @@ public void VerifyBan(Database db, DBResultSet results, const char[] error, int 
 			}
 		}
 
-		DB.Escape(clientName, Name, sizeof Name);
+		DB.Escape(g_sName[client], Name, sizeof Name);
 
 		if (serverID == -1)
 		{
@@ -1730,16 +1750,12 @@ public void VerifyBan(Database db, DBResultSet results, const char[] error, int 
 	PlayerStatus[client] = true;
 }
 
-public void SQL_OnIPMend(Database db, DBResultSet results, const char[] error, int iClient)
+public void SQL_OnIPMend(Database db, DBResultSet results, const char[] error, int client)
 {
 	if (results == null)
 	{
-		char sIP[32], sSteamID[32];
-
-		GetClientAuthId(iClient, AuthId_Steam3, sSteamID, sizeof sSteamID);
-		GetClientIP(iClient, sIP, sizeof sIP);
-
-		LogToFile(logFile, "Failed to mend IP address for %s (%s): %s", sSteamID, sIP, error);
+		// We now using SteamID Format2
+		LogToFile(logFile, "Failed to mend IP address for %s (%s): %s", g_sSteamIDs[client], g_sPlayerIP[client], error);
 	}
 }
 
@@ -1758,7 +1774,7 @@ public void AdminsDone(Database db, DBResultSet results, const char[] error, any
 	char password[66];
 	char groups[256];
 	char flags[32];
-	char name[66];
+	char name[MAX_NAME_LENGTH];
 	int admCount = 0;
 	int Immunity = 0;
 	AdminId curAdm = INVALID_ADMIN_ID;
@@ -1773,7 +1789,7 @@ public void AdminsDone(Database db, DBResultSet results, const char[] error, any
 		results.FetchString(1, password, 66);
 		results.FetchString(2, groups, 256);
 		results.FetchString(3, flags, 32);
-		results.FetchString(4, name, 66);
+		results.FetchString(4, name, MAX_NAME_LENGTH);
 
 		Immunity = results.FetchInt(5);
 
@@ -1827,40 +1843,6 @@ public void AdminsDone(Database db, DBResultSet results, const char[] error, any
 		int numGroups;
 		char iterGroupName[64];
 
-		// Who thought this comma seperated group parsing would be a good idea?!
-		/*
-		decl String:grp[64];
-		new nextPos = 0;
-		while ((nextPos = SplitString(groups[curPos],",",grp,64)) != -1)
-		{
-			curPos += nextPos;
-			curGrp = FindAdmGroup(grp);
-			if (curGrp == INVALID_GROUP_ID)
-			{
-				LogToFile(logFile, "Unknown group \"%s\"",grp);
-			}
-			else
-			{
-				// Check, if he's not in the group already.
-				numGroups = GetAdminGroupCount(curAdm);
-				for(new i=0;i<numGroups;i++)
-				{
-					GetAdminGroup(curAdm, i, iterGroupName, sizeof(iterGroupName));
-					// Admin is already part of the group, so don't try to inherit its permissions.
-					if(StrEqual(iterGroupName, grp))
-					{
-						numGroups = -2;
-						break;
-					}
-				}
-				// Only try to inherit the group, if it's a new one.
-				if (numGroups != -2 && !AdminInheritGroup(curAdm,curGrp))
-				{
-					LogToFile(logFile, "Unable to inherit group \"%s\"",grp);
-				}
-			}
-		}*/
-
 		if (strcmp(groups[curPos], "") != 0)
 		{
 			curGrp = FindAdmGroup(groups[curPos]);
@@ -1876,7 +1858,7 @@ public void AdminsDone(Database db, DBResultSet results, const char[] error, any
 				{
 					curAdm.GetGroup(i, iterGroupName, sizeof(iterGroupName));
 					// Admin is already part of the group, so don't try to inherit its permissions.
-					if (StrEqual(iterGroupName, groups[curPos]))
+					if (strcmp(iterGroupName, groups[curPos], false) == 0)
 					{
 						numGroups = -2;
 						break;
@@ -2014,20 +1996,8 @@ public void GroupsDone(Database db, DBResultSet results, const char[] error, any
 
 	// Load the group overrides
 	char query[512];
-	FormatEx(query, 512, "SELECT sg.name, so.type, so.name, so.access FROM %s_srvgroups_overrides so LEFT JOIN %s_srvgroups sg ON sg.id = so.group_id ORDER BY sg.id", DatabasePrefix, DatabasePrefix);
+	FormatEx(query, sizeof(query), "SELECT sg.name, so.type, so.name, so.access FROM %s_srvgroups_overrides so LEFT JOIN %s_srvgroups sg ON sg.id = so.group_id ORDER BY sg.id", DatabasePrefix, DatabasePrefix);
 	db.Query(LoadGroupsOverrides, query);
-
-	/*if (reparse)
-	{
-		decl String:query[512];
-		FormatEx(query,512,"SELECT name, immunity, groups_immune FROM %s_srvgroups ORDER BY id",DatabasePrefix);
-		db.Query(GroupsSecondPass,query);
-	}
-	else
-	{
-		curLoading--;
-		CheckLoadAdmins();
-	}*/
 }
 
 // Reparse to apply inherited immunity
@@ -2112,8 +2082,8 @@ public void LoadGroupsOverrides(Database db, DBResultSet results, const char[] e
 		if (curGrp == INVALID_GROUP_ID)
 			continue;
 
-		iRule = StrEqual(sAllowed, "allow") ? Command_Allow : Command_Deny;
-		iType = StrEqual(sType, "group") ? Override_CommandGroup : Override_Command;
+		iRule = strcmp(sAllowed, "allow", false) == 0 ? Command_Allow : Command_Deny;
+		iType = strcmp(sType, "group", false) == 0 ? Override_CommandGroup : Override_Command;
 
 		#if defined DEBUG
 		PrintToServer("AddAdmGroupCmdOverride(%i, %s, %i, %i)", curGrp, sCommand, iType, iRule);
@@ -2154,7 +2124,7 @@ public void OverridesDone(Database db, DBResultSet results, const char[] error, 
 
 	KeyValues hKV = new KeyValues("SB_Overrides");
 
-	char sFlags[32], sName[64], sType[64];
+	char sFlags[32], sName[MAX_NAME_LENGTH], sType[64];
 	while (results.FetchRow())
 	{
 		results.FetchString(0, sType, sizeof(sType));
@@ -2172,14 +2142,14 @@ public void OverridesDone(Database db, DBResultSet results, const char[] error, 
 		LogToFile(logFile, "Adding override (%s, %s, %s)", sType, sName, sFlags);
 		#endif
 
-		if (StrEqual(sType, "command"))
+		if (strcmp(sType, "command", false) == 0)
 		{
 			AddCommandOverride(sName, Override_Command, ReadFlagString(sFlags));
 			hKV.JumpToKey("override_commands", true);
 			hKV.SetString(sName, sFlags);
 			hKV.GoBack();
 		}
-		else if (StrEqual(sType, "group"))
+		else if (strcmp(sType, "group", false) == 0)
 		{
 			AddCommandOverride(sName, Override_CommandGroup, ReadFlagString(sFlags));
 			hKV.JumpToKey("override_groups", true);
@@ -2199,10 +2169,9 @@ public void OverridesDone(Database db, DBResultSet results, const char[] error, 
 
 public Action ClientRecheck(Handle timer, any client)
 {
-	char Authid[64];
-	if (!PlayerStatus[client] && IsClientConnected(client) && GetClientAuthId(client, AuthId_Steam2, Authid, sizeof(Authid)))
+	if (!PlayerStatus[client] && IsClientConnected(client))
 	{
-		OnClientAuthorized(client, Authid);
+		OnClientConnected(client);
 	}
 
 	PlayerRecheck[client] = INVALID_HANDLE;
@@ -2444,28 +2413,17 @@ public int Native_SBReportPlayer(Handle plugin, int numParams)
 
 	GetNativeString(3, sReason, iReasonLen);
 
-	char sRAuth[32], sTAuth[32], sRName[MAX_NAME_LENGTH + 1], sTName[MAX_NAME_LENGTH + 1],
-	sRIP[16], sTIP[16], sREscapedName[MAX_NAME_LENGTH * 2 + 1], sTEscapedName[MAX_NAME_LENGTH * 2 + 1];
-
+	char sREscapedName[MAX_NAME_LENGTH * 2 + 1], sTEscapedName[MAX_NAME_LENGTH * 2 + 1];
 	char[] sEscapedReason = new char[iReasonLen * 2 + 1];
 
-	GetClientAuthId(iReporter, AuthId_Steam2, sRAuth, sizeof sRAuth);
-	GetClientAuthId(iTarget, AuthId_Steam2, sTAuth, sizeof sTAuth);
-
-	GetClientName(iReporter, sRName, sizeof sRName);
-	GetClientName(iTarget, sTName, sizeof sTName);
-
-	GetClientIP(iReporter, sRIP, sizeof sRIP);
-	GetClientIP(iTarget, sTIP, sizeof sTIP);
-
-	DB.Escape(sRName, sREscapedName, sizeof sREscapedName);
-	DB.Escape(sTName, sTEscapedName, sizeof sTEscapedName);
+	DB.Escape(g_sName[iReporter], sREscapedName, sizeof sREscapedName);
+	DB.Escape(g_sName[iTarget], sTEscapedName, sizeof sTEscapedName);
 	DB.Escape(sReason, sEscapedReason, iReasonLen * 2 + 1);
 
 	char[] sQuery = new char[512 + (iReasonLen * 2 + 1)];
 
 	Format(sQuery, 512 + (iReasonLen * 2 + 1), "INSERT INTO %s_submissions (`submitted`, `modid`, `SteamId`, `name`, `email`, `reason`, `ip`, `subname`, `sip`, `archiv`, `server`)"
-	... "VALUES ('%d', 0, '%s', '%s', '%s', '%s', '%s', '%s', '%s', 0, '%d')", DatabasePrefix, iTime, sTAuth, sTEscapedName, sRAuth, sEscapedReason, sRIP, sREscapedName, sTIP, (serverID != -1) ? serverID : 0);
+	... "VALUES ('%d', 0, '%s', '%s', '%s', '%s', '%s', '%s', '%s', 0, '%d')", DatabasePrefix, iTime, g_sSteamIDs[iTarget], sTEscapedName, g_sSteamIDs[iReporter], sEscapedReason, g_sPlayerIP[iReporter], sREscapedName, g_sPlayerIP[iTarget], (serverID != -1) ? serverID : 0);
 
 	DataPack dataPack = new DataPack();
 
@@ -2507,7 +2465,7 @@ public void SQL_OnReportPlayer(Database db, DBResultSet results, const char[] er
 
 public void InitializeBackupDB()
 {
-	char error[255];
+	char error[256];
 
 	SQLiteDB = SQLite_UseDatabase("sourcebans-queue", error, sizeof(error));
 	if (SQLiteDB == INVALID_HANDLE)
@@ -2520,7 +2478,7 @@ public void InitializeBackupDB()
 
 public bool CreateBan(int client, int target, int time, const char[] reason)
 {
-	char adminIp[24], adminAuth[64];
+	char adminIp[16], adminAuth[MAX_AUTHID_LENGTH];
 	int admin = client;
 
 	// The server is the one calling the ban
@@ -2537,19 +2495,12 @@ public bool CreateBan(int client, int target, int time, const char[] reason)
 		strcopy(adminAuth, sizeof(adminAuth), "STEAM_ID_SERVER");
 		strcopy(adminIp, sizeof(adminIp), ServerIp);
 	} else {
-		GetClientIP(admin, adminIp, sizeof(adminIp));
-		GetClientAuthId(admin, AuthId_Steam2, adminAuth, sizeof(adminAuth));
+		strcopy(adminAuth, sizeof(adminAuth), g_sSteamIDs[admin]);
+		strcopy(adminIp, sizeof(adminIp), g_sPlayerIP[admin]);
 	}
 
 	// target information
-	char ip[24], auth[64], name[64];
-
-	GetClientName(target, name, sizeof(name));
-	GetClientIP(target, ip, sizeof(ip));
-	if (!GetClientAuthId(target, AuthId_Steam2, auth, sizeof(auth)))
-		return false;
-
-	int userid = admin ? GetClientUserId(admin) : 0;
+	int userid = admin ? g_iUserIDs[admin] : 0;
 
 	// Pack everything into a data pack so we can retain it
 	DataPack dataPack = new DataPack();
@@ -2560,12 +2511,12 @@ public bool CreateBan(int client, int target, int time, const char[] reason)
 	dataPack.WriteCell(admin);
 	dataPack.WriteCell(target);
 	dataPack.WriteCell(userid);
-	dataPack.WriteCell(GetClientUserId(target));
+	dataPack.WriteCell(g_iUserIDs[target]);
 	dataPack.WriteCell(time);
 	dataPack.WriteCell(reasonPack);
-	dataPack.WriteString(name);
-	dataPack.WriteString(auth);
-	dataPack.WriteString(ip);
+	dataPack.WriteString(g_sName[target]);
+	dataPack.WriteString(g_sSteamIDs[target]);
+	dataPack.WriteString(g_sPlayerIP[target]);
 	dataPack.WriteString(adminAuth);
 	dataPack.WriteString(adminIp);
 
@@ -2577,9 +2528,9 @@ public bool CreateBan(int client, int target, int time, const char[] reason)
 		// if we have a valid reason pass move forward with the ban
 		if (DB != INVALID_HANDLE)
 		{
-			UTIL_InsertBan(time, name, auth, ip, reason, adminAuth, adminIp, dataPack);
+			UTIL_InsertBan(time, g_sName[target], g_sSteamIDs[target], g_sPlayerIP[target], reason, adminAuth, adminIp, dataPack);
 		} else {
-			UTIL_InsertTempBan(time, name, auth, ip, reason, adminAuth, adminIp, dataPack);
+			UTIL_InsertTempBan(time, g_sName[target], g_sSteamIDs[target], g_sPlayerIP[target], reason, adminAuth, adminIp, dataPack);
 		}
 	} else {
 		// We need a reason so offer the administrator a menu of reasons
@@ -2602,7 +2553,7 @@ stock void UTIL_InsertBan(int time, const char[] Name, const char[] Authid, cons
 {
 	//new Handle:dummy;
 	//PruneBans(dummy);
-	char banName[128];
+	char banName[MAX_NAME_LENGTH];
 	char banReason[256];
 	char Query[1024];
 	DB.Escape(Name, banName, sizeof(banName));
@@ -2655,7 +2606,7 @@ stock void UTIL_InsertTempBan(int time, const char[] name, const char[] auth, co
 		KickClient(client, "%t\n\n%t", "Banned Check Site", WebsiteAddress, "Kick Reason", admin, reason, length);
 	}
 
-	char banName[128], banReason[256], query[512];
+	char banName[MAX_NAME_LENGTH], banReason[256], query[512];
 
 	SQLiteDB.Escape(name, banName, sizeof(banName));
 	SQLiteDB.Escape(reason, banReason, sizeof(banReason));
@@ -2720,12 +2671,7 @@ stock void PrepareBan(int client, int target, int time, char[] reason, int size)
 	if (!target || !IsClientInGame(target))
 		return;
 
-	char authid[64], name[32], bannedSite[512];
-
-	if (!GetClientAuthId(target, AuthId_Steam2, authid, sizeof(authid)))
-		return;
-
-	GetClientName(target, name, sizeof(name));
+	char bannedSite[512];
 
 	if (CreateBan(client, target, time, reason))
 	{
@@ -2733,16 +2679,16 @@ stock void PrepareBan(int client, int target, int time, char[] reason, int size)
 		{
 			if (reason[0] == '\0')
 			{
-				ShowActivity(client, "%t", "Permabanned Player", name);
+				ShowActivity(client, "%t", "Permabanned Player", g_sName[target]);
 			} else {
-				ShowActivity(client, "%t", "Permabanned Player Reason", name, reason);
+				ShowActivity(client, "%t", "Permabanned Player Reason", g_sName[target], reason);
 			}
 		} else {
 			if (reason[0] == '\0')
 			{
-				ShowActivity(client, "%t", "Banned Player", name, time);
+				ShowActivity(client, "%t", "Banned Player", g_sName[target], time);
 			} else {
-				ShowActivity(client, "%t", "Banned Player Reason", name, time, reason);
+				ShowActivity(client, "%t", "Banned Player Reason", g_sName[target], time, reason);
 			}
 		}
 
@@ -2808,15 +2754,15 @@ stock void ParseBackupConfig_Overrides()
 	if (!hKV.GotoFirstSubKey())
 		return;
 
-	char sSection[16], sFlags[32], sName[64];
+	char sSection[16], sFlags[32], sName[MAX_NAME_LENGTH];
 	OverrideType type;
 
 	do
 	{
 		hKV.GetSectionName(sSection, sizeof(sSection));
-		if (StrEqual(sSection, "override_commands"))
+		if (strcmp(sSection, "override_commands", false) == 0)
 			type = Override_Command;
-		else if (StrEqual(sSection, "override_groups"))
+		else if (strcmp(sSection, "override_groups", false) == 0)
 			type = Override_CommandGroup;
 		else
 			continue;
@@ -2870,17 +2816,15 @@ stock AdminFlag[] CreateFlagLetters()
 
 stock void AccountForLateLoading()
 {
-	char auth[30];
-
 	for (int i = 1; i <= MaxClients; i++)
 	{
 		if (IsClientConnected(i) && !IsFakeClient(i))
 		{
 			PlayerStatus[i] = false;
 		}
-		if (IsClientInGame(i) && !IsFakeClient(i) && IsClientAuthorized(i) && GetClientAuthId(i, AuthId_Steam2, auth, sizeof(auth)))
+		if (IsClientInGame(i) && !IsFakeClient(i) && IsClientAuthorized(i))
 		{
-			OnClientAuthorized(i, auth);
+			OnClientConnected(i);
 		}
 	}
 }
