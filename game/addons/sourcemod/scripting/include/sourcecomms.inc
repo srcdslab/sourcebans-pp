@@ -1,7 +1,7 @@
 // *************************************************************************
 //  This file is part of SourceBans++.
 //
-//  Copyright (C) 2014-2023 SourceBans++ Dev Team <https://github.com/sbpp>
+//  Copyright (C) 2014-2024 SourceBans++ Dev Team <https://github.com/sbpp>
 //
 //  SourceBans++ is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -106,6 +106,16 @@ native bType SourceComms_GetClientGagType(int client);
  * @param reason	The reason to block the player.
  */
 forward void SourceComms_OnBlockAdded(int client, int target, int time, int type, char[] reason);
+
+/**
+ * Called when removed communication block for player.
+ *
+ * @param client	The client index of the admin who is unblocking the client.
+ * @param target	The client index of the player to blocked.
+ * @param type		The type of unblock. See section "Int definitions for punishments types".
+ * @param reason	The reason to unblock the player.
+ */
+forward void SourceComms_OnBlockRemoved(int client, int target, int type, char[] reason);
 
 public SharedPlugin __pl_sourcecomms =
 {

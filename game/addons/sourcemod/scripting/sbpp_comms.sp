@@ -1,7 +1,7 @@
 // *************************************************************************
 //  This file is part of SourceBans++.
 //
-//  Copyright (C) 2014-2023 SourceBans++ Dev Team <https://github.com/sbpp>
+//  Copyright (C) 2014-2024 SourceBans++ Dev Team <https://github.com/sbpp>
 //
 //  SourceBans++ is free software: you can redistribute it and/or modify
 //  it under the terms of the GNU General Public License as published by
@@ -43,86 +43,22 @@
 // Do not edit below this line //
 //-----------------------------//
 
-#define PLUGIN_VERSION "1.8.0"
+#define PLUGIN_VERSION "1.8.1"
 #define PREFIX "\x04[SourceComms++]\x01 "
 
+//GLOBAL DEFINES
 #define MAX_TIME_MULTI 30 // maximum mass-target punishment length
-// session mute will expire after this if it hasn't already (fallback)
-#define SESSION_MUTE_FALLBACK 120 * 60
+#define SESSION_MUTE_FALLBACK 120 * 60 // session mute will expire after this if it hasn't already (fallback)
 
 #define NOW 0
 #define TYPE_TEMP_SHIFT 10
 
-#define MAX_REASONS 32
 #define DISPLAY_SIZE 64
 #define REASON_SIZE 192
-
-int iNumReasons;
-char g_sReasonDisplays[MAX_REASONS][DISPLAY_SIZE], g_sReasonKey[MAX_REASONS][REASON_SIZE];
-
+#define MAX_REASONS 32
 #define MAX_TIMES 32
-int iNumTimes, g_iTimeMinutes[MAX_TIMES];
-char g_sTimeDisplays[MAX_TIMES][DISPLAY_SIZE];
 
-enum State/* ConfigState */
-{
-	ConfigStateNone = 0,
-	ConfigStateConfig,
-	ConfigStateReasons,
-	ConfigStateTimes,
-	ConfigStateServers,
-}
-enum DatabaseState/* Database connection state */
-{
-	DatabaseState_None = 0,
-	DatabaseState_Wait,
-	DatabaseState_Connecting,
-	DatabaseState_Connected,
-}
-
-DatabaseState g_DatabaseState;
-int g_iConnectLock = 0;
-int g_iSequence = 0;
-
-State ConfigState;
-SMCParser ConfigParser;
-
-TopMenu hTopMenu = null;
-
-/* Cvar handle*/
-ConVar CvarHostIp;
-ConVar CvarPort;
-
-char ServerIp[24];
-char ServerPort[7];
-
-/* Database handle */
-Database g_hDatabase;
-Database SQLiteDB;
-
-char DatabasePrefix[10] = "sb";
-
-/* Timer handles */
-Handle g_hPlayerRecheck[MAXPLAYERS + 1] = { null, ... };
-Handle g_hGagExpireTimer[MAXPLAYERS + 1] = { null, ... };
-Handle g_hMuteExpireTimer[MAXPLAYERS + 1] = { null, ... };
-
-
-/* Log Stuff */
-#if defined LOG_QUERIES
-char logQuery[256];
-#endif
-
-float RetryTime = 15.0;
-int DefaultTime = 30;
-int DisUBImCheck = 0;
-int ConsoleImmunity = 0;
-int ConfigMaxLength = 0;
-int ConfigWhiteListOnly = 0;
-int serverID = 0;
-
-/* List menu */
-enum
+enum /* List menu */
 {
 	curTarget,
 	curIndex,
@@ -131,31 +67,103 @@ enum
 	viewingList,
 	PeskyPanels,
 };
-int g_iPeskyPanels[MAXPLAYERS + 1][PeskyPanels];
 
-bool g_bPlayerStatus[MAXPLAYERS + 1]; // Player block check status
-char g_sName[MAXPLAYERS + 1][MAX_NAME_LENGTH];
+enum DatabaseState /* Database connection state */
+{
+	DatabaseState_None = 0,
+	DatabaseState_Wait,
+	DatabaseState_Connecting,
+	DatabaseState_Connected,
+}
+DatabaseState g_DatabaseState;
+
+enum State /* ConfigState */
+{
+	ConfigStateNone = 0,
+	ConfigStateConfig,
+	ConfigStateReasons,
+	ConfigStateTimes,
+	ConfigStateServers,
+}
+State ConfigState;
+
+/* Cvar handle */
+ConVar CvarHostIp;
+ConVar CvarPort;
+
+/* Database handle */
+Database g_hDatabase;
+Database SQLiteDB;
+
+char 
+	ServerIp[24]
+	, ServerPort[7]
+	, DatabasePrefix[10] = "sb"
+#if defined LOG_QUERIES
+	, logQuery[256] /* Log Stuff */
+#endif
+	, g_sName[MAXPLAYERS + 1][MAX_NAME_LENGTH]
+	, g_sSteamIDs[MAXPLAYERS + 1][MAX_AUTHID_LENGTH]
+	, g_sPlayerIP[MAXPLAYERS + 1][16]
+	, g_sReasonDisplays[MAX_REASONS][DISPLAY_SIZE]
+	, g_sReasonKey[MAX_REASONS][REASON_SIZE]
+	, g_sTimeDisplays[MAX_TIMES][DISPLAY_SIZE];
+
+float RetryTime = 15.0;
+
+bool 
+	g_bLate
+	, g_bPlayerAuthentified[MAXPLAYERS + 1] // Bots and players with invalid Steam ID format will always be FALSE
+	, g_bPlayerStatus[MAXPLAYERS + 1] // Player block check status
+	, g_bPlayerVerified[MAXPLAYERS + 1]; // Player has been verified into the database
+
+int 
+	iNumReasons
+	, iNumTimes
+	, g_iTimeMinutes[MAX_TIMES]
+	, g_iPeskyPanels[MAXPLAYERS + 1][PeskyPanels]
+	, g_iConnectLock = 0
+	, g_iSequence = 0
+	, DefaultTime = 30
+	, DisUBImCheck = 0
+	, ConsoleImmunity = 0
+	, ConfigMaxLength = 0
+	, ConfigWhiteListOnly = 0
+	, serverID = 0
+	, g_iUserIDs[MAXPLAYERS + 1];
+
+SMCParser ConfigParser;
+
+Handle 
+	g_hFwd_OnPlayerPunished
+	, g_hFwd_OnPlayerUnpunished
+	, g_hGagExpireTimer[MAXPLAYERS + 1] = { null, ... }
+	, g_hMuteExpireTimer[MAXPLAYERS + 1] = { null, ... };
 
 bType g_MuteType[MAXPLAYERS + 1];
-int g_iMuteTime[MAXPLAYERS + 1];
-int g_iMuteLength[MAXPLAYERS + 1]; // in sec
-int g_iMuteLevel[MAXPLAYERS + 1]; // immunity level of admin
-char g_sMuteAdminName[MAXPLAYERS + 1][MAX_NAME_LENGTH];
-char g_sMuteReason[MAXPLAYERS + 1][256];
-char g_sMuteAdminAuth[MAXPLAYERS + 1][64];
+char 
+	g_sMuteAdminName[MAXPLAYERS + 1][MAX_NAME_LENGTH]
+	, g_sMuteReason[MAXPLAYERS + 1][256]
+	, g_sMuteAdminAuth[MAXPLAYERS + 1][64];
+int 
+	g_iMuteTime[MAXPLAYERS + 1]
+	, g_iMuteLength[MAXPLAYERS + 1] // in sec
+	, g_iMuteLevel[MAXPLAYERS + 1]; // immunity level of admin
+
 
 bType g_GagType[MAXPLAYERS + 1];
-int g_iGagTime[MAXPLAYERS + 1];
-int g_iGagLength[MAXPLAYERS + 1]; // in sec
-int g_iGagLevel[MAXPLAYERS + 1]; // immunity level of admin
-char g_sGagAdminName[MAXPLAYERS + 1][MAX_NAME_LENGTH];
-char g_sGagReason[MAXPLAYERS + 1][256];
-char g_sGagAdminAuth[MAXPLAYERS + 1][64];
+char
+	g_sGagAdminName[MAXPLAYERS + 1][MAX_NAME_LENGTH]
+	, g_sGagReason[MAXPLAYERS + 1][256]
+	, g_sGagAdminAuth[MAXPLAYERS + 1][64];
+int 
+	g_iGagTime[MAXPLAYERS + 1]
+	, g_iGagLength[MAXPLAYERS + 1] // in sec
+	, g_iGagLevel[MAXPLAYERS + 1]; // immunity level of admin
 
 ArrayList g_hServersWhiteList = null;
 
-// Forward
-Handle g_hFwd_OnPlayerPunished;
+TopMenu hTopMenu = null;
 
 public Plugin myinfo =
 {
@@ -168,12 +176,15 @@ public Plugin myinfo =
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
 {
+	g_bLate = late;
+
 	CreateNative("SourceComms_SetClientMute", Native_SetClientMute);
 	CreateNative("SourceComms_SetClientGag", Native_SetClientGag);
 	CreateNative("SourceComms_GetClientMuteType", Native_GetClientMuteType);
 	CreateNative("SourceComms_GetClientGagType", Native_GetClientGagType);
 
 	g_hFwd_OnPlayerPunished = CreateGlobalForward("SourceComms_OnBlockAdded", ET_Ignore, Param_Cell, Param_Cell, Param_Cell, Param_Cell, Param_String);
+	g_hFwd_OnPlayerUnpunished = CreateGlobalForward("SourceComms_OnBlockRemoved", ET_Ignore, Param_Cell, Param_Cell, Param_Cell, Param_String);
 
 	RegPluginLibrary("sourcecomms++");
 	return APLRes_Success;
@@ -202,7 +213,7 @@ public void OnPluginStart()
 	RegServerCmd("sc_fw_block", FWBlock, "Blocking player comms by command from sourceban web site");
 	RegServerCmd("sc_fw_ungag", FWUngag, "Ungagging player by command from sourceban web site");
 	RegServerCmd("sc_fw_unmute", FWUnmute, "Unmuting player by command from sourceban web site");
-	RegConsoleCmd("sm_comms", CommandComms, "Shows current player communications status");
+	RegConsoleCmd("sm_comms", CommandComms, "Shows player communications status");
 
 	HookEvent("player_changename", Event_OnPlayerName, EventHookMode_Post);
 
@@ -225,16 +236,21 @@ public void OnPluginStart()
 
 	ServerInfo();
 
-	for (int client = 1; client <= MaxClients; client++)
+	if (g_bLate)
 	{
-		if (IsClientInGame(client) && IsClientAuthorized(client))
-			OnClientPostAdminCheck(client);
+		for (int client = 1; client <= MaxClients; client++)
+		{
+			if (IsClientInGame(client))
+				OnClientConnected(client);
+		}
 	}
+
+	g_bLate = false;
 }
 
 public void OnLibraryRemoved(const char[] name)
 {
-	if (StrEqual(name, "adminmenu"))
+	if (strcmp(name, "adminmenu", false) == 0)
 		hTopMenu = null;
 }
 
@@ -260,25 +276,45 @@ public void OnMapEnd()
 
 
 // CLIENT CONNECTION FUNCTIONS //
-
 public void OnClientDisconnect(int client)
 {
-	if (g_hPlayerRecheck[client] != null)
-		delete g_hPlayerRecheck[client];
-
 	CloseMuteExpireTimer(client);
 	CloseGagExpireTimer(client);
+
+	g_sSteamIDs[client][0] = '\0';
+	g_sPlayerIP[client][0] = '\0';
+	g_sName[client][0] = '\0';
+	g_iUserIDs[client] = -1;
 }
 
 public bool OnClientConnect(int client, char[] rejectmsg, int maxlen)
 {
-	g_bPlayerStatus[client] = false;
+	/* Passing false as the backend validation status return the unverified Steam ID */
+	/* Prevent players with active punishements to avoid their comms block. */
+	/* They force invalid status response from the Steam validation */
+	char sSteamID[MAX_AUTHID_LENGTH];
+	GetClientAuthId(client, AuthId_Steam2, sSteamID, sizeof(sSteamID), false);
+	FormatEx(g_sSteamIDs[client], sizeof(g_sSteamIDs[]), "%s", sSteamID);
+
+	char sIP[16];
+	GetClientIP(client, sIP, sizeof(sIP));
+	FormatEx(g_sPlayerIP[client], sizeof(g_sPlayerIP[]), "%s", sIP);
+	FormatEx(g_sName[client], sizeof(g_sName[]), "%N", client);
+	g_iUserIDs[client] = GetClientUserId(client);
+	g_bPlayerVerified[client] = false;
+
+	if (IsInvalidSteamID(client))
+		g_bPlayerAuthentified[client] = false;
+	else
+		g_bPlayerAuthentified[client] = true;
+
 	return true;
 }
 
 public void OnClientConnected(int client)
 {
-	g_sName[client][0] = '\0';
+	if (!g_bPlayerAuthentified[client])
+		return;
 
 	MarkClientAsUnMuted(client);
 	MarkClientAsUnGagged(client);
@@ -286,58 +322,59 @@ public void OnClientConnected(int client)
 
 public void OnClientPostAdminCheck(int client)
 {
-	char clientAuth[64];
-	GetClientAuthId(client, AuthId_Steam2, clientAuth, sizeof(clientAuth));
-	GetClientName(client, g_sName[client], sizeof(g_sName[]));
+	if (!g_bPlayerAuthentified[client])
+		return;
 
+	/* Player is not ingame yet, recheck is needed */
+	if (!IsClientInGame(client))
+		ClientRecheck(client);
+	else
+		VerifyBlock(client);
+}
+
+public void VerifyBlock(int client)
+{
 	/* Can't connect to DB */
 	if (!DB_Connect())
 	{
+		#if defined DEBUG
+		LogMessage("Can't connect to the DB, %s block check status will be true.", g_sName[client]);
+		#endif
 		g_bPlayerStatus[client] = true;
 		return;
 	}
 
-	/*  Do not check bots or player returning as Steamid as Pending | Stop_ignoring_retvals */
-	if (strncmp(clientAuth[6], "ID_", 3) == 0 || clientAuth[0] == 'B')
+	// if plugin was late loaded
+	if (g_bLate && client > 0 && IsClientInGame(client))
 	{
-		g_bPlayerStatus[client] = false;
-	}
-
-	if (client > 0 && IsClientInGame(client) && !IsFakeClient(client))
-	{
-		// if plugin was late loaded
 		if (BaseComm_IsClientMuted(client))
-		{
 			MarkClientAsMuted(client);
-		}
+
 		if (BaseComm_IsClientGagged(client))
-		{
 			MarkClientAsGagged(client);
-		}
-
-		char sClAuthYZEscaped[sizeof(clientAuth) * 2 + 1];
-		g_hDatabase.Escape(clientAuth[8], sClAuthYZEscaped, sizeof(sClAuthYZEscaped));
-
-		char Query[4096];
-		FormatEx(Query, sizeof(Query),
-			"SELECT		(c.ends - UNIX_TIMESTAMP()) AS remaining, \
-						c.length, c.type, c.created, c.reason, a.user, \
-						IF (a.immunity>=g.immunity, a.immunity, IFNULL(g.immunity,0)) AS immunity, \
-						c.aid, c.sid, a.authid \
-			FROM		%s_comms	AS c \
-			LEFT JOIN	%s_admins	AS a  ON a.aid = c.aid \
-			LEFT JOIN	%s_srvgroups AS g  ON g.name = a.srv_group \
-			WHERE		RemoveType IS NULL \
-							AND c.authid REGEXP '^STEAM_[0-9]:%s$' \
-							AND (length = '0' OR ends > UNIX_TIMESTAMP())",
-			DatabasePrefix, DatabasePrefix, DatabasePrefix, sClAuthYZEscaped);
-		#if defined LOG_QUERIES
-		LogToFile(logQuery, "OnClientPostAdminCheck for: %s. QUERY: %s", clientAuth, Query);
-		#endif
-		g_hDatabase.Query(Query_VerifyBlock, Query, GetClientUserId(client), DBPrio_High);
 	}
-}
 
+	char sClAuthYZEscaped[sizeof(g_sSteamIDs[]) * 2 + 1];
+	g_hDatabase.Escape(g_sSteamIDs[client][8], sClAuthYZEscaped, sizeof(sClAuthYZEscaped));
+
+	char Query[4096];
+	FormatEx(Query, sizeof(Query),
+		"SELECT		(c.ends - UNIX_TIMESTAMP()) AS remaining, \
+					c.length, c.type, c.created, c.reason, a.user, \
+					IF (a.immunity>=g.immunity, a.immunity, IFNULL(g.immunity,0)) AS immunity, \
+					c.aid, c.sid, a.authid \
+		FROM		%s_comms	AS c \
+		LEFT JOIN	%s_admins	AS a  ON a.aid = c.aid \
+		LEFT JOIN	%s_srvgroups AS g  ON g.name = a.srv_group \
+		WHERE		RemoveType IS NULL \
+						AND c.authid REGEXP '^STEAM_[0-9]:%s$' \
+						AND (length = '0' OR ends > UNIX_TIMESTAMP())",
+		DatabasePrefix, DatabasePrefix, DatabasePrefix, sClAuthYZEscaped);
+	#if defined LOG_QUERIES
+	LogToFile(logQuery, "VerifyBlock for: %s. QUERY: %s", g_sSteamIDs[client], Query);
+	#endif
+	g_hDatabase.Query(Query_VerifyBlock, Query, g_iUserIDs[client], DBPrio_High);
+}
 
 // OTHER CLIENT CODE //
 
@@ -403,10 +440,48 @@ public Action CommandComms(int client, int args)
 		return Plugin_Continue;
 	}
 
-	if (g_MuteType[client] > bNot || g_GagType[client] > bNot)
-		AdminMenu_ListTarget(client, client, 0);
-	else
-		ReplyToCommand(client, "%s%t", PREFIX, "CommandComms_nb");
+	if (args == 0)
+	{
+		if (g_MuteType[client] > bNot || g_GagType[client] > bNot)
+			AdminMenu_ListTarget(client, client, 0);
+		else
+			ReplyToCommand(client, "%s%t", PREFIX, "CommandComms_nb");
+	}
+
+	if (args == 1)
+	{
+		char sArg[MAX_NAME_LENGTH];
+		GetCmdArg(1, sArg, sizeof(sArg));
+		int target = FindTarget(client, sArg, false, true);
+
+		if (target == -1)
+			return Plugin_Handled;
+		else
+		{
+			if (!IsClientInGame(target))
+			{
+				ReplyToCommand(client, "%s%t", PREFIX, "Target is not in game");
+				return Plugin_Handled;
+			}
+
+			if (!CanUserTarget(client, target))
+			{
+				PrintToChat(client, "%s%t", PREFIX, "Unable to target");
+				return Plugin_Handled;
+			}
+
+			if (g_MuteType[target] > bNot || g_GagType[target] > bNot)
+				AdminMenu_ListTarget(client, target, 0);
+			else
+				ReplyToCommand(client, "%s%t", PREFIX, "CommandComms_nc", target);
+		}
+	}
+
+	if (args > 1)
+	{
+		ReplyToCommand(client, "%sUsage: sm_comms <#userid|name>", PREFIX);
+		return Plugin_Handled;
+	}
 
 	return Plugin_Handled;
 }
@@ -426,22 +501,39 @@ public Action FWBlock(int args)
 
 	LogMessage("Received block command from web: steam %s, type %d, length %d", sArg[2], type, length);
 
-	char clientAuth[64];
+	char clientAuth[MAX_AUTHID_LENGTH];
 	for (int i = 1; i <= MaxClients; i++)
 	{
-		if (IsClientInGame(i) && IsClientAuthorized(i) && !IsFakeClient(i))
+		if (IsClientInGame(i) && !IsFakeClient(i))
 		{
-			GetClientAuthId(i, AuthId_Steam2, clientAuth, sizeof(clientAuth));
+			// https://github.com/sbpp/sourcebans-pp/issues/913
+			// Block from Web are received with [U:0-1:xxxxx] format
+			// Passing Auth as false allow us to remove IsClientAuthorized
+			GetClientAuthId(i, AuthId_Steam3, clientAuth, sizeof(clientAuth), false);
 			if (strcmp(clientAuth, sArg[2], false) == 0)
 			{
 				#if defined DEBUG
-				PrintToServer("Catched %s for blocking from web", clientAuth);
+				PrintToServer("Catched %s (%s) for blocking from web", clientAuth, g_sSteamIDs[i]);
 				#endif
 
-				switch (type) {
-					case TYPE_MUTE:setMute(i, length, clientAuth);
-					case TYPE_GAG:setGag(i, length, clientAuth);
-					case TYPE_SILENCE: { setMute(i, length, clientAuth); setGag(i, length, clientAuth); }
+				switch (type)
+				{
+					case TYPE_MUTE:
+					{
+						setMute(i, length, g_sSteamIDs[i]);
+						Forward_Block(0, i, TYPE_MUTE, length, "Blocked from web");
+					}
+					case TYPE_GAG:
+					{
+						setGag(i, length, g_sSteamIDs[i]);
+						Forward_Block(0, i, TYPE_GAG, length, "Blocked from web");
+					}
+					case TYPE_SILENCE:
+					{
+						setMute(i, length, g_sSteamIDs[i]);
+						setGag(i, length, g_sSteamIDs[i]);
+						Forward_Block(0, i, TYPE_SILENCE, length, "Blocked from web");
+					}
 				}
 				break;
 			}
@@ -466,24 +558,23 @@ public Action FWUngag(int args)
 
 	for (int i = 1; i <= MaxClients; i++)
 	{
-		if (IsClientInGame(i) && IsClientAuthorized(i) && !IsFakeClient(i))
+		if (IsClientInGame(i) && !IsFakeClient(i))
 		{
-			char clientAuth[64];
-			GetClientAuthId(i, AuthId_Steam2, clientAuth, sizeof(clientAuth));
-			if (strcmp(clientAuth, sArg[0], false) == 0)
+			if (strcmp(g_sSteamIDs[i], sArg[0], false) == 0)
 			{
 				#if defined DEBUG
-				PrintToServer("Catched %s for ungagging from web", clientAuth);
+				PrintToServer("Catched %s for ungagging from web", g_sSteamIDs[i]);
 				#endif
 
 				if (g_GagType[i] > bNot)
 				{
 					PerformUnGag(i);
 					PrintToChat(i, "%s%t", PREFIX, "FWUngag");
-					LogMessage("%s is ungagged from web", clientAuth);
+					LogMessage("%s is ungagged from web", g_sSteamIDs[i]);
+					Forward_UnBlock(0, i, TYPE_UNGAG, "Unblocked from web");
 				}
 				else
-					LogError("Can't ungag %s from web, it isn't gagged", clientAuth);
+					LogError("Can't ungag %s from web, it isn't gagged", g_sSteamIDs[i]);
 				break;
 			}
 		}
@@ -506,24 +597,23 @@ public Action FWUnmute(int args)
 
 	for (int i = 1; i <= MaxClients; i++)
 	{
-		if (IsClientInGame(i) && IsClientAuthorized(i) && !IsFakeClient(i))
+		if (IsClientInGame(i) && !IsFakeClient(i))
 		{
-			char clientAuth[64];
-			GetClientAuthId(i, AuthId_Steam2, clientAuth, sizeof(clientAuth));
-			if (strcmp(clientAuth, sArg[0], false) == 0)
+			if (strcmp(g_sSteamIDs[i], sArg[0], false) == 0)
 			{
 				#if defined DEBUG
-				PrintToServer("Catched %s for unmuting from web", clientAuth);
+				PrintToServer("Catched %s for unmuting from web", g_sSteamIDs[i]);
 				#endif
 
 				if (g_MuteType[i] > bNot)
 				{
 					PerformUnMute(i);
 					PrintToChat(i, "%s%t", PREFIX, "FWUnmute");
-					LogMessage("%s is unmuted from web", clientAuth);
+					LogMessage("%s is unmuted from web", g_sSteamIDs[i]);
+					Forward_UnBlock(0, i, TYPE_UNMUTE, "Unblocked from web");
 				}
 				else
-					LogError("Can't unmute %s from web, it isn't muted", clientAuth);
+					LogError("Can't unmute %s from web, it isn't muted", g_sSteamIDs[i]);
 				break;
 			}
 		}
@@ -538,17 +628,17 @@ public Action CommandCallback(int client, const char[] command, int args)
 		return Plugin_Continue;
 
 	int type;
-	if (StrEqual(command, "sm_gag", false))
+	if (strcmp(command, "sm_gag", false) == 0)
 		type = TYPE_GAG;
-	else if (StrEqual(command, "sm_mute", false))
+	else if (strcmp(command, "sm_mute", false) == 0)
 		type = TYPE_MUTE;
-	else if (StrEqual(command, "sm_ungag", false))
+	else if (strcmp(command, "sm_ungag", false) == 0)
 		type = TYPE_UNGAG;
-	else if (StrEqual(command, "sm_unmute", false))
+	else if (strcmp(command, "sm_unmute", false) == 0)
 		type = TYPE_UNMUTE;
-	else if (StrEqual(command, "sm_silence", false))
+	else if (strcmp(command, "sm_silence", false) == 0)
 		type = TYPE_SILENCE;
-	else if (StrEqual(command, "sm_unsilence", false))
+	else if (strcmp(command, "sm_unsilence", false) == 0)
 		type = TYPE_UNSILENCE;
 	else
 		return Plugin_Stop;
@@ -747,7 +837,7 @@ void AdminMenu_Target(int client, int type)
 				iClients++;
 				strcopy(Title, sizeof(Title), g_sName[i]);
 				AdminMenu_GetPunishPhrase(client, i, Title, sizeof(Title));
-				Format(Option, sizeof(Option), "%d %d", GetClientUserId(i), type);
+				Format(Option, sizeof(Option), "%d %d", g_iUserIDs[i], type);
 				hMenu.AddItem(Option, Title, (CanUserTarget(client, i) ? ITEMDRAW_DEFAULT : ITEMDRAW_DISABLED));
 			}
 		}
@@ -766,7 +856,7 @@ void AdminMenu_Target(int client, int type)
 						{
 							iClients++;
 							strcopy(Title, sizeof(Title), g_sName[i]);
-							Format(Option, sizeof(Option), "%d %d", GetClientUserId(i), type);
+							Format(Option, sizeof(Option), "%d %d", g_iUserIDs[i], type);
 							hMenu.AddItem(Option, Title, (CanUserTarget(client, i) ? ITEMDRAW_DEFAULT : ITEMDRAW_DISABLED));
 						}
 					}
@@ -776,7 +866,7 @@ void AdminMenu_Target(int client, int type)
 						{
 							iClients++;
 							strcopy(Title, sizeof(Title), g_sName[i]);
-							Format(Option, sizeof(Option), "%d %d", GetClientUserId(i), type);
+							Format(Option, sizeof(Option), "%d %d", g_iUserIDs[i], type);
 							hMenu.AddItem(Option, Title, (CanUserTarget(client, i) ? ITEMDRAW_DEFAULT : ITEMDRAW_DISABLED));
 						}
 					}
@@ -786,7 +876,7 @@ void AdminMenu_Target(int client, int type)
 						{
 							iClients++;
 							strcopy(Title, sizeof(Title), g_sName[i]);
-							Format(Option, sizeof(Option), "%d %d", GetClientUserId(i), type);
+							Format(Option, sizeof(Option), "%d %d", g_iUserIDs[i], type);
 							hMenu.AddItem(Option, Title, (CanUserTarget(client, i) ? ITEMDRAW_DEFAULT : ITEMDRAW_DISABLED));
 						}
 					}
@@ -856,7 +946,7 @@ void AdminMenu_Duration(int client, int target, int type)
 	{
 		if (IsAllowedBlockLength(client, g_iTimeMinutes[i]))
 		{
-			Format(sTemp, sizeof(sTemp), "%d %d %d", GetClientUserId(target), type, i); // TargetID TYPE_BLOCK index_of_Time
+			Format(sTemp, sizeof(sTemp), "%d %d %d", g_iUserIDs[target], type, i); // TargetID TYPE_BLOCK index_of_Time
 			hMenu.AddItem(sTemp, g_sTimeDisplays[i]);
 		}
 	}
@@ -908,7 +998,7 @@ void AdminMenu_Reason(int client, int target, int type, int lengthIndex)
 
 	for (int i = 0; i <= iNumReasons; i++)
 	{
-		Format(sTemp, sizeof(sTemp), "%d %d %d %d", GetClientUserId(target), type, i, lengthIndex); // TargetID TYPE_BLOCK ReasonIndex LenghtIndex
+		Format(sTemp, sizeof(sTemp), "%d %d %d %d", g_iUserIDs[target], type, i, lengthIndex); // TargetID TYPE_BLOCK ReasonIndex LenghtIndex
 		hMenu.AddItem(sTemp, g_sReasonDisplays[i]);
 	}
 
@@ -974,7 +1064,7 @@ void AdminMenu_List(int client, int index)
 			iClients++;
 			strcopy(sTitle, sizeof(sTitle), g_sName[i]);
 			AdminMenu_GetPunishPhrase(client, i, sTitle, sizeof(sTitle));
-			Format(sOption, sizeof(sOption), "%d", GetClientUserId(i));
+			Format(sOption, sizeof(sOption), "%d", g_iUserIDs[i]);
 			hMenu.AddItem(sOption, sTitle);
 		}
 	}
@@ -1016,7 +1106,7 @@ public int MenuHandler_MenuList(Menu menu, MenuAction action, int param1, int pa
 
 void AdminMenu_ListTarget(int client, int target, int index, int viewMute = 0, int viewGag = 0)
 {
-	int userid = GetClientUserId(target);
+	int userid = g_iUserIDs[target];
 	Menu hMenu = CreateMenu(MenuHandler_MenuListTarget);
 
 	char sBuffer[192], sOption[32];
@@ -1309,14 +1399,6 @@ public void Query_AddBlockInsert(Database db, DBResultSet results, const char[] 
 	dataPack.Reset();
 
 	char reason[256];
-
-	int iAdminUserId = dataPack.ReadCell();
-	int iAdmin = 0;
-
-	if(iAdminUserId > 0) {
-		iAdmin = GetClientOfUserId(iAdminUserId);
-	}
-
 	int iTarget = GetClientOfUserId(dataPack.ReadCell());
 
 	if (!iTarget) {
@@ -1327,20 +1409,11 @@ public void Query_AddBlockInsert(Database db, DBResultSet results, const char[] 
 	int type = dataPack.ReadCell();
 	dataPack.ReadString(reason, sizeof(reason));
 
-	// Fire forward
-	Call_StartForward(g_hFwd_OnPlayerPunished);
-	Call_PushCell(iAdmin);
-	Call_PushCell(iTarget);
-	Call_PushCell(length);
-	Call_PushCell(type);
-	Call_PushString(reason);
-	Call_Finish();
-
 	if (DB_Conn_Lost(results) || error[0])
 	{
 		LogError("Query_AddBlockInsert failed: %s", error);
 
-		char name[MAX_NAME_LENGTH], auth[64], adminAuth[32], adminIp[20];
+		char name[MAX_NAME_LENGTH], auth[MAX_AUTHID_LENGTH], adminAuth[MAX_AUTHID_LENGTH], adminIp[16];
 		dataPack.ReadString(name, sizeof(name));
 		dataPack.ReadString(auth, sizeof(auth));
 		dataPack.ReadString(adminAuth, sizeof(adminAuth));
@@ -1354,7 +1427,7 @@ public void Query_AddBlockInsert(Database db, DBResultSet results, const char[] 
 
 public void Query_UnBlockSelect(Database db, DBResultSet results, const char[] error, DataPack dataPack)
 {
-	char adminAuth[30], targetAuth[30];
+	char adminAuth[MAX_AUTHID_LENGTH], targetAuth[MAX_AUTHID_LENGTH];
 	char reason[256];
 
 	dataPack.Reset();
@@ -1448,7 +1521,7 @@ public void Query_UnBlockSelect(Database db, DBResultSet results, const char[] e
 			#endif
 
 			// Checking - has we access to unblock?
-			if (iAID == cAID || (!admin && StrEqual(adminAuth, "STEAM_ID_SERVER")) || AdmHasFlag(admin) || (DisUBImCheck == 0 && (GetAdmImmunity(admin) > cImmunity)))
+			if (iAID == cAID || (!admin && strcmp(adminAuth, "STEAM_ID_SERVER", false) == 0) || AdmHasFlag(admin) || (DisUBImCheck == 0 && (GetAdmImmunity(admin) > cImmunity)))
 			{
 				// Ok! we have rights to unblock
 				b_success = true;
@@ -1461,12 +1534,14 @@ public void Query_UnBlockSelect(Database db, DBResultSet results, const char[] e
 						{
 							PerformUnMute(target);
 							LogAction(admin, target, "\"%L\" unmuted \"%L\" (reason \"%s\")", admin, target, reason);
+							Forward_UnBlock(admin, target, TYPE_UNMUTE, reason);
 						}
 						//-------------------------------------------------------------------------------------------------
 						case TYPE_GAG:
 						{
 							PerformUnGag(target);
 							LogAction(admin, target, "\"%L\" ungagged \"%L\" (reason \"%s\")", admin, target, reason);
+							Forward_UnBlock(admin, target, TYPE_UNGAG, reason);
 						}
 					}
 				}
@@ -1535,7 +1610,6 @@ public void Query_UnBlockSelect(Database db, DBResultSet results, const char[] e
 			if (type == TYPE_UNSILENCE)
 			{
 				// check result for possible combination with temp and time punishments (temp was skipped in code above)
-
 				// type is in 3rd position in datapack
 				dataPack.Reset();
 				dataPack.ReadCell();
@@ -1562,7 +1636,7 @@ public void Query_UnBlockSelect(Database db, DBResultSet results, const char[] e
 public void Query_UnBlockUpdate(Database db, DBResultSet results, const char[] error, DataPack dataPack)
 {
 	int admin, type;
-	char targetName[MAX_NAME_LENGTH], targetAuth[30];
+	char targetName[MAX_NAME_LENGTH], targetAuth[MAX_AUTHID_LENGTH];
 
 	dataPack.Reset();
 	admin = GetClientOfUserId(dataPack.ReadCell());
@@ -1622,10 +1696,10 @@ public void Query_ProcessQueue(Database db, DBResultSet results, const char[] er
 		return;
 	}
 
-	char auth[64];
+	char auth[MAX_AUTHID_LENGTH];
 	char name[MAX_NAME_LENGTH];
 	char reason[256];
-	char adminAuth[64], adminIp[20];
+	char adminAuth[MAX_AUTHID_LENGTH], adminIp[16];
 	char query[4096];
 
 	while (results.MoreRows)
@@ -1701,7 +1775,6 @@ public void Query_ErrorCheck(Database db, DBResultSet results, const char[] erro
 
 public void Query_VerifyBlock(Database db, DBResultSet results, const char[] error, any userid)
 {
-	char clientAuth[64];
 	int client = GetClientOfUserId(userid);
 
 	#if defined DEBUG
@@ -1715,12 +1788,9 @@ public void Query_VerifyBlock(Database db, DBResultSet results, const char[] err
 	if (DB_Conn_Lost(results))
 	{
 		LogError("Query_VerifyBlock failed: %s", error);
-		if (g_hPlayerRecheck[client] == INVALID_HANDLE)
-			g_hPlayerRecheck[client] = CreateTimer(RetryTime, ClientRecheck, userid);
+		ClientRecheck(client);
 		return;
 	}
-
-	GetClientAuthId(client, AuthId_Steam2, clientAuth, sizeof(clientAuth));
 
 	//SELECT (c.ends - UNIX_TIMESTAMP()) as remaining, c.length, c.type, c.created, c.reason, a.user,
 	//IF (a.immunity>=g.immunity, a.immunity, IFNULL(g.immunity,0)) as immunity, c.aid, c.sid, c.authid
@@ -1801,26 +1871,29 @@ public void Query_VerifyBlock(Database db, DBResultSet results, const char[] err
 		}
 	}
 
+	g_bPlayerVerified[client] = true;
 	g_bPlayerStatus[client] = true;
 }
 
 
 // TIMER CALL BACKS //
 
-public Action ClientRecheck(Handle timer, any userid)
+public Action Timer_ClientRecheck(Handle timer, DataPack RetryDP)
 {
+	RetryDP.Reset();
+	int userid = RetryDP.ReadCell();
+	int client = GetClientOfUserId(userid);
+	delete RetryDP;
+
+	if (!client)
+		return Plugin_Stop;
+
 	#if defined DEBUG
-	PrintToServer("ClientRecheck(userid: %d)", userid);
+	PrintToServer("Timer_ClientRecheck(userid: %d)", userid);
 	#endif
 
-	int client = GetClientOfUserId(userid);
-	if (!client)
-		return Plugin_Continue;
+	OnClientPostAdminCheck(client);
 
-	if (IsClientConnected(client))
-		OnClientPostAdminCheck(client);
-
-	g_hPlayerRecheck[client] = null;
 	return Plugin_Continue;
 }
 
@@ -1834,9 +1907,7 @@ public Action Timer_MuteExpire(Handle timer, DataPack dataPack)
 		return Plugin_Continue;
 
 	#if defined DEBUG
-	char clientAuth[64];
-	GetClientAuthId(client, AuthId_Steam2, clientAuth, sizeof(clientAuth));
-	PrintToServer("Mute expired for %s", clientAuth);
+	PrintToServer("Mute expired for %s", g_sSteamIDs[client]);
 	#endif
 
 	PrintToChat(client, "%s%t", PREFIX, "Mute expired");
@@ -1857,9 +1928,7 @@ public Action Timer_GagExpire(Handle timer, DataPack dataPack)
 		return Plugin_Continue;
 
 	#if defined DEBUG
-	char clientAuth[64];
-	GetClientAuthId(client, AuthId_Steam2, clientAuth, sizeof(clientAuth));
-	PrintToServer("Gag expired for %s", clientAuth);
+	PrintToServer("Gag expired for %s", g_sSteamIDs[client]);
 	#endif
 
 	PrintToChat(client, "%s%t", PREFIX, "Gag expired");
@@ -1899,7 +1968,7 @@ static void InternalReadConfig(const char[] path)
 	if (err != SMCError_Okay)
 	{
 		char buffer[64];
-		PrintToServer("%s", SMC_GetErrorString(err, buffer, sizeof(buffer)) ? buffer : "Fatal parse error");
+		LogError("%s", SMC_GetErrorString(err, buffer, sizeof(buffer)) ? buffer : "Fatal parse error");
 	}
 }
 
@@ -2079,6 +2148,21 @@ stock void setMute(int client, int length, const char[] clientAuth)
 	}
 }
 
+stock void ClientRecheck(int client)
+{
+	DataPack RetryDP = new DataPack();
+	RetryDP.WriteCell(g_iUserIDs[client]);
+	CreateTimer(1.0, Timer_ClientRecheck, RetryDP, TIMER_FLAG_NO_MAPCHANGE);
+}
+
+stock bool IsInvalidSteamID(int client)
+{
+	if (strncmp(g_sSteamIDs[client][6], "ID_", 3) == 0 || g_sSteamIDs[client][0] == 'B' || IsFakeClient(client))
+		return true;
+	else
+		return false;
+}
+
 stock bool DB_Connect()
 {
 	#if defined DEBUG
@@ -2131,7 +2215,7 @@ stock bool DB_Conn_Lost(DBResultSet db)
 
 stock void InitializeBackupDB()
 {
-	char error[255];
+	char error[256];
 	SQLiteDB = SQLite_UseDatabase("sourcecomms-queue", error, sizeof(error));
 	if (SQLiteDB == INVALID_HANDLE)
 	{
@@ -2232,11 +2316,11 @@ stock void CreateBlock(int client, int targetId = 0, int length = -1, int type, 
 	}
 
 	int admImmunity = GetAdmImmunity(client);
-	char adminAuth[64];
+	char adminAuth[MAX_AUTHID_LENGTH];
 
 	if (client && IsClientInGame(client))
 	{
-		GetClientAuthId(client, AuthId_Steam2, adminAuth, sizeof(adminAuth));
+		strcopy(adminAuth, sizeof(adminAuth), g_sSteamIDs[client]);
 	}
 	else
 	{
@@ -2246,38 +2330,11 @@ stock void CreateBlock(int client, int targetId = 0, int length = -1, int type, 
 
 	for (int i = 0; i < target_count; i++)
 	{
-		char auth[64];
 		int target = target_list[i];
 
-		if (target && IsClientInGame(target))
-		{
-			if (!GetClientAuthId(target, AuthId_Steam2, auth, sizeof(auth), false))
-			{
-				g_bPlayerStatus[target] = false;
-			}
-			if (strncmp(auth[6], "ID_", 3) == 0 )
-			{
-				g_bPlayerStatus[target] = false;
-			}
-			else
-			{
-				g_bPlayerStatus[target] = true;
-			}
-		}
-
 		#if defined DEBUG
-		PrintToServer("Processing block for %s", auth);
+		PrintToServer("Processing block for %s", g_sSteamIDs[target]);
 		#endif
-
-		if (!g_bPlayerStatus[target])
-		{
-			// The target has not been blocks verify. It must be completed before you can block anyone.
-			char name[32];
-			GetClientName(target, name, sizeof(name));
-			ReplyToCommand(client, "%s%t", PREFIX, "Player Comms Not Verified", name);
-			skipped = true;
-			continue; // skip
-		}
 
 		switch (type)
 		{
@@ -2286,17 +2343,18 @@ stock void CreateBlock(int client, int targetId = 0, int length = -1, int type, 
 				if (!BaseComm_IsClientMuted(target))
 				{
 					#if defined DEBUG
-					PrintToServer("%s not muted. Mute him, creating unmute timer and add record to DB", auth);
+					PrintToServer("%s not muted. Mute him, creating unmute timer and add record to DB", g_sSteamIDs[target]);
 					#endif
 
 					PerformMute(target, _, length, g_sName[client], adminAuth, admImmunity, reason);
+					PrintToChat(target, "%s%t", PREFIX, "Muted on connect");
 
 					LogAction(client, target, "\"%L\" muted \"%L\" (minutes \"%d\") (reason \"%s\")", client, target, length, reason);
 				}
 				else
 				{
 					#if defined DEBUG
-					PrintToServer("%s already muted", auth);
+					PrintToServer("%s already muted", g_sSteamIDs[target]);
 					#endif
 
 					ReplyToCommand(client, "%s%t", PREFIX, "Player already muted", g_sName[target]);
@@ -2311,17 +2369,18 @@ stock void CreateBlock(int client, int targetId = 0, int length = -1, int type, 
 				if (!BaseComm_IsClientGagged(target))
 				{
 					#if defined DEBUG
-					PrintToServer("%s not gagged. Gag him, creating ungag timer and add record to DB", auth);
+					PrintToServer("%s not gagged. Gag him, creating ungag timer and add record to DB", g_sSteamIDs[target]);
 					#endif
 
 					PerformGag(target, _, length, g_sName[client], adminAuth, admImmunity, reason);
+					PrintToChat(target, "%s%t", PREFIX, "Gagged on connect");
 
 					LogAction(client, target, "\"%L\" gagged \"%L\" (minutes \"%d\") (reason \"%s\")", client, target, length, reason);
 				}
 				else
 				{
 					#if defined DEBUG
-					PrintToServer("%s already gagged", auth);
+					PrintToServer("%s already gagged", g_sSteamIDs[target]);
 					#endif
 
 					ReplyToCommand(client, "%s%t", PREFIX, "Player already gagged", g_sName[target]);
@@ -2336,18 +2395,20 @@ stock void CreateBlock(int client, int targetId = 0, int length = -1, int type, 
 				if (!BaseComm_IsClientGagged(target) && !BaseComm_IsClientMuted(target))
 				{
 					#if defined DEBUG
-					PrintToServer("%s not silenced. Silence him, creating ungag & unmute timers and add records to DB", auth);
+					PrintToServer("%s not silenced. Silence him, creating ungag & unmute timers and add records to DB", g_sSteamIDs[target]);
 					#endif
 
 					PerformMute(target, _, length, g_sName[client], adminAuth, admImmunity, reason);
 					PerformGag(target, _, length, g_sName[client], adminAuth, admImmunity, reason);
+					PrintToChat(target, "%s%t", PREFIX, "Muted on connect");
+					PrintToChat(target, "%s%t", PREFIX, "Gagged on connect");
 
 					LogAction(client, target, "\"%L\" silenced \"%L\" (minutes \"%d\") (reason \"%s\")", client, target, length, reason);
 				}
 				else
 				{
 					#if defined DEBUG
-					PrintToServer("%s already gagged or/and muted", auth);
+					PrintToServer("%s already gagged or/and muted", g_sSteamIDs[target]);
 					#endif
 
 					ReplyToCommand(client, "%s%t", PREFIX, "Player already silenced", g_sName[target]);
@@ -2357,9 +2418,12 @@ stock void CreateBlock(int client, int targetId = 0, int length = -1, int type, 
 				}
 			}
 		}
+
+		Forward_Block(client, target, type, length, reason);
+
+		if (target && !skipped)
+			SavePunishment(client, target, type, length, reason);
 	}
-	if (target_count == 1 && !skipped)
-		SavePunishment(client, target_list[0], type, length, reason);
 	if (target_count > 1 || !skipped)
 		ShowActivityToServer(client, type, length, reason, target_name, tn_is_ml);
 
@@ -2422,12 +2486,12 @@ stock void ProcessUnBlock(int client, int targetId = 0, int type, char[] sReason
 		}
 	}
 
-	char adminAuth[64];
-	char targetAuth[64];
+	char adminAuth[MAX_AUTHID_LENGTH];
+	char targetAuth[MAX_AUTHID_LENGTH];
 
 	if (client && IsClientConnected(client))
 	{
-		GetClientAuthId(client, AuthId_Steam2, adminAuth, sizeof(adminAuth));
+		strcopy(adminAuth, sizeof(adminAuth), g_sSteamIDs[client]);
 	}
 	else
 	{
@@ -2445,26 +2509,13 @@ stock void ProcessUnBlock(int client, int targetId = 0, int type, char[] sReason
 		{
 			int target = target_list[i];
 
-			if (IsClientInGame(target))
-			{
-				if (!GetClientAuthId(target, AuthId_Steam2, targetAuth, sizeof(targetAuth), false))
-				{
-					g_bPlayerStatus[target] = false;
-					continue;
-				}
-				if (strncmp(targetAuth[6], "ID_", 3) == 0 )
-				{
-					g_bPlayerStatus[target] = false;
-					continue;
-				}
-			}
+			if (!target || !IsClientConnected(target))
+				continue;
 
-			if (!g_bPlayerStatus[target])
+			if (!g_bPlayerAuthentified[target] || !g_bPlayerStatus[target])
 			{
 				// The target has not been blocks verify. It must be completed before you can unblock anyone.
-				char name[32];
-				GetClientName(target, name, sizeof(name));
-				ReplyToCommand(client, "%s%t", PREFIX, "Player Comms Not Verified", name);
+				ReplyToCommand(client, "%s%t", PREFIX, "Player Comms Not Verified", g_sName[target]);
 				continue; // skip
 			}
 
@@ -2501,17 +2552,10 @@ stock void ProcessUnBlock(int client, int targetId = 0, int type, char[] sReason
 		char typeWHERE[100];
 		int target = target_list[0];
 
-		if (IsClientInGame(target))
-		{
-			if (!GetClientAuthId(target, AuthId_Steam2, targetAuth, sizeof(targetAuth), false))
-				g_bPlayerStatus[target] = false;
-			if (strncmp(targetAuth[6], "ID_", 3) == 0 )
-				g_bPlayerStatus[target] = false;
-		}
-		else
-		{
+		if (!target || !IsClientInGame(target))
 			return;
-		}
+
+		strcopy(targetAuth, sizeof(targetAuth), g_sSteamIDs[target]);
 
 		switch (type)
 		{
@@ -2552,7 +2596,7 @@ stock void ProcessUnBlock(int client, int targetId = 0, int type, char[] sReason
 		// Pack everything into a data pack so we can retain it
 		DataPack dataPack = new DataPack();
 		dataPack.WriteCell(GetClientUserId2(client));
-		dataPack.WriteCell(GetClientUserId(target));
+		dataPack.WriteCell(g_iUserIDs[target]);
 		dataPack.WriteCell(type);
 		dataPack.WriteString(adminAuth);
 		dataPack.WriteString(targetAuth);
@@ -2607,7 +2651,7 @@ stock void ProcessUnBlock(int client, int targetId = 0, int type, char[] sReason
 
 stock bool TempUnBlock(DataPack dataPack)
 {
-	char adminAuth[30], targetAuth[30];
+	char adminAuth[MAX_AUTHID_LENGTH], targetAuth[MAX_AUTHID_LENGTH];
 	char reason[256];
 
 	dataPack.Reset();
@@ -2630,10 +2674,10 @@ stock bool TempUnBlock(DataPack dataPack)
 
 	int AdmImmunity = GetAdmImmunity(admin);
 	bool AdmImCheck = (DisUBImCheck == 0
-		 && ((type == TYPE_UNMUTE && AdmImmunity >= g_iMuteLevel[target])
-			 || (type == TYPE_UNGAG && AdmImmunity >= g_iGagLevel[target])
-			 || (type == TYPE_UNSILENCE && AdmImmunity >= g_iMuteLevel[target]
-				 && AdmImmunity >= g_iGagLevel[target])
+		&& ((type == TYPE_UNMUTE && AdmImmunity >= g_iMuteLevel[target])
+			|| (type == TYPE_UNGAG && AdmImmunity >= g_iGagLevel[target])
+			|| (type == TYPE_UNSILENCE && AdmImmunity >= g_iMuteLevel[target]
+				&& AdmImmunity >= g_iGagLevel[target])
 			)
 		);
 
@@ -2646,22 +2690,22 @@ stock bool TempUnBlock(DataPack dataPack)
 	#endif
 
 	// Check access for unblock without db changes (temporary unblock)
-	bool bHasPermission = (!admin && StrEqual(adminAuth, "STEAM_ID_SERVER")) || AdmHasFlag(admin) || AdmImCheck;
+	bool bHasPermission = (!admin && strcmp(adminAuth, "STEAM_ID_SERVER", false) == 0) || AdmHasFlag(admin) || AdmImCheck;
 	// can, if we are console or have special flag. else - deep checking by issuer authid
 	if (!bHasPermission) {
 		switch (type)
 		{
 			case TYPE_UNMUTE:
 			{
-				bHasPermission = StrEqual(adminAuth, g_sMuteAdminAuth[target]);
+				bHasPermission = strcmp(adminAuth, g_sMuteAdminAuth[target], false) == 0;
 			}
 			case TYPE_UNGAG:
 			{
-				bHasPermission = StrEqual(adminAuth, g_sGagAdminAuth[target]);
+				bHasPermission = strcmp(adminAuth, g_sGagAdminAuth[target], false) == 0;
 			}
 			case TYPE_UNSILENCE:
 			{
-				bHasPermission = StrEqual(adminAuth, g_sMuteAdminAuth[target]) && StrEqual(adminAuth, g_sGagAdminAuth[target]);
+				bHasPermission = strcmp(adminAuth, g_sMuteAdminAuth[target], false) == 0 && strcmp(adminAuth, g_sGagAdminAuth[target], false) == 0;
 			}
 		}
 	}
@@ -2712,8 +2756,8 @@ stock void InsertTempBlock(int length, int type, const char[] name, const char[]
 
 	char banName[MAX_NAME_LENGTH * 2 + 1];
 	char banReason[256 * 2 + 1];
-	char sAuthEscaped[64 * 2 + 1];
-	char sAdminAuthEscaped[64 * 2 + 1];
+	char sAuthEscaped[MAX_AUTHID_LENGTH * 2 + 1];
+	char sAdminAuthEscaped[MAX_AUTHID_LENGTH * 2 + 1];
 	char sQuery[4096], sQueryVal[2048];
 	char sQueryMute[2048], sQueryGag[2048];
 
@@ -2891,43 +2935,41 @@ stock int GetAdmImmunity(int admin)
 	if (aid == INVALID_ADMIN_ID)
 		return 0;
 
-	int iImmunity = aid.ImmunityLevel;
-	int iGroupCount = aid.GroupCount;
-	if (iGroupCount > 0)
-	{
-		int iGroupImmunity;
-		char szDummy[4]; // for AdminId.GetGroup()
+	int iImmunity = GetAdminImmunityLevel(aid);
 
-		for (int iGroupID; iGroupID < iGroupCount; iGroupID++)
-		{
-			iGroupImmunity = (aid.GetGroup(iGroupID, szDummy, sizeof(szDummy))).ImmunityLevel;
-			if (iGroupImmunity > iImmunity)
-				iImmunity = iGroupImmunity;
-		}
-	}
+	// int iImmunity = aid.ImmunityLevel;
+	// int iGroupCount = aid.GroupCount;
+	// if (iGroupCount > 0)
+	// {
+	// 	int iGroupImmunity;
+	// 	char szDummy[4]; // for AdminId.GetGroup()
+
+	// 	for (int iGroupID; iGroupID < iGroupCount; iGroupID++)
+	// 	{
+	// 		iGroupImmunity = (aid.GetGroup(iGroupID, szDummy, sizeof(szDummy))).ImmunityLevel;
+	// 		if (iGroupImmunity > iImmunity)
+	// 			iImmunity = iGroupImmunity;
+	// 	}
+	// }
 
 	return iImmunity;
 }
 
 stock int GetClientUserId2(int client)
 {
-	return client ? GetClientUserId(client) : 0; // 0 is for CONSOLE
+	return client ? g_iUserIDs[client] : 0; // 0 is for CONSOLE
 }
 
 stock void ForcePlayersRecheck()
 {
 	for (int i = 1; i <= MaxClients; i++)
 	{
-		if (IsClientInGame(i) && IsClientAuthorized(i) && !IsFakeClient(i) && g_hPlayerRecheck[i] == INVALID_HANDLE)
+		if (IsClientInGame(i) && g_bPlayerAuthentified[i] && !g_bPlayerVerified[i])
 		{
 			#if defined DEBUG
-			{
-				char clientAuth[64];
-				GetClientAuthId(i, AuthId_Steam2, clientAuth, sizeof(clientAuth));
-				PrintToServer("Creating Recheck timer for %s", clientAuth);
-			}
+			PrintToServer("Creating Recheck timer for %s", g_sSteamIDs[i]);
 			#endif
-			g_hPlayerRecheck[i] = CreateTimer(float(i), ClientRecheck, GetClientUserId(i));
+			OnClientPostAdminCheck(i);
 		}
 	}
 }
@@ -3025,7 +3067,7 @@ stock void CreateMuteExpireTimer(int target, int remainingTime = 0)
 			g_hMuteExpireTimer[target] = CreateDataTimer(float(g_iMuteLength[target] * 60), Timer_MuteExpire, dataPack, TIMER_FLAG_NO_MAPCHANGE);
 
 		dataPack.WriteCell(target);
-		dataPack.WriteCell(GetClientUserId(target));
+		dataPack.WriteCell(g_iUserIDs[target]);
 	}
 }
 
@@ -3041,7 +3083,7 @@ stock void CreateGagExpireTimer(int target, int remainingTime = 0)
 			g_hGagExpireTimer[target] = CreateDataTimer(float(g_iGagLength[target] * 60), Timer_GagExpire, dataPack, TIMER_FLAG_NO_MAPCHANGE);
 
 		dataPack.WriteCell(target);
-		dataPack.WriteCell(GetClientUserId(target));
+		dataPack.WriteCell(g_iUserIDs[target]);
 	}
 }
 
@@ -3078,23 +3120,30 @@ stock void SavePunishment(int admin = 0, int target, int type, int length = -1, 
 	if (type < TYPE_MUTE || type > TYPE_SILENCE)
 		return;
 
+	if (!g_bPlayerAuthentified[target] || !g_bPlayerStatus[target])
+	{
+		// The target has not been blocks verify. Can't save it in db.
+		ReplyToCommand(admin, "%s%t", PREFIX, "Player Comms Not Verified", g_sName[target]);
+		return;
+	}
+
 	// target information
-	char targetAuth[64];
+	char targetAuth[MAX_AUTHID_LENGTH];
 	if (IsClientInGame(target))
 	{
-		GetClientAuthId(target, AuthId_Steam2, targetAuth, sizeof(targetAuth));
+		strcopy(targetAuth, sizeof(targetAuth), g_sSteamIDs[target]);
 	}
 	else
 	{
 		return;
 	}
 
-	char adminIp[24];
-	char adminAuth[64];
+	char adminIp[16];
+	char adminAuth[MAX_AUTHID_LENGTH];
 	if (admin && IsClientInGame(admin))
 	{
-		GetClientIP(admin, adminIp, sizeof(adminIp));
-		GetClientAuthId(admin, AuthId_Steam2, adminAuth, sizeof(adminAuth));
+		strcopy(adminAuth, sizeof(adminAuth), g_sSteamIDs[admin]);
+		strcopy(adminIp, sizeof(adminIp), g_sPlayerIP[admin]);
 	}
 	else
 	{
@@ -3111,9 +3160,9 @@ stock void SavePunishment(int admin = 0, int target, int type, int length = -1, 
 		// Accepts length in minutes, writes to db in seconds! In all over places in plugin - length is in minutes.
 		char banName[MAX_NAME_LENGTH * 2 + 1];
 		char banReason[256 * 2 + 1];
-		char sAuthidEscaped[64 * 2 + 1];
-		char sAdminAuthIdEscaped[64 * 2 + 1];
-		char sAdminAuthIdYZEscaped[64 * 2 + 1];
+		char sAuthidEscaped[MAX_AUTHID_LENGTH * 2 + 1];
+		char sAdminAuthIdEscaped[MAX_AUTHID_LENGTH * 2 + 1];
+		char sAdminAuthIdYZEscaped[MAX_AUTHID_LENGTH * 2 + 1];
 		char sQuery[4096], sQueryAdm[512], sQueryVal[1024];
 		char sQueryMute[1024], sQueryGag[1024];
 		sQueryMute[0] = 0;
@@ -3170,8 +3219,7 @@ stock void SavePunishment(int admin = 0, int target, int type, int length = -1, 
 
 		// all data cached before calling asynchronous functions
 		DataPack dataPack = new DataPack();
-		dataPack.WriteCell(admin > 0 ? GetClientUserId(admin) : 0);
-		dataPack.WriteCell(GetClientUserId(target));
+		dataPack.WriteCell(g_iUserIDs[target]);
 		dataPack.WriteCell(length);
 		dataPack.WriteCell(type);
 		dataPack.WriteString(reason);
@@ -3278,63 +3326,87 @@ stock void ShowActivityToServer(int admin, int type, int length = 0, char[] reas
 	}
 }
 
+stock void Forward_Block(int admin, int target, int type, int length, const char[] reason)
+{
+	Call_StartForward(g_hFwd_OnPlayerPunished);
+	Call_PushCell(admin);
+	Call_PushCell(target);
+	Call_PushCell(length);
+	Call_PushCell(type);
+	Call_PushString(reason);
+	Call_Finish();
+}
+
+stock void Forward_UnBlock(int admin, int target, int type, const char[] reason)
+{
+	Call_StartForward(g_hFwd_OnPlayerUnpunished);
+	Call_PushCell(admin);
+	Call_PushCell(target);
+	Call_PushCell(type);
+	Call_PushString(reason);
+	Call_Finish();
+}
+
 // Natives //
 public int Native_SetClientMute(Handle hPlugin, int numParams)
 {
-    int target = GetNativeCell(1);
-    if (target < 1 || target > MaxClients)
-    {
-        ThrowNativeError(SP_ERROR_NATIVE, "Invalid client index %d", target);
-        return false;
-    }
+	int target = GetNativeCell(1);
+	if (target < 1 || target > MaxClients)
+	{
+		ThrowNativeError(SP_ERROR_NATIVE, "Invalid client index %d", target);
+		return false;
+	}
 
-    if (!IsClientInGame(target))
-    {
-        ThrowNativeError(SP_ERROR_NATIVE, "Client %d is not in game", target);
-        return false;
-    }
+	if (!IsClientInGame(target))
+	{
+		ThrowNativeError(SP_ERROR_NATIVE, "Client %d is not in game", target);
+		return false;
+	}
 
-    bool muteState = GetNativeCell(2);
-    int muteLength = GetNativeCell(3);
+	bool muteState = GetNativeCell(2);
+	int muteLength = GetNativeCell(3);
 
-    if (muteState && muteLength == 0)
-    {
-        ThrowNativeError(SP_ERROR_NATIVE, "Permanent mute is not allowed!");
-        return false;
-    }
+	if (muteState && muteLength == 0)
+	{
+		ThrowNativeError(SP_ERROR_NATIVE, "Permanent mute is not allowed!");
+		return false;
+	}
 
-    bool bSaveToDB = GetNativeCell(4);
-    if (!muteState && bSaveToDB)
-    {
-        ThrowNativeError(SP_ERROR_NATIVE, "Removing punishments from DB is not allowed!");
-        return false;
-    }
+	bool bSaveToDB = GetNativeCell(4);
+	if (!muteState && bSaveToDB)
+	{
+		ThrowNativeError(SP_ERROR_NATIVE, "Removing punishments from DB is not allowed!");
+		return false;
+	}
 
-    char sReason[256];
-    GetNativeString(5, sReason, sizeof(sReason));
+	char sReason[256];
+	GetNativeString(5, sReason, sizeof(sReason));
 
-    if (muteState)
-    {
-        if (g_MuteType[target] > bNot)
-        {
-            return false;
-        }
+	if (muteState)
+	{
+		if (g_MuteType[target] > bNot)
+		{
+			return false;
+		}
 
-        PerformMute(target, _, muteLength, _, _, _, sReason);
-        if (bSaveToDB)
-            SavePunishment(_, target, TYPE_MUTE, muteLength, sReason);
-    }
-    else
-    {
-        if (g_MuteType[target] == bNot)
-        {
-            return false;
-        }
+		PerformMute(target, _, muteLength, _, _, _, sReason);
+		Forward_Block(0, target, TYPE_MUTE, muteLength, sReason);
 
-        PerformUnMute(target);
-    }
+		if (bSaveToDB)
+			SavePunishment(_, target, TYPE_MUTE, muteLength, sReason);
+	}
+	else
+	{
+		if (g_MuteType[target] == bNot)
+		{
+			return false;
+		}
 
-    return true;
+		PerformUnMute(target);
+		Forward_UnBlock(0, target, TYPE_UNMUTE, sReason);
+	}
+
+	return true;
 }
 
 public int Native_SetClientGag(Handle hPlugin, int numParams)
@@ -3390,6 +3462,7 @@ public int Native_SetClientGag(Handle hPlugin, int numParams)
 		}
 
 		PerformUnGag(target);
+		Forward_UnBlock(0, target, TYPE_UNGAG, sReason);
 	}
 
 	return true;
