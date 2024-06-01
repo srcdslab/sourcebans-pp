@@ -29,7 +29,7 @@
 
 #include <sourcemod>
 
-#define VERSION "1.8.0"
+#define VERSION "1.8.1"
 #define LISTBANS_USAGE "sm_listbans <#userid|name> - Lists a user's prior bans from Sourcebans"
 #define LISTCOMMS_USAGE "sm_listcomms <#userid|name> - Lists a user's prior comms from Sourcebans"
 #define INVALID_TARGET -1
@@ -401,7 +401,7 @@ public void OnListComms(Database db, DBResultSet results, const char[] error, Da
 	}
 
 	PrintListResponse(clientuid, client, "%sListing comms for %s", Prefix, targetName);
-	PrintListResponse(clientuid, client, "Ban Date    Banned By   Length      End Date    T  R  Reason");
+	PrintListResponse(clientuid, client, "Ban Date    Blocked By   Length      End Date    T  R  Reason");
 	PrintListResponse(clientuid, client, "-------------------------------------------------------------------------------");
 	while (results.FetchRow())
 	{
