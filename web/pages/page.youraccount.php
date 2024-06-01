@@ -45,8 +45,8 @@ $theme->assign('web_permissions', BitToString($userbank->GetProperty("extraflags
 $theme->assign('server_permissions', SmFlagsToSb($userbank->GetProperty("srv_flags")));
 $theme->assign('min_pass_len', MIN_PASS_LENGTH);
 
-$theme->left_delimiter  = "-{";
-$theme->right_delimiter = "}-";
+$theme->setLeftDelimiter('-{');
+$theme->setRightDelimiter('}-');
 $theme->display('page_youraccount.tpl');
-$theme->left_delimiter  = "{";
-$theme->right_delimiter = "}";
+$theme->setLeftDelimiter('{');
+$theme->setRightDelimiter('}');

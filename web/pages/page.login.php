@@ -78,14 +78,12 @@ HTML;
 HTML;
             break;
     }
-
-
 }
 
 $theme->assign('steamlogin_show', Config::getBool('config.enablesteamlogin'));
 $theme->assign('redir', "DoLogin('');");
-$theme->left_delimiter  = "-{";
-$theme->right_delimiter = "}-";
+$theme->setLeftDelimiter("-{");
+$theme->setRightDelimiter("}-");
 $theme->display('page_login.tpl');
-$theme->left_delimiter  = "{";
-$theme->right_delimiter = "}";
+$theme->setLeftDelimiter("{");
+$theme->setRightDelimiter("}");

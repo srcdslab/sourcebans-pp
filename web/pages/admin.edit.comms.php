@@ -153,11 +153,11 @@ $theme->assign('ban_reason', $res['reason']);
 $theme->assign('ban_authid', trim($res['authid']));
 $theme->assign('customreason', (Config::getBool('bans.customreasons')) ? unserialize(Config::get('bans.customreasons')) : false);
 
-$theme->left_delimiter  = "-{";
-$theme->right_delimiter = "}-";
+$theme->setLeftDelimiter('-{');
+$theme->setRightDelimiter('}-');
 $theme->display('page_admin_edit_comms.tpl');
-$theme->left_delimiter  = "{";
-$theme->right_delimiter = "}";
+$theme->setLeftDelimiter('{');
+$theme->setRightDelimiter('}');
 ?>
 <script type="text/javascript">window.addEvent('domready', function(){
 <?=$errorScript?>

@@ -17,6 +17,8 @@ Licensed under CC-BY-NC-SA 3.0
 Page: <http://www.sourcebans.net/> - <http://www.gameconnect.net/>
 *************************************************************************/
 //Hotfix for dash_intro_text
+use Smarty\Smarty;
+
 if (isset($_POST['dash_intro_text'])) {
     $dash_intro_text = $_POST['dash_intro_text'];
 }
@@ -194,9 +196,9 @@ if (!@is_writable(SB_CACHE)) {
 require_once(INCLUDES_PATH.'/SmartyCustomFunctions.php');
 
 $theme = new Smarty();
-$theme->error_reporting = E_ALL;
-$theme->use_sub_dirs = false;
-$theme->compile_id = $theme_name;
+$theme->setErrorReporting(E_ALL);
+$theme->setUseSubDirs(false);
+$theme->setCompileId($theme_name);
 $theme->setCaching(Smarty::CACHING_OFF);
 $theme->setTemplateDir(SB_THEMES . $theme_name);
 $theme->setCacheDir(SB_CACHE);
@@ -207,5 +209,5 @@ $theme->registerPlugin('modifier', 'smarty_stripslashes', 'smarty_stripslashes')
 $theme->registerPlugin('modifier', 'smarty_htmlspecialchars', 'smarty_htmlspecialchars');
 
 if ((isset($_GET['debug']) && $_GET['debug'] == 1) || DEBUG_MODE) {
-    $theme->force_compile = true;
+    $theme->setForceCompile(true);
 }

@@ -49,10 +49,10 @@ foreach ($servers as $server) {
 
 $theme->assign('id', $sid);
 $theme->assign('permission_rcon', ($access && $userbank->HasAccess(SM_RCON . SM_ROOT)));
-$theme->left_delimiter  = '-{';
-$theme->right_delimiter = '}-';
+$theme->setLeftDelimiter('-{');
+$theme->setRightDelimiter('}-');
 
 $theme->display('page_admin_servers_rcon.tpl');
 
-$theme->left_delimiter  = '{';
-$theme->right_delimiter = '}';
+$theme->setLeftDelimiter('{');
+$theme->setRightDelimiter('}');

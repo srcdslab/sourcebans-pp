@@ -213,11 +213,11 @@ $theme->assign('ban_ip', $res['ip']);
 $theme->assign('ban_demo', (!empty($res['dname']) ? "Uploaded: <b>" . $res['dname'] . "</b>" : ""));
 $theme->assign('customreason', (Config::getBool('bans.customreasons')) ? unserialize(Config::get('bans.customreasons')) : false);
 
-$theme->left_delimiter  = "-{";
-$theme->right_delimiter = "}-";
+$theme->setLeftDelimiter('-{');
+$theme->setRightDelimiter('}-');
 $theme->display('page_admin_edit_ban.tpl');
-$theme->left_delimiter  = "{";
-$theme->right_delimiter = "}";
+$theme->setLeftDelimiter('{');
+$theme->setRightDelimiter('}');
 ?>
 <script type="text/javascript">window.addEvent('domready', function(){
 <?=$errorScript?>

@@ -80,6 +80,10 @@ function BlockPlayer($check, int $sid, $num, $type, int $length)
         return $objResponse;
     }
 
+//    $GLOBALS['PDO']->query("SELECT ip, port FROM `:prefix_servers` WHERE sid = :sid");
+//    $GLOBALS['PDO']->bind(':sid', $sid);
+//    $sdata = $GLOBALS['PDO']->single();
+
     // show hostname instead of the ip, but leave the ip in the title
     $hostsearch = preg_match_all('/hostname:[ ]*(.+)/', $ret, $hostname, PREG_PATTERN_ORDER);
     $hostname   = trunc(htmlspecialchars($hostname[1][0]), 25);
@@ -124,8 +128,8 @@ $theme->assign('check', $_GET["check"]); // steamid or ip address
 $theme->assign('type', $_GET['type']);
 $theme->assign('length', $_GET['length']);
 
-$theme->left_delimiter  = "-{";
-$theme->right_delimiter = "}-";
+$theme->setLeftDelimiter('-{');
+$theme->setRightDelimiter('}-');
 $theme->display('page_blockit.tpl');
-$theme->left_delimiter  = "{";
-$theme->right_delimiter = "}";
+$theme->setLeftDelimiter('{');
+$theme->setRightDelimiter('}');
