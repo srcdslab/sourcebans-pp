@@ -17,7 +17,10 @@ Licensed under CC-BY-NC-SA 3.0
 Page: <http://www.sourcebans.net/> - <http://www.gameconnect.net/>
 *************************************************************************/
 
+use SteamID\SteamID;
+
 global $theme;
+
 if (!defined("IN_SB")) {
     echo "You should not be here. Only follow links!";
     die();
@@ -220,7 +223,16 @@ if (isset($_SESSION["hideinactive"])) {
 
 
 if (isset($_GET['searchText'])) {
-    $search = '%' . trim($_GET['searchText']) . '%';
+    $searchText = trim($_GET['searchText']);
+
+    try {
+        SteamID::init();
+        if (SteamID::isValidID($searchText)) {
+            $searchText = SteamID::toSteam2($searchText);
+        }
+    } catch (Exception $e) { }
+
+    $search = "%{$searchText}%";
 
     // disable ip search if hiding player ips
     $search_ips   = "";

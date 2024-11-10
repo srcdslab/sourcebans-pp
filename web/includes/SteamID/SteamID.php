@@ -4,6 +4,10 @@ namespace SteamID;
 use Database;
 use Exception;
 
+// Require the calculation classes
+require_once __DIR__ . '/calc/GMP.php';
+require_once __DIR__ . '/calc/BCMATH.php';
+
 /**
  * Class SteamID
  *
@@ -98,14 +102,16 @@ class SteamID
     private static function resolveInputID($steamid)
     {
         switch (true) {
-        case preg_match("/STEAM_[0|1]:[0:1]:\d*/", $steamid):
-            return 'Steam2';
-        case preg_match("/\[U:1:\d*\]/", $steamid):
-            return 'Steam3';
-        case preg_match("/\d{17}/", $steamid):
-            return 'Steam64';
-        default:
-            throw new Exception("Invalid SteamID input!");
+            case preg_match("/STEAM_[0|1]:[0:1]:\d*/", $steamid):
+                return 'Steam2';
+            case preg_match("/\[U:1:\d*\]/", $steamid):
+                return 'Steam3';
+            case preg_match("/U:1:\d*/", $steamid):
+                return 'Steam3';
+            case preg_match("/\d{17}/", $steamid):
+                return 'Steam64';
+            default:
+                throw new Exception("Invalid SteamID input!");
         }
     }
 
@@ -116,12 +122,13 @@ class SteamID
     public static function isValidID($steamid)
     {
         switch (true) {
-        case preg_match("/STEAM_[0|1]:[0:1]:\d*/", $steamid):
-        case preg_match("/\[U:1:\d*\]/", $steamid):
-        case preg_match("/\d{17}/", $steamid):
-            return true;
-        default:
-            return false;
+            case preg_match("/STEAM_[0|1]:[0:1]:\d*/", $steamid):
+            case preg_match("/\[U:1:\d*\]/", $steamid):
+            case preg_match("/U:1:\d*/", $steamid):
+            case preg_match("/\d{17}/", $steamid):
+                return true;
+            default:
+                return false;
         }
     }
 
@@ -142,12 +149,12 @@ class SteamID
     private static function getCalcMethod()
     {
         switch (true) {
-        case extension_loaded('gmp'):
-            return 'GMP';
-        case extension_loaded('bcmath'):
-            return 'BCMATH';
-        default:
-            return 'SQL';
+            case extension_loaded('gmp'):
+                return 'GMP';
+            case extension_loaded('bcmath'):
+                return 'BCMATH';
+            default:
+                return 'SQL';
         }
     }
 }

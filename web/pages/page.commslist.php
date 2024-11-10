@@ -22,7 +22,10 @@ Licensed under GNU GPL version 3, or later.
 Page: <https://forums.alliedmods.net/showthread.php?p=1883705> - <https://github.com/d-ai/SourceComms>
 *************************************************************************/
 
+use SteamID\SteamID;
+
 global $theme;
+
 if (!defined("IN_SB")) {
     echo "You should not be here. Only follow links!";
     die();
@@ -222,7 +225,16 @@ if (isset($_SESSION["hideinactive"])) {
 
 
 if (isset($_GET['searchText'])) {
-    $search = '%' . trim($_GET['searchText']) . '%';
+    $searchText = trim($_GET['searchText']);
+
+    try {
+        SteamID::init();
+        if (SteamID::isValidID($searchText)) {
+            $searchText = SteamID::toSteam2($searchText);
+        }
+    } catch (Exception $e) { }
+
+    $search = "%{$searchText}%";
 
     $res = $GLOBALS['db']->Execute("SELECT bid ban_id, CO.type, CO.authid, CO.name player_name, created ban_created, ends ban_ends, length ban_length, reason ban_reason, CO.ureason unban_reason, CO.aid, AD.gid AS gid, adminIp, CO.sid ban_server, RemovedOn, RemovedBy, RemoveType row_type,
 		SE.ip server_ip, AD.user admin_name, MO.icon as mod_icon,
