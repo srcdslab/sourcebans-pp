@@ -1,33 +1,6 @@
-# Please see the documentation for all configuration options:
-# https://docs.github.com/github/administering-a-repository/configuration-options-for-dependency-updates
-
 version: 2
 updates:
-  - package-ecosystem: "composer"
-    directory: "/web"
+  - package-ecosystem: "github-actions"
+    directory: "/"
     schedule:
-      interval: "monthly"
-    labels:
-      - "dependencies"
-    assignees:
-      - "Hackmastr"
-      - "rumblefrog"
-      - "Rushaway"
-    commit-message:
-      prefix: "Composer"
-      include: "scope"
-    rebase-strategy: "auto"
-
-  # Astro + Starlight + Pagefind + mermaid for the docs/ site (#1333).
-  # Same monthly cadence to stay in lock-step with composer's noise floor.
-  - package-ecosystem: "npm"
-    directory: "/docs"
-    schedule:
-      interval: "monthly"
-    labels:
-      - "dependencies"
-      - "docs"
-    commit-message:
-      prefix: "docs(deps)"
-      include: "scope"
-    rebase-strategy: "auto"
+      interval: "weekly"
