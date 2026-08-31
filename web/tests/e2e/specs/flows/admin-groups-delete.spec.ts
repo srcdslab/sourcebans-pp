@@ -129,7 +129,9 @@ test.describe('flow: admin groups delete (#1310 — applyApiResponse zombie)', (
                 response.status() === 200,
         );
 
-        await detail.locator('[data-testid="group-delete"]').click();
+        const deleteBtn = detail.locator('[data-testid="group-delete"]');
+        await expect(deleteBtn.locator('[data-lucide="trash-2"], svg.lucide-trash-2')).toBeVisible();
+        await deleteBtn.click();
         await page.locator('[data-testid="sbpp-confirm-dialog"]').waitFor({ state: 'visible' });
         await page.locator('[data-testid="sbpp-confirm-submit"]').click();
 
