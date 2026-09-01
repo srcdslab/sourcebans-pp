@@ -101,11 +101,14 @@
                    and admin.bans.php's mirror block. #1395 *}
                 {* #1420: native `pattern` attribute mirrors the
                    client-side regex `page_admin_bans_add.tpl`'s IIFE
-                   carries (`STEAM_[01]:[01]:\d+|\[U:1:\d+\]|\d{17}`)
-                   so the browser surfaces a popover for empty / bad-
-                   shape values before our submit handler runs.
+                   carries (Steam2 / bracketed Steam3 / 17-digit
+                   Steam64) so the browser surfaces a popover for
+                   empty / bad-shape values before our submit
+                   handler runs. The Steam64 arm uses
+                   `{ldelim}17{rdelim}` so the brace quantifier
+                   reaches the browser unchanged.
                    `title` is what the browser reads aloud / shows in
-                   the popover when the pattern fails — keep it short
+                   the popover when the pattern fails. Keep it short
                    and actionable. The `aria-describedby` ties the
                    help line below to the input for screen readers.
                    An `?steam=…` smart-default carrying an IPv4 will
@@ -123,7 +126,7 @@
                        data-testid="addcomm-steam"
                        value="{$prefill_steam}"
                        placeholder="STEAM_0:1:23498765"
-                       pattern="STEAM_[01]:[01]:\d+|\[U:1:\d+\]|\d{17}"
+                       pattern="STEAM_[01]:[01]:\d+|\[U:1:\d+\]|\d{ldelim}17{rdelim}"
                        title="Enter a Steam ID (STEAM_0:1:23498765), Steam3 ID ([U:1:23498765]), or 17-digit SteamID64."
                        aria-describedby="addcomm-steam-help"
                        required>
