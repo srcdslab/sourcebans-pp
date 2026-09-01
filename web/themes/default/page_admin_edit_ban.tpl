@@ -165,7 +165,7 @@
                            empty (the IP-target case) the browser's
                            pattern check is satisfied (it only fires
                            on non-empty values). *}
-                       pattern="STEAM_[01]:[01]:\d+|\[U:1:\d+\]|{literal}\d{17}{/literal}"
+                       pattern="STEAM_[01]:[01]:\d+|\[U:1:\d+\]|\d{ldelim}17{rdelim}"
                        title="Enter a Steam ID (STEAM_0:1:23498765), Steam3 ID ([U:1:23498765]), or 17-digit SteamID64.">
                 <div class="text-xs mt-2"
                      id="steam.msg"

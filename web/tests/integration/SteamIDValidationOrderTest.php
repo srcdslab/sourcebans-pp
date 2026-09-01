@@ -295,13 +295,16 @@ final class SteamIDValidationOrderTest extends TestCase
      * bracketed Steam3 / 17-digit Steam64) so the browser blocks
      * submission pre-flight on a typo.
      *
-     * The `{17}` quantifier MUST be wrapped in `{literal}` (or
-     * `{ldelim}`/`{rdelim}`). Smarty treats `{17}` as a tag and
-     * would emit `\d17`, so a real SteamID64 fails native validation.
+     * The `{17}` quantifier MUST be written as `{ldelim}17{rdelim}`.
+     * Smarty treats `{17}` as a tag and would emit `\d17`, so a real
+     * SteamID64 fails native validation. A `{literal}` wrap in the
+     * attribute is also wrong: an unmatched `{literal}` in a `{* *}`
+     * comment above it pairs with the closer and SmartyTemplateRule
+     * misses every variable in between.
      */
     public function testFormTemplatesCarryStrictSteamPattern(): void
     {
-        $expected = 'pattern="STEAM_[01]:[01]:\\d+|\\[U:1:\\d+\\]|{literal}\\d{17}{/literal}"';
+        $expected = 'pattern="STEAM_[01]:[01]:\\d+|\\[U:1:\\d+\\]|\\d{ldelim}17{rdelim}"';
 
         foreach ($this->steamIdFormTemplates() as $relative) {
             $contents = $this->fileContents($relative);
@@ -309,7 +312,7 @@ final class SteamIDValidationOrderTest extends TestCase
                 $expected,
                 $contents,
                 "{$relative} must carry the strict Steam ID pattern with "
-                    . "`{literal}\\d{17}{/literal}` so Smarty does not eat the "
+                    . "`\\d{ldelim}17{rdelim}` so Smarty does not eat the "
                     . "quantifier braces. Loosening `[01]` or widening `\\d+` to "
                     . "`\\d*` would reintroduce the substring-bypass class of #1420.",
             );

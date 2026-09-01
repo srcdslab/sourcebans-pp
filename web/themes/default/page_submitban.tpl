@@ -118,7 +118,7 @@
                            maxlength="64"
                            value="{$STEAMID}"
                            placeholder="STEAM_0:1:23498765"
-                           pattern="STEAM_[01]:[01]:\d+|\[U:1:\d+\]|{literal}\d{17}{/literal}"
+                           pattern="STEAM_[01]:[01]:\d+|\[U:1:\d+\]|\d{ldelim}17{rdelim}"
                            title="Enter a Steam ID (STEAM_0:1:23498765), Steam3 ID ([U:1:23498765]), or 17-digit SteamID64."
                            autocomplete="off"
                            aria-describedby="submitban-id-or-ip-help"

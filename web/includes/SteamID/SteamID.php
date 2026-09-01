@@ -157,9 +157,9 @@ class SteamID
      * The shape is TIGHTER than `ID_PATTERNS` on one axis: the bracketless
      * Steam3 form (`U:1:N`) is INTENTIONALLY excluded so the gate matches
      * the form template's rendered `pattern` (Steam2 / bracketed Steam3 /
-     * 17-digit Steam64). Template source wraps the `{17}` quantifier in
-     * `{literal}` so Smarty does not eat the braces; the HTML that
-     * reaches the browser is byte-for-byte
+     * 17-digit Steam64). Template source writes the `{17}` quantifier
+     * as `{ldelim}17{rdelim}` so Smarty does not eat the braces; the
+     * HTML that reaches the browser is byte-for-byte
      * `pattern="STEAM_[01]:[01]:\d+|\[U:1:\d+\]|\d{17}"`. Curl-driven
      * callers get the same shape contract a form user sees on the
      * pattern-mismatch popover; bracketless Steam3 shape stays a
