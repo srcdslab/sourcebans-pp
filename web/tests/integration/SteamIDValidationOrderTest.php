@@ -8,6 +8,7 @@ declare(strict_types=1);
 namespace Sbpp\Tests\Integration;
 
 use PHPUnit\Framework\TestCase;
+use Smarty\Smarty;
 
 /**
  * Issue #1420 follow-up #2: page-handler form-POST surfaces that
@@ -86,6 +87,21 @@ final class SteamIDValidationOrderTest extends TestCase
             "Expected `web/{$relative}` to exist and be readable; the regression guard is meaningless otherwise.",
         );
         return $contents;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function steamIdFormTemplates(): array
+    {
+        return [
+            'themes/default/page_admin_comms_add.tpl',
+            'themes/default/page_admin_bans_add.tpl',
+            'themes/default/page_admin_edit_ban.tpl',
+            'themes/default/page_admin_edit_comms.tpl',
+            'themes/default/page_admin_edit_admins_details.tpl',
+            'themes/default/page_submitban.tpl',
+        ];
     }
 
     /**
@@ -273,40 +289,29 @@ final class SteamIDValidationOrderTest extends TestCase
     }
 
     /**
-     * Pin the strict `pattern="…"` attribute on each of the four
-     * Steam ID inputs across the page-handler form templates. The
-     * pattern mirrors the server-side `SteamID::isValidID()`
-     * allowlist (Steam2 / bracketed Steam3 / 17-digit Steam64) so the
-     * browser blocks submission pre-flight on a typo — the operator
-     * doesn't pay the round-trip.
+     * Pin the strict `pattern="…"` attribute on each Steam ID input
+     * across the page-handler form templates. The pattern mirrors
+     * the server-side `SteamID::isValidID()` allowlist (Steam2 /
+     * bracketed Steam3 / 17-digit Steam64) so the browser blocks
+     * submission pre-flight on a typo.
      *
-     * Anchored against the literal regex string so a future
-     * loosening that drops the `[01]` strict character class or
-     * widens the quantifier from `\d+` to `\d*` fails the gate.
+     * The `{17}` quantifier MUST be wrapped in `{literal}` (or
+     * `{ldelim}`/`{rdelim}`). Smarty treats `{17}` as a tag and
+     * would emit `\d17`, so a real SteamID64 fails native validation.
      */
     public function testFormTemplatesCarryStrictSteamPattern(): void
     {
-        $expected = 'pattern="STEAM_[01]:[01]:\\d+|\\[U:1:\\d+\\]|\\d{17}"';
+        $expected = 'pattern="STEAM_[01]:[01]:\\d+|\\[U:1:\\d+\\]|{literal}\\d{17}{/literal}"';
 
-        $templates = [
-            'themes/default/page_admin_edit_ban.tpl',
-            'themes/default/page_admin_edit_comms.tpl',
-            'themes/default/page_admin_edit_admins_details.tpl',
-            'themes/default/page_submitban.tpl',
-        ];
-
-        foreach ($templates as $relative) {
+        foreach ($this->steamIdFormTemplates() as $relative) {
             $contents = $this->fileContents($relative);
             $this->assertStringContainsString(
                 $expected,
                 $contents,
-                "#1420 follow-up #2: {$relative} must carry the strict Steam ID "
-                    . "pattern: `{$expected}`. The pattern mirrors the server-side "
-                    . "`SteamID::isValidID()` allowlist; loosening it (dropping `[01]` "
-                    . "for `[0-9]`, widening `\\d+` to `\\d*`, removing the anchors) "
-                    . "would reintroduce the substring-bypass class of #1420 on the "
-                    . "client side and shift the burden entirely to the server-side "
-                    . "library.",
+                "{$relative} must carry the strict Steam ID pattern with "
+                    . "`{literal}\\d{17}{/literal}` so Smarty does not eat the "
+                    . "quantifier braces. Loosening `[01]` or widening `\\d+` to "
+                    . "`\\d*` would reintroduce the substring-bypass class of #1420.",
             );
         }
     }
@@ -323,14 +328,7 @@ final class SteamIDValidationOrderTest extends TestCase
     {
         $expectedTitle = 'title="Enter a Steam ID (STEAM_0:1:23498765), Steam3 ID ([U:1:23498765]), or 17-digit SteamID64."';
 
-        $templates = [
-            'themes/default/page_admin_edit_ban.tpl',
-            'themes/default/page_admin_edit_comms.tpl',
-            'themes/default/page_admin_edit_admins_details.tpl',
-            'themes/default/page_submitban.tpl',
-        ];
-
-        foreach ($templates as $relative) {
+        foreach ($this->steamIdFormTemplates() as $relative) {
             $contents = $this->fileContents($relative);
             $this->assertStringContainsString(
                 $expectedTitle,
@@ -341,6 +339,95 @@ final class SteamIDValidationOrderTest extends TestCase
                     . "format.` which is useless to the operator.",
             );
         }
+    }
+
+    /**
+     * Smarty-compile each form's `pattern="STEAM_…"` attribute and
+     * assert the HTML that reaches the browser still carries the
+     * `\d{17}` quantifier. A source-only grep cannot catch Smarty
+     * eating `{17}`.
+     */
+    public function testRenderedSteamPatternKeepsSeventeenDigitQuantifier(): void
+    {
+        $compileDir = sys_get_temp_dir() . '/sbpp-test-smarty-steam-pattern-' . getmypid();
+        if (!is_dir($compileDir)) {
+            mkdir($compileDir, 0o775, true);
+        }
+
+        $theme = new Smarty();
+        $theme->setUseSubDirs(false);
+        $theme->setCompileId('steam-pattern');
+        $theme->setCaching(Smarty::CACHING_OFF);
+        $theme->setForceCompile(true);
+        $theme->setCompileDir($compileDir);
+        $theme->setCacheDir($compileDir);
+        $theme->setEscapeHtml(true);
+
+        $expectedHtml = 'pattern="STEAM_[01]:[01]:\d+|\[U:1:\d+\]|\d{17}"';
+
+        foreach ($this->steamIdFormTemplates() as $relative) {
+            $contents = $this->fileContents($relative);
+            $matched = preg_match(
+                '/pattern="STEAM_\[01\]:\[01\]:[^"]+"/',
+                $contents,
+                $m,
+            );
+            $this->assertSame(
+                1,
+                $matched,
+                "{$relative} must contain a Steam ID `pattern=\"STEAM_…\"` attribute.",
+            );
+
+            $snippetPath = $compileDir . '/snippet.tpl';
+            file_put_contents($snippetPath, $m[0]);
+            $theme->setTemplateDir($compileDir);
+            $html = $theme->fetch('snippet.tpl');
+
+            $this->assertSame(
+                $expectedHtml,
+                $html,
+                "{$relative}: Smarty must emit `\\d{17}` in the pattern attribute. "
+                    . "A bare `{17}` is parsed as a Smarty tag and the browser "
+                    . "rejects valid SteamID64 input.",
+            );
+        }
+    }
+
+    /**
+     * Fail closed on any `{<digits>}` left in a `.tpl` file outside
+     * `{literal}` / `{* *}` so a future regex quantifier cannot
+     * silently ship as Smarty output.
+     */
+    public function testTemplatesHaveNoBareDigitBraceQuantifiers(): void
+    {
+        $offenders = [];
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator(
+                ROOT . 'themes',
+                \FilesystemIterator::SKIP_DOTS,
+            ),
+        );
+
+        foreach ($iterator as $file) {
+            if (!$file instanceof \SplFileInfo || $file->getExtension() !== 'tpl') {
+                continue;
+            }
+            $src = (string) file_get_contents($file->getPathname());
+            $stripped = preg_replace('/\{literal\}.*?\{\/literal\}/s', '', $src) ?? $src;
+            $stripped = preg_replace('/\{\*.*?\*\}/s', '', $stripped) ?? $stripped;
+            if (preg_match('/\{[0-9]+\}/', $stripped, $m) === 1) {
+                $relative = str_replace('\\', '/', substr($file->getPathname(), strlen(ROOT)));
+                $offenders[] = $relative . ' → ' . $m[0];
+            }
+        }
+
+        $this->assertSame(
+            [],
+            $offenders,
+            'Bare `{<digits>}` in a Smarty template is parsed as a tag. '
+                . 'Wrap regex quantifiers in `{literal}…{/literal}` or '
+                . '`{ldelim}`/`{rdelim}`.',
+        );
     }
 
     /**

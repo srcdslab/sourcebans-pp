@@ -776,7 +776,8 @@ of the diff ship together or not at all.
   `api_comms_add` / `api_bans_add` / `api_admins_add` for the
   canonical reference shape. The constant's docblock spells out the
   contract: byte-for-byte symmetry with the form template's
-  `pattern="STEAM_[01]:[01]:\d+|\[U:1:\d+\]|\d{17}"`, the load-bearing
+  *rendered* `pattern="STEAM_[01]:[01]:\d+|\[U:1:\d+\]|\d{17}"`
+  (template source wraps `{17}` in `{literal}`), the load-bearing
   `D` modifier (without it `STEAM_0:0:1\n` slips past the gate and
   500s on `toSteam2()`), and the deliberate asymmetry with
   `ID_PATTERNS` (bracketless Steam3 `U:1:N` is excluded from the
@@ -787,10 +788,12 @@ of the diff ship together or not at all.
   the pre-#1423-follow-up-#4 hand-rolled copies silently missed the
   `D` modifier, producing the newline-bypass class. The client-side
   native validation in the corresponding form template uses the
-  matching `pattern="STEAM_[01]:[01]:\d+|\[U:1:\d+\]|\d{17}"` (HTML's
-  `pattern` attribute is implicitly anchored `^…$`, so the PHP
-  regex carries explicit `^…$`); the browser-native popover is the
-  UX-first gate that fires BEFORE the IIFE calls `sb.api.call`; the
+  matching `pattern="STEAM_[01]:[01]:\d+|\[U:1:\d+\]|{literal}\d{17}{/literal}"`
+  (HTML's `pattern` attribute is implicitly anchored `^…$`, so the PHP
+  regex carries explicit `^…$`; `{literal}` keeps the `{17}`
+  quantifier out of Smarty's delimiter parser so a 17-digit SteamID64
+  actually matches). The browser-native popover is the UX-first gate
+  that fires BEFORE the IIFE calls `sb.api.call`; the
   server-side `preg_match` is the load-bearing security gate for
   curl-driven / third-party-theme callers that bypass it.
 
@@ -945,7 +948,7 @@ of the diff ship together or not at all.
   `web/tests/integration/SteamIDValidationOrderTest.php` static-
   shape-pins the validate-then-convert order across every page
   handler. The form templates also carry the same
-  `pattern="STEAM_[01]:[01]:\d+|\[U:1:\d+\]|\d{17}"` +
+  `pattern="STEAM_[01]:[01]:\d+|\[U:1:\d+\]|{literal}\d{17}{/literal}"` +
   actionable `title="…"` as the JSON-flow add-form templates so
   the browser-native popover surfaces the same error message
   pre-flight.
@@ -2011,6 +2014,16 @@ without a paired theme toggle in the wizard chrome.
   `View::DELIMITERS`. `page_youraccount.tpl` was on this list before
   #1123 B20 rewrote it in standard `{ }` delimiters; do NOT regress
   it back to `-{ … }-` without a paired edit here.
+- Regex quantifiers that use braces (`\d{17}`, `[0-9]{1,3}`, …) in a
+  `.tpl` file MUST be wrapped in `{literal}…{/literal}` (or written
+  as `{ldelim}17{rdelim}`). Smarty treats `{17}` as a tag. The Steam
+  ID `pattern` attributes are the canonical site:
+  `pattern="STEAM_[01]:[01]:\d+|\[U:1:\d+\]|{literal}\d{17}{/literal}"`
+  renders as `\d{17}` in the HTML the browser validates against.
+  JS inside an existing `{literal}` block is already safe. PHP
+  regexes are not Smarty and stay `\d{17}`. Regression:
+  `SteamIDValidationOrderTest::testRenderedSteamPatternKeepsSeventeenDigitQuantifier`
+  + `testTemplatesHaveNoBareDigitBraceQuantifiers`.
 
 ### Install wizard (`web/install/`)
 
@@ -4240,6 +4253,16 @@ the spec, target a 1920px viewport, not 1440px.
   cannot-throw guarantee in handler code, so wrapping it in
   `try/catch` is a code smell signalling the upstream gate is
   missing.
+- Bare `\d{17}` (or any `{<digits>}` regex quantifier) in a Smarty
+  `.tpl` `pattern` attribute without `{literal}` / `{ldelim}` →
+  Smarty treats `{17}` as a tag and the browser receives `\d17`
+  (or drops the quantifier). A valid 17-digit SteamID64 then fails
+  native HTML validation while STEAM_0:1:N and `[U:1:N]` still
+  pass (`\d+` has no braces). Wrap as `{literal}\d{17}{/literal}`.
+  PHP regexes and JS inside an existing `{literal}` block are
+  fine. Regression:
+  `SteamIDValidationOrderTest::testRenderedSteamPatternKeepsSeventeenDigitQuantifier`
+  + `testTemplatesHaveNoBareDigitBraceQuantifiers`.
 - Hand-rolling the strict SteamID-shape regex literal at the
   per-handler `preg_match` call site (the pre-#1423-follow-up-#4
   shape: `preg_match('/^(?:STEAM_[01]:[01]:\d+|\[U:1:\d+\]|\d{17})$/', $raw)`

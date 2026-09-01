@@ -369,3 +369,46 @@ test.describe.serial('flow: comms-add SteamID validation feedback (#1420)', () =
         await expect(inlineErr).toContainText(/valid Steam ID|Community ID/i);
     });
 });
+
+const VALID_STEAM64 = '76561198179807307';
+const EXPECTED_STEAM_PATTERN = 'STEAM_[01]:[01]:\\d+|\\[U:1:\\d+\\]|\\d{17}';
+
+test.describe('flow: SteamID64 native HTML pattern', () => {
+    test('17-digit SteamID64 passes native validation on add-block / add-ban / submit', async ({
+        page,
+    }, testInfo) => {
+        test.skip(
+            testInfo.project.name !== 'chromium',
+            'native Constraint Validation is Chromium-identical for this pattern',
+        );
+
+        const surfaces: Array<{ url: string; testId: string }> = [
+            { url: '/index.php?p=admin&c=comms', testId: 'addcomm-steam' },
+            { url: '/index.php?p=admin&c=bans&section=add-ban', testId: 'addban-steam' },
+            { url: '/index.php?p=submit', testId: 'submitban-steam' },
+        ];
+
+        for (const surface of surfaces) {
+            await page.goto(surface.url);
+            const steam = page.getByTestId(surface.testId);
+            await expect(steam).toBeVisible();
+            await steam.fill(VALID_STEAM64);
+
+            const validity = await steam.evaluate((el: HTMLInputElement) => ({
+                pattern: el.getAttribute('pattern'),
+                valid: el.validity.valid,
+                patternMismatch: el.validity.patternMismatch,
+            }));
+
+            expect(
+                validity.pattern,
+                `${surface.testId} rendered pattern must keep the {17} quantifier`,
+            ).toBe(EXPECTED_STEAM_PATTERN);
+            expect(
+                validity.patternMismatch,
+                `${surface.testId}: ${VALID_STEAM64} must not patternMismatch`,
+            ).toBe(false);
+            expect(validity.valid, `${surface.testId}: ${VALID_STEAM64} must be valid`).toBe(true);
+        }
+    });
+});
