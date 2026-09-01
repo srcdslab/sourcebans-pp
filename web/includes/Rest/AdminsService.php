@@ -626,6 +626,6 @@ final class AdminsService
         if ($pdo instanceof Database) {
             return $pdo;
         }
-        return new Database(DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS, DB_PREFIX, DB_CHARSET);
+        return new Database(DB_HOST, (int) DB_PORT, DB_NAME, DB_USER, DB_PASS, DB_PREFIX, DB_CHARSET);
     }
 }

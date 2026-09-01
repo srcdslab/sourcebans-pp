@@ -229,12 +229,9 @@ final class PatAuthenticator
             return $direct;
         }
         if (function_exists('getallheaders')) {
-            $headers = getallheaders();
-            if (is_array($headers)) {
-                foreach ($headers as $name => $value) {
-                    if (strtolower((string) $name) === 'authorization') {
-                        return (string) $value;
-                    }
+            foreach (getallheaders() as $name => $value) {
+                if (strtolower((string) $name) === 'authorization') {
+                    return (string) $value;
                 }
             }
         }
@@ -247,6 +244,6 @@ final class PatAuthenticator
         if ($pdo instanceof Database) {
             return $pdo;
         }
-        return new Database(DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS, DB_PREFIX, DB_CHARSET);
+        return new Database(DB_HOST, (int) DB_PORT, DB_NAME, DB_USER, DB_PASS, DB_PREFIX, DB_CHARSET);
     }
 }

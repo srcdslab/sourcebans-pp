@@ -2,6 +2,8 @@
 
 namespace Sbpp\Tests\Api;
 
+use PHPUnit\Framework\Attributes\PreserveGlobalState;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\TestCase;
 
 final class RestSessionTest extends TestCase
@@ -16,10 +18,8 @@ final class RestSessionTest extends TestCase
         $this->assertLessThan($includePos, $definePos);
     }
 
-    /**
-     * @runInSeparateProcess
-     * @preserveGlobalState disabled
-     */
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
     public function testCsrfInitDoesNotStartSessionWhenRestFlagIsSet(): void
     {
         if (!defined('SBPP_REST')) {
