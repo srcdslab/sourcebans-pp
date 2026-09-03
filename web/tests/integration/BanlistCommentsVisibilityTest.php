@@ -182,26 +182,56 @@ final class BanlistCommentsVisibilityTest extends ApiTestCase
 
     #[RunInSeparateProcess]
     #[PreserveGlobalState(false)]
-    public function testBanlistDisclosureDoesNotRenderOnUncommentedRow(): void
+    public function testBanlistAdminSeesAddCommentCtaOnUncommentedRow(): void
     {
+        // #1544: the per-punishment "Add comment" CTA was dropped in the
+        // 2.0.0 migration. An admin now sees the inline disclosure on
+        // EVERY row (desktop) so a comment thread can be started even on
+        // a ban that has none yet — the summary count reads 0 and the
+        // only body content is the `ban-comment-add` CTA.
         $this->loginAsAdmin();
         $this->setPublicCommentsFlag(false);
         $_GET = ['p' => 'banlist'];
 
         $html = $this->renderBanlistPage();
 
-        // The disclosure renders TWICE per commented ban (desktop
-        // table + mobile-card branch... wait, we don't render
-        // a `<details>` on mobile — only the count indicator).
-        // The seeded fixture has exactly one commented ban
-        // (banWithCommentsBid) and one uncommented ban
-        // (banWithoutCommentsBid), so the disclosure count must be
-        // exactly 1 (desktop only).
+        // One commented ban + one uncommented ban seeded → disclosure
+        // renders twice for an admin (desktop table only).
+        $disclosureMatchCount = substr_count($html, 'data-testid="ban-comments-inline"');
+        $this->assertSame(
+            2,
+            $disclosureMatchCount,
+            'admin sees the inline disclosure on every desktop row so the Add-comment CTA is reachable on uncommented bans too (#1544)',
+        );
+        $this->assertStringContainsString(
+            'data-testid="ban-comment-add"',
+            $html,
+            'admin must see the per-row "Add comment" CTA (#1544)',
+        );
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testBanlistAnonymousSeesNoDisclosureOnUncommentedRow(): void
+    {
+        // Public callers with the flag ON still only get the disclosure
+        // on rows that actually have comments — no CTA, no empty
+        // disclosure.
+        $this->setPublicCommentsFlag(true);
+        $_GET = ['p' => 'banlist'];
+
+        $html = $this->renderBanlistPage();
+
         $disclosureMatchCount = substr_count($html, 'data-testid="ban-comments-inline"');
         $this->assertSame(
             1,
             $disclosureMatchCount,
-            'disclosure must render exactly once (one commented ban, desktop only) — uncommented rows do NOT emit the surface',
+            'public caller sees the disclosure only on commented rows — uncommented rows stay bare',
+        );
+        $this->assertStringNotContainsString(
+            'data-testid="ban-comment-add"',
+            $html,
+            'public callers never see the Add-comment CTA',
         );
     }
 

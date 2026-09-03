@@ -1424,6 +1424,27 @@ html.dark .pill--online    { color: #6ee7b7; }
 html.dark .ban-comments-inline__text a { color: var(--brand-400); }
 .ban-comments-inline__edit { margin-top: 0.25rem; }
 
+/* #1544: per-comment edit/delete CTAs + the "Add comment" footer link.
+   Buttons come pre-gated from the PHP handlers ($com.editcomlink /
+   $com.delcomlink are empty strings when the viewer lacks rights); the
+   footer link is gated on $can_comment in the template. */
+.ban-comments-inline__actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.375rem;
+}
+.ban-comments-inline__actions a { color: var(--text-muted); line-height: 1; }
+.ban-comments-inline__actions a:hover { color: var(--text); }
+.ban-comments-inline__add {
+  margin-top: 0.5rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+  font-size: var(--fs-xs);
+}
+.ban-comments-inline__add a { color: var(--brand-600); font-weight: 500; }
+html.dark .ban-comments-inline__add a { color: var(--brand-400); }
+
 /* ---- Filter chip ---- */
 .chip {
   display: inline-flex; align-items: center; gap: 0.375rem; padding: 0 0.625rem;

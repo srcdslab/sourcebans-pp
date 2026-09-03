@@ -1275,4 +1275,7 @@ $can_delete_comm  = $perms['can_owner'] || $perms['can_delete_ban'];
     view_comments:            (bool) $view_comments,
     view_bans:                $viewBans,
     is_advanced_search_open:  $commsAdvancedOpen,
+    // #1544: restores the per-punishment "Add comment" CTA (and the
+    // per-comment edit/delete controls) dropped in the 2.0.0 migration.
+    can_comment:              $userbank->is_admin(),
 ));
