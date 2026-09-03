@@ -21,11 +21,14 @@ function api_mods_add(array $params): array
     $GLOBALS['PDO']->query(
         "INSERT INTO `:prefix_mods`(name,icon,modfolder,steam_universe,enabled) VALUES (?,?,?,?,?)"
     )->execute([$name, $icon, $folder, $steamUniverse, $enabled]);
+    // Capture before Log::add — that INSERT would otherwise steal lastInsertId
+    // (the log lid, often 1, which is the seeded Half-Life 2 Deathmatch row).
+    $mid = (int) $GLOBALS['PDO']->lastInsertId();
 
     Log::add(LogType::Message, 'Mod Added', "Mod ($name) has been added.");
 
     return [
-        'mid' => (int) $GLOBALS['PDO']->lastInsertId(),
+        'mid' => $mid,
         'reload'  => true,
         'message' => [
             'title' => 'Mod Added',
