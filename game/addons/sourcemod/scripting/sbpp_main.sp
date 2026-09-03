@@ -2387,6 +2387,33 @@ public int Native_SBBanPlayer(Handle plugin, int numParams)
 	return true;
 }
 
+// Validates a SteamID2 authid ("STEAM_X:Y:Z" with X/Y single digits and Z a
+// non-empty run of digits). A prefix-only check would let malformed strings
+// such as "STEAM_junk" through, and the INSERT below slices authid[8] to build
+// the '^STEAM_[0-9]:%s$' REGEXP, so a bad tail silently produces a garbage row.
+static bool UTIL_IsValidSteamID2(const char[] authid)
+{
+	if (strncmp(authid, "STEAM_", 6, false) != 0)
+		return false;
+
+	if (!IsCharNumeric(authid[6]) || authid[7] != ':')
+		return false;
+
+	if ((authid[8] != '0' && authid[8] != '1') || authid[9] != ':')
+		return false;
+
+	if (authid[10] == '\0')
+		return false;
+
+	for (int i = 10; authid[i] != '\0'; i++)
+	{
+		if (!IsCharNumeric(authid[i]))
+			return false;
+	}
+
+	return true;
+}
+
 public int Native_SBPP_BanPlayerBySteamId(Handle plugin, int numParams)
 {
 	if (DB == INVALID_HANDLE)
@@ -2403,18 +2430,47 @@ public int Native_SBPP_BanPlayerBySteamId(Handle plugin, int numParams)
 	GetNativeString(3, name, sizeof(name));
 	GetNativeString(5, reason, sizeof(reason));
 
-	if (strncmp(steamId, "STEAM_", 6, false) != 0)
+	if (!UTIL_IsValidSteamID2(steamId))
 	{
 		ThrowNativeError(SP_ERROR_NATIVE, "SBPP_BanPlayerBySteamId: steamId must be in SteamID2 format (STEAM_X:Y:Z), got: %s", steamId);
 		return 0;
+	}
+
+	if (iTime < 0)
+	{
+		ThrowNativeError(SP_ERROR_NATIVE, "SBPP_BanPlayerBySteamId: iTime must be >= 0 (0 = permanent), got: %d", iTime);
+		return 0;
+	}
+
+	// Mirrors Native_SBBanPlayer: a client index is only honoured when it maps
+	// to a real, in-game admin holding the ban flag. Bounds-check first so a
+	// bogus index cannot fault IsClientInGame()/g_sSteamIDs[].
+	bool bHasAdmin = (admin > 0 && admin <= MaxClients && IsClientInGame(admin));
+	if (bHasAdmin)
+	{
+		AdminId aid = GetUserAdmin(admin);
+		if (aid == INVALID_ADMIN_ID)
+		{
+			ThrowNativeError(SP_ERROR_NATIVE, "Ban Error: Player is not an admin.");
+			return 0;
+		}
+
+		if (!aid.HasFlag(Admin_Ban))
+		{
+			ThrowNativeError(SP_ERROR_NATIVE, "Ban Error: Player does not have BAN flag.");
+			return 0;
+		}
 	}
 
 	if (reason[0] == '\0')
 		strcopy(reason, sizeof(reason), "Banned by SourceBans");
 
 	char adminAuth[MAX_AUTHID_LENGTH], adminIp[16];
-	if (!admin || !IsClientInGame(admin))
+	if (!bHasAdmin)
 	{
+		// Collapse anything that is not a live client to 0 (server/automated) so
+		// SBPP_OnBanPlayer never hands subscribers an index they cannot use.
+		admin = 0;
 		strcopy(adminAuth, sizeof(adminAuth), "STEAM_ID_SERVER");
 		strcopy(adminIp, sizeof(adminIp), ServerIp);
 	}
@@ -2445,11 +2501,11 @@ public int Native_SBPP_BanPlayerBySteamId(Handle plugin, int numParams)
 	return 0;
 }
 
-void DB_OnBanBySteamIdSelect(Database db, DBResultSet results, const char[] error, DataPack pack)
+public void DB_OnBanBySteamIdSelect(Database db, DBResultSet results, const char[] error, DataPack pack)
 {
 	if (results == null)
 	{
-		LogToFile(logFile, "[SBPP] BanPlayerBySteamId select failed: %s", error);
+		LogToFile(logFile, "BanPlayerBySteamId Select Query Failed: %s", error);
 		delete pack;
 		return;
 	}
@@ -2467,16 +2523,24 @@ void DB_OnBanBySteamIdSelect(Database db, DBResultSet results, const char[] erro
 
 	if (results.RowCount > 0)
 	{
-		LogToFile(logFile, "[SBPP] BanPlayerBySteamId: %s is already banned, skipping.", steamId);
+		LogToFile(logFile, "BanPlayerBySteamId: %s is already banned, skipping.", steamId);
 		return;
 	}
 
-	char steamIdEscaped[MAX_AUTHID_LENGTH * 2 + 1], nameEscaped[MAX_NAME_LENGTH * 2 + 1], reasonEscaped[256];
-	DB.Escape(steamId, steamIdEscaped, sizeof(steamIdEscaped));
-	DB.Escape(name, nameEscaped, sizeof(nameEscaped));
-	DB.Escape(reason, reasonEscaped, sizeof(reasonEscaped));
+	// reasonEscaped must hold sizeof(reason) * 2 + 1: SQL_EscapeString() refuses
+	// to write at all when the destination is one byte short, which would leave
+	// an uninitialised buffer spliced into the INSERT below.
+	char steamIdEscaped[MAX_AUTHID_LENGTH * 2 + 1], nameEscaped[MAX_NAME_LENGTH * 2 + 1], reasonEscaped[sizeof(reason) * 2 + 1];
+	db.Escape(steamId, steamIdEscaped, sizeof(steamIdEscaped));
+	db.Escape(name, nameEscaped, sizeof(nameEscaped));
+	db.Escape(reason, reasonEscaped, sizeof(reasonEscaped));
 
-	char query[1024];
+	// 2048, not 1024: with the fork's extra admin_name sub-select the worst-case
+	// rendering of this statement is ~1210 bytes (128-byte escaped authid,
+	// 64-byte escaped name, 256-byte escaped reason, four DatabasePrefix and
+	// four adminAuth expansions), which FormatEx would silently truncate into
+	// invalid SQL.
+	char query[2048];
 	if (serverID == -1)
 	{
 		FormatEx(query, sizeof(query), "INSERT INTO %s_bans (authid, name, created, ends, length, reason, aid, adminIp, admin_name, sid, country) VALUES \
@@ -2507,10 +2571,10 @@ void DB_OnBanBySteamIdSelect(Database db, DBResultSet results, const char[] erro
 	fwdPack.WriteCell(iTime);
 	fwdPack.WriteString(reason);
 
-	DB.Query(DB_OnBanBySteamIdInsert, query, fwdPack, DBPrio_High);
+	db.Query(DB_OnBanBySteamIdInsert, query, fwdPack, DBPrio_High);
 }
 
-void DB_OnBanBySteamIdInsert(Database db, DBResultSet results, const char[] error, DataPack pack)
+public void DB_OnBanBySteamIdInsert(Database db, DBResultSet results, const char[] error, DataPack pack)
 {
 	pack.Reset();
 	int admin = pack.ReadCell();
@@ -2521,7 +2585,7 @@ void DB_OnBanBySteamIdInsert(Database db, DBResultSet results, const char[] erro
 
 	if (results == null)
 	{
-		LogToFile(logFile, "[SBPP] BanPlayerBySteamId insert failed: %s", error);
+		LogToFile(logFile, "BanPlayerBySteamId Insert Query Failed: %s", error);
 		return;
 	}
 

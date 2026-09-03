@@ -115,11 +115,17 @@ native void SBPP_BanPlayer(int iAdmin, int iTarget, int iTime, const char[] sRea
  * Inserts the ban directly into the SourceBans++ database.
  * Fires SBPP_OnBanPlayer with iTarget = -1 to indicate an offline ban.
  *
- * @param iAdmin	Client index of the admin (0 = server / automated)
- * @param steamId	SteamID string, e.g. "STEAM_0:0:12345"
+ * @param iAdmin	Client index of the admin (0 = server / automated). A
+ *					non-zero index must be an in-game client holding the ban
+ *					flag; anything else errors. Indexes that are not live
+ *					clients are reported as 0 to SBPP_OnBanPlayer.
+ * @param steamId	SteamID2 string, e.g. "STEAM_0:0:12345". Malformed input
+ *					raises a native error rather than inserting a bad row.
  * @param name		Player name; may be empty string if unknown
- * @param iTime		Ban duration in minutes (0 = permanent)
- * @param sReason	Reason for the ban
+ * @param iTime		Ban duration in minutes (0 = permanent, must be >= 0)
+ * @param sReason	Reason for the ban; empty falls back to "Banned by SourceBans"
+ * @error			Database unavailable, malformed steamId, negative iTime, or
+ *					iAdmin is a client without ban privileges.
  * @noreturn
  *********************************************************/
 native void SBPP_BanPlayerBySteamId(int iAdmin, const char[] steamId, const char[] name, int iTime, const char[] sReason);
@@ -138,7 +144,9 @@ native void SBPP_ReportPlayer(int iReporter, int iTarget, const char[] sReason);
  * Called when the admin banning the player.
  *
  * @param iAdmin	The client index of the admin who is banning the client
- * @param iTarget    The client index of the player to ban
+ * @param iTarget    The client index of the player to ban, or -1 when the ban
+ *                   came from SBPP_BanPlayerBySteamId() and the target is not
+ *                   on the server. Always range-check before using it.
  * @param iTime      The time to ban the player for (in minutes, 0 = permanent)
  * @param sReason    The reason to ban the player from the server
  *********************************************************/
