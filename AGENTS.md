@@ -967,6 +967,9 @@ fallback). This is a **separate product** from `POST /api.php`.
   `UserManager(null, $aid)` so the cookie session is discarded.
 - Tokens inherit the admin's web flags. No extra scopes. Soft-retired
   (`enabled = 0`) → 401. Password `lockout_until` does not apply.
+  Minting (`account.tokens_create`) requires the current panel password
+  (same `bad_password` / field `current` as `account.change_password`).
+  Changing the panel password revokes every token for that admin.
 - Writes reuse `Api::invoke()` where the RPC handler already exists
   (deactivate/reactivate/remove/rehash, bans.add/unban, comms.add/
   unblock/delete, servers.add/remove/send_rcon, notes.add/delete,

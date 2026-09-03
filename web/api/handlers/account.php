@@ -70,6 +70,8 @@ function api_account_change_password(array $params): array
     $GLOBALS['PDO']->bind(':aid', $aid);
     $GLOBALS['PDO']->execute();
 
+    \Sbpp\Rest\PatAuthenticator::revokeAllForAid($aid);
+
     $GLOBALS['PDO']->query("SELECT user FROM `:prefix_admins` WHERE aid = :aid");
     $GLOBALS['PDO']->bind(':aid', $aid);
     $admin = $GLOBALS['PDO']->single();
@@ -163,7 +165,7 @@ function api_account_tokens_list(array $params): array
 }
 
 /**
- * @param array{name?: string, expires_days?: int|string|null} $params
+ * @param array{name?: string, expires_days?: int|string|null, password?: string} $params
  * @return array{id: int, name: string, token: string, token_prefix: string, created: int, expires_at: int|null}
  */
 function api_account_tokens_create(array $params): array
@@ -180,6 +182,11 @@ function api_account_tokens_create(array $params): array
         throw new ApiError('validation', 'Expiry must be never, 30, 90, or 365 days.', 'expires_days');
     }
     $expiresAt = $days === 0 ? null : time() + ($days * 86400);
+
+    $password = (string) ($params['password'] ?? '');
+    if (!$userbank->isCurrentPasswordValid($userbank->GetAid(), $password)) {
+        throw new ApiError('bad_password', 'Current password doesn\'t match.', 'current');
+    }
 
     $minted = \Sbpp\Rest\PatAuthenticator::mint($userbank->GetAid(), $name, $expiresAt);
     Log::add(LogType::Message, 'API token created', 'API token "' . $name . '" created.');

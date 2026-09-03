@@ -261,6 +261,7 @@ final class AccountTest extends ApiTestCase
         $env = $this->api('account.tokens_create', [
             'name' => 'bot',
             'expires_days' => 0,
+            'password' => 'admin',
         ]);
         $this->assertTrue($env['ok'] ?? false, json_encode($env));
         $this->assertMatchesRegularExpression('/^sbpp_pat_[0-9a-f]{64}$/', $env['data']['token']);
@@ -271,10 +272,70 @@ final class AccountTest extends ApiTestCase
         );
     }
 
+    public function testTokensCreateRejectsMissingPassword(): void
+    {
+        $this->loginAsAdmin();
+        $env = $this->api('account.tokens_create', [
+            'name' => 'bot',
+            'expires_days' => 0,
+        ]);
+        $this->assertEnvelopeError($env, 'bad_password');
+        $this->assertSame('current', $env['error']['field'] ?? null);
+    }
+
+    public function testTokensCreateRejectsWrongPassword(): void
+    {
+        $this->loginAsAdmin();
+        $env = $this->api('account.tokens_create', [
+            'name' => 'bot',
+            'expires_days' => 0,
+            'password' => 'wrong',
+        ]);
+        $this->assertEnvelopeError($env, 'bad_password');
+        $this->assertSame('current', $env['error']['field'] ?? null);
+    }
+
+    public function testChangePasswordRevokesApiTokens(): void
+    {
+        $this->loginAsAdmin();
+        $created = $this->api('account.tokens_create', [
+            'name' => 'bot',
+            'expires_days' => 0,
+            'password' => 'admin',
+        ]);
+        $this->assertTrue($created['ok'] ?? false, json_encode($created));
+        $secret = (string) $created['data']['token'];
+
+        $changed = $this->api('account.change_password', [
+            'aid' => Fixture::adminAid(),
+            'old_password' => 'admin',
+            'new_password' => 'a-much-better-password',
+        ]);
+        $this->assertFalse($changed['ok'] ?? true);
+        $this->assertSame('index.php?p=login', $changed['redirect'] ?? null);
+        $this->assertNull(\Sbpp\Rest\PatAuthenticator::resolve($secret));
+
+        \Sbpp\Rest\RateLimiter::setLimitForTests(100000);
+        $prevServer = $_SERVER;
+        $_SERVER['REQUEST_METHOD'] = 'GET';
+        $_SERVER['PATH_INFO'] = '/me';
+        $_SERVER['REQUEST_URI'] = '/api/v1.php/me';
+        $_SERVER['REMOTE_ADDR'] = '127.0.0.1';
+        $_SERVER['HTTP_AUTHORIZATION'] = 'Bearer ' . $secret;
+        try {
+            $response = \Sbpp\Rest\FrontController::dispatch(null);
+        } finally {
+            $_SERVER = $prevServer;
+            \Sbpp\Rest\RateLimiter::setLimitForTests(null);
+        }
+        $this->assertSame(401, $response->status, json_encode($response->payload));
+        $this->assertSame('unauthorized', $response->payload['error']['code'] ?? null);
+    }
+
     public function testTokensListOmitsSecret(): void
     {
         $this->loginAsAdmin();
-        $this->api('account.tokens_create', ['name' => 'bot', 'expires_days' => 0]);
+        $this->api('account.tokens_create', ['name' => 'bot', 'expires_days' => 0, 'password' => 'admin']);
         $env = $this->api('account.tokens_list');
         $this->assertTrue($env['ok'] ?? false, json_encode($env));
         $this->assertCount(1, $env['data']['tokens']);
@@ -286,7 +347,7 @@ final class AccountTest extends ApiTestCase
     public function testTokensRevokeRemovesFromList(): void
     {
         $this->loginAsAdmin();
-        $created = $this->api('account.tokens_create', ['name' => 'bot', 'expires_days' => 0]);
+        $created = $this->api('account.tokens_create', ['name' => 'bot', 'expires_days' => 0, 'password' => 'admin']);
         $id = (int) $created['data']['id'];
         $env = $this->api('account.tokens_revoke', ['id' => $id]);
         $this->assertTrue($env['ok'] ?? false, json_encode($env));

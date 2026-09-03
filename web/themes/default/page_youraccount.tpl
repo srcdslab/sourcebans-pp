@@ -308,7 +308,7 @@
         <div class="card__header">
             <div>
                 <h3>API tokens</h3>
-                <p>Personal access tokens for the REST API. The secret is shown once when you create it.</p>
+                <p>Personal access tokens for the REST API. Creating one requires your current password. The secret is shown once. Changing your panel password revokes every token.</p>
             </div>
         </div>
         <div class="card__body space-y-4">
@@ -334,6 +334,12 @@
                         <option value="90">90 days</option>
                         <option value="365">365 days</option>
                     </select>
+                </div>
+                <div>
+                    <label class="label" for="account-token-password">Current password</label>
+                    <input class="input" type="password" id="account-token-password" name="password"
+                           data-testid="account-token-password" autocomplete="current-password" required>
+                    <div id="account-token-password-msg" class="text-xs" style="color:var(--danger);display:none;margin-top:0.375rem"></div>
                 </div>
                 <div class="flex justify-end">
                     <button class="btn btn--primary" type="submit" data-testid="account-token-create">Create token</button>
@@ -669,22 +675,29 @@
         tokenForm.addEventListener('submit', function (ev) {
             ev.preventDefault();
             setMsg('account-token-name-msg', '');
+            setMsg('account-token-password-msg', '');
             var name = val('account-token-name');
+            var password = val('account-token-password');
             var expiryEl = document.getElementById('account-token-expiry');
             var days = expiryEl && 'value' in expiryEl ? parseInt(String(expiryEl.value), 10) : 0;
             if (name.length === 0) {
                 setMsg('account-token-name-msg', 'Give this token a name.');
                 return;
             }
+            if (password.length === 0) {
+                setMsg('account-token-password-msg', 'Enter your current password.');
+                return;
+            }
             var createBtn = tokenForm.querySelector('[data-testid="account-token-create"]');
             setBusy(createBtn, true);
             sb.api.call(Actions.AccountTokensCreate, {
                 name: name,
-                expires_days: days
+                expires_days: days,
+                password: password
             }).then(function (env) {
                 setBusy(createBtn, false);
                 if (env && env.redirect) return;
-                if (showFieldError('account-token-', env && env.error, { name: 'name' })) return;
+                if (showFieldError('account-token-', env && env.error, { name: 'name', current: 'password' })) return;
                 if (!env || !env.ok || !env.data) {
                     flashFailure(env);
                     return;

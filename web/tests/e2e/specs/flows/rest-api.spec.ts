@@ -21,6 +21,7 @@ test.describe('REST API v1', () => {
 
         const tokenName = `e2e-rest-${Date.now()}`;
         await account.tokenName.fill(tokenName);
+        await account.tokenPassword.fill('admin');
         await account.tokenCreate.click();
         await expect(account.tokenSecret).toHaveText(/^sbpp_pat_[0-9a-f]{64}$/);
         const secret = (await account.tokenSecret.textContent()) ?? '';
@@ -66,6 +67,7 @@ test.describe('REST API v1', () => {
 
         const tokenName = `e2e-rest-ban-${Date.now()}`;
         await account.tokenName.fill(tokenName);
+        await account.tokenPassword.fill('admin');
         await account.tokenCreate.click();
         await expect(account.tokenSecret).toHaveText(/^sbpp_pat_[0-9a-f]{64}$/);
         const secret = (await account.tokenSecret.textContent()) ?? '';
@@ -126,6 +128,7 @@ test.describe('REST API v1', () => {
 
         const tokenName = `e2e-rest-srv-${Date.now()}`;
         await account.tokenName.fill(tokenName);
+        await account.tokenPassword.fill('admin');
         await account.tokenCreate.click();
         await expect(account.tokenSecret).toHaveText(/^sbpp_pat_[0-9a-f]{64}$/);
         const secret = (await account.tokenSecret.textContent()) ?? '';

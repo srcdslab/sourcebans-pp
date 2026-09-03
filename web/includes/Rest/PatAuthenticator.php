@@ -136,6 +136,19 @@ final class PatAuthenticator
         return $pdo->rowCount() > 0;
     }
 
+    public static function revokeAllForAid(int $aid): int
+    {
+        $pdo = self::db();
+        $pdo->query(
+            'UPDATE `:prefix_api_tokens` SET revoked_at = :now'
+            . ' WHERE aid = :aid AND revoked_at IS NULL'
+        );
+        $pdo->bind(':now', time());
+        $pdo->bind(':aid', $aid);
+        $pdo->execute();
+        return $pdo->rowCount();
+    }
+
     /**
      * @return Identity|null
      */

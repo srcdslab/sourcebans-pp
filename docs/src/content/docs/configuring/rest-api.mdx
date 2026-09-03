@@ -25,8 +25,8 @@ that admin.
 
 1. Sign in to the panel.
 2. Open **Your account**.
-3. Under **API tokens**, give the token a name (for example `website-next`)
-   and an expiry (or Never).
+3. Under **API tokens**, give the token a name (for example `website-next`),
+   enter your current password, and pick an expiry (or Never).
 4. Copy the secret. It is shown once.
 
 The secret looks like `sbpp_pat_` plus 64 hex characters. The panel stores
@@ -36,7 +36,8 @@ The token inherits that admin's web flags. There are no extra scopes. A
 read-only bot is an admin with list flags, not a trimmed token.
 
 Soft-retired admins (`enabled = 0`) cannot use a token. Password lockout
-does not apply. Revoke is the kill switch.
+does not apply. Changing your panel password revokes every token. Revoke
+is otherwise the kill switch.
 
 ## Call the API
 

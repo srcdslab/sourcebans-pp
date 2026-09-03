@@ -34,6 +34,10 @@ export class MyAccountPage extends BasePage {
         return this.page.locator('[data-testid="account-token-name"]');
     }
 
+    get tokenPassword(): Locator {
+        return this.page.locator('[data-testid="account-token-password"]');
+    }
+
     get tokenCreate(): Locator {
         return this.page.locator('[data-testid="account-token-create"]');
     }

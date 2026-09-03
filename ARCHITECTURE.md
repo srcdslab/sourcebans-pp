@@ -335,7 +335,8 @@ GET /api/v1/…  ->   │  api/v1.php  │ -> │ FrontController     │ -> │
 
 Slice 0: `/me`, `/admins/{id}` (aid or Steam64), deactivate / reactivate,
 `/groups`, `/system/rehash`. PATs are minted on Your Account via
-`account.tokens_*` (that UI is panel RPC, not REST).
+`account.tokens_*` (that UI is panel RPC, not REST). Minting requires
+the current password; changing it revokes every token.
 
 Slice 1: `/bans`, `/bans/{bid}`, POST unban; `/comms`, `/comms/{cid}`,
 POST unblock, DELETE. GET list/get is public and applies the same hide-*
