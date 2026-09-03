@@ -127,6 +127,12 @@ final class CommsListView extends View
         // Mirrors the post-submit auto-open contract #1303 introduced
         // for admin-admins.
         public readonly bool $is_advanced_search_open,
+        // #1544: gates the per-row "Add comment" CTA in the inline
+        // comments disclosure (and lets the disclosure render on rows
+        // with zero comments). Splatted as `$userbank->is_admin()` from
+        // `web/pages/page.commslist.php`. Per-comment edit / delete
+        // links stay permission-gated in the page handler.
+        public readonly bool $can_comment = false,
     ) {
     }
 }

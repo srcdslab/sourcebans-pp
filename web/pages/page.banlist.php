@@ -1504,4 +1504,7 @@ Renderer::render($theme, new BanListView(
     is_advanced_search_open: $banlistAdvancedOpen,
     active_state:            $stateFilter,
     chip_base_link:          $banlistChipBaseLink,
+    // #1544: restores the per-punishment "Add comment" CTA (and the
+    // per-comment edit/delete controls) dropped in the 2.0.0 migration.
+    can_comment:             $userbank->is_admin(),
 ));

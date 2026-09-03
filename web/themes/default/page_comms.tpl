@@ -248,18 +248,21 @@
                                            href="?p=commslist&amp;id={$comm.cid}"
                                            data-drawer-cid="{$comm.cid}"
                                            data-testid="drawer-trigger">{if $comm.name}{$comm.name|escape}{else}<i class="text-faint">no nickname</i>{/if}</a>
-                                        {if $view_comments && $comm.commentdata != "None" && isset($comm.commentdata) && $comm.commentdata|@count > 0}
+                                        {assign var=_comm_ccount value=0}
+                                        {if isset($comm.commentdata) && $comm.commentdata != "None" && $comm.commentdata|@count > 0}{assign var=_comm_ccount value=$comm.commentdata|@count}{/if}
+                                        {if $view_comments && ($_comm_ccount > 0 || $can_comment)}
                                         <details class="ban-comments-inline"
                                                  data-testid="comm-comments-inline"
                                                  data-cid="{$comm.cid}">
                                           <summary class="ban-comments-inline__summary"
                                                    data-testid="comm-comments-toggle"
-                                                   title="{$comm.commentdata|@count} comment{if $comm.commentdata|@count != 1}s{/if}"
-                                                   aria-label="{$comm.commentdata|@count} comment{if $comm.commentdata|@count != 1}s{/if}">
+                                                   title="{$_comm_ccount} comment{if $_comm_ccount != 1}s{/if}"
+                                                   aria-label="{$_comm_ccount} comment{if $_comm_ccount != 1}s{/if}">
                                             <i data-lucide="message-square-text" style="width:11px;height:11px" aria-hidden="true"></i>
-                                            <span class="tabular-nums">{$comm.commentdata|@count}</span>
+                                            <span class="tabular-nums">{$_comm_ccount}</span>
                                           </summary>
                                           <ul class="ban-comments-inline__list" data-testid="comm-comments-list">
+                                            {if $_comm_ccount > 0}
                                             {foreach from=$comm.commentdata item=com}
                                             <li class="ban-comments-inline__item" data-testid="comm-comment-item">
                                               <div class="ban-comments-inline__meta">
@@ -273,9 +276,21 @@
                                               {if !empty($com.edittime)}
                                               <div class="ban-comments-inline__edit text-xs text-faint">last edit {$com.edittime} by {if $hideadminname}<i class="text-faint">Hidden</i>{elseif !empty($com.editname)}{$com.editname|escape}{else}<i>deleted admin</i>{/if}</div>
                                               {/if}
+                                              {* #1544: per-comment edit / delete CTAs — both strings are built and permission-gated in page.commslist.php (empty when the viewer can't act). The trash trigger carries the `data-action="comment-delete"` hooks consumed by web/scripts/comment-actions.js. *}
+                                              {if $com.editcomlink != '' || $com.delcomlink != ''}
+                                              <div class="ban-comments-inline__actions" data-testid="comm-comment-actions">
+                                                {if $com.editcomlink != ''}{$com.editcomlink nofilter}{/if}
+                                                {if $com.delcomlink != ''}{$com.delcomlink nofilter}{/if}
+                                              </div>
+                                              {/if}
                                             </li>
                                             {/foreach}
+                                            {/if}
                                           </ul>
+                                          {* #1544: "Add comment" CTA — restores the per-punishment comment affordance dropped in the 2.0.0 migration. Gated on $can_comment ($userbank->is_admin()); the link lands on the ?comment=N comment-edit branch of this template. *}
+                                          {if $can_comment}
+                                          <div class="ban-comments-inline__add" data-testid="comm-comment-add">{$comm.addcomment nofilter}</div>
+                                          {/if}
                                         </details>
                                         {/if}
                                     </div>
