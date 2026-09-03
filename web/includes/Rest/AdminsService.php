@@ -11,6 +11,7 @@ use Sbpp\Api\Api;
 use Sbpp\Api\ApiError;
 use Sbpp\Auth\UserManager;
 use Sbpp\Db\Database;
+use Sbpp\Log;
 use Sbpp\Security\Crypto;
 use SteamID\SteamID;
 use WebPermission;
@@ -223,6 +224,7 @@ final class AdminsService
 
         $sids = function_exists('_api_admins_rehash_sids') ? _api_admins_rehash_sids($aid) : [];
         $fresh = $this->requireRow(new AdminId($aid, null));
+        Log::add(\LogType::Message, 'Admin added', "Admin ($name) has been added.");
         return [
             'admin' => $this->toResource($fresh, $this->serverIds($aid)),
             'rehash' => Rehasher::run($sids),
@@ -336,6 +338,11 @@ final class AdminsService
 
         $sids = function_exists('_api_admins_rehash_sids') ? _api_admins_rehash_sids($aid) : [];
         $fresh = $this->requireRow(new AdminId($aid, null));
+        Log::add(
+            \LogType::Message,
+            'Admin Details Updated',
+            'Admin (' . $name . ') details has been changed.',
+        );
         return [
             'admin' => $this->toResource($fresh, $this->serverIds($aid)),
             'rehash' => Rehasher::run($sids),

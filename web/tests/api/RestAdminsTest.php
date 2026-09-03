@@ -21,6 +21,10 @@ final class RestAdminsTest extends RestTestCase
         $this->assertTrue($data['enabled']);
         $this->assertArrayHasKey('rehash', $response->payload['meta']);
         $this->assertArrayHasKey('attempted', $response->payload['meta']['rehash']);
+        $this->assertSame(
+            'Admin (RestBot) has been added.',
+            $this->latestLogMessage('Admin added'),
+        );
     }
 
     public function testPutSteam64UpdatesExisting(): void
@@ -34,6 +38,10 @@ final class RestAdminsTest extends RestTestCase
         $this->assertSame(200, $response->status, json_encode($response->payload));
         $this->assertSame('RestBotUpdated', $response->payload['data']['name']);
         $this->assertSame(12, $response->payload['data']['immunity']);
+        $this->assertSame(
+            'Admin (RestBotUpdated) details has been changed.',
+            $this->latestLogMessage('Admin Details Updated'),
+        );
     }
 
     public function testPutAidMissingIs404(): void
@@ -268,5 +276,18 @@ final class RestAdminsTest extends RestTestCase
             DB_PREFIX
         ))->execute([$user, $steam, $hash, $user . '@example.test', $flags]);
         return (int) $pdo->lastInsertId();
+    }
+
+    private function latestLogMessage(string $title): string
+    {
+        $pdo = Fixture::rawPdo();
+        $stmt = $pdo->prepare(sprintf(
+            'SELECT message FROM `%s_log` WHERE `title` = ? ORDER BY lid DESC LIMIT 1',
+            DB_PREFIX
+        ));
+        $stmt->execute([$title]);
+        $row = $stmt->fetch(\PDO::FETCH_ASSOC);
+        $this->assertIsArray($row, 'Expected an audit-log entry titled "' . $title . '"');
+        return (string) $row['message'];
     }
 }
