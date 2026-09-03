@@ -115,8 +115,14 @@ define('SB_REST_CORS_ORIGINS', 'https://staff.example.com');
 ## Rate limit
 
 Default 60 requests per minute. Anonymous callers (OpenAPI spec, public
-ban/comms/servers GET) are keyed by IP. Token callers are keyed by token.
-A 429 includes `Retry-After`.
+ban/comms/servers GET) are keyed by `REMOTE_ADDR`. Token callers are
+keyed by token. A 429 includes `Retry-After`.
+
+If you terminate TLS at a reverse proxy, the production Apache config
+already sets `RemoteIPHeader X-Forwarded-For`
+(`docker/apache/sbpp-prod.conf`). nginx needs `real_ip`. Without that,
+every anonymous visitor shares one 60/min bucket. Do not parse
+`X-Forwarded-For` in PHP. It is spoofable.
 
 ## Routes
 

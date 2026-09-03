@@ -98,6 +98,28 @@ final class RestAuthTest extends RestTestCase
         $this->assertArrayHasKey('Retry-After', $second->headers);
     }
 
+    public function testRateLimiterGcUnlinksStaleFilesAndKeepsInWindowFiles(): void
+    {
+        RateLimiter::resetForTests();
+        RateLimiter::consume('gc-keep');
+
+        $dir = rtrim(str_replace('\\', '/', SB_CACHE), '/') . '/rest-rl';
+        $this->assertDirectoryExists($dir);
+
+        $stale = $dir . '/stale-gc-test.json';
+        $fresh = $dir . '/fresh-gc-test.json';
+        file_put_contents($stale, '{"window":0,"count":1}');
+        file_put_contents($fresh, '{"window":0,"count":1}');
+        $this->assertTrue(touch($stale, time() - (2 * RateLimiter::WINDOW_SECONDS) - 10));
+        $this->assertTrue(touch($fresh, time()));
+
+        RateLimiter::consume('gc-keep');
+
+        $this->assertFileDoesNotExist($stale);
+        $this->assertFileExists($fresh);
+        $this->assertFileExists($dir . '/' . hash('sha1', 'gc-keep') . '.json');
+    }
+
     public function testUnknownWellFormedPatIs401OnPublicGet(): void
     {
         $secret = PatAuthenticator::SECRET_PREFIX . str_repeat('cd', 32);

@@ -10,11 +10,17 @@ namespace Sbpp\Rest;
 /**
  * Fixed-window file rate limiter under `SB_CACHE/rest-rl/`.
  * Anonymous callers are keyed by IP. Authenticated callers by token id.
+ *
+ * Read-modify-write is not atomic: concurrent requests under the same
+ * key can undercount. That is acceptable for a limiter. Do not "fix"
+ * it with flock or Redis in a drive-by.
  */
 final class RateLimiter
 {
     public const DEFAULT_LIMIT = 60;
     public const WINDOW_SECONDS = 60;
+
+    private const GC_MAX_FILES = 32;
 
     private static ?int $limitOverride = null;
 
@@ -52,6 +58,8 @@ final class RateLimiter
         if (!is_dir($dir) && !@mkdir($dir, 0770, true) && !is_dir($dir)) {
             return ['ok' => true, 'remaining' => $limit, 'retry_after' => $retryAfter, 'limit' => $limit];
         }
+
+        self::gc($dir);
 
         $path = $dir . '/' . hash('sha1', $key) . '.json';
         $count = 0;
@@ -101,6 +109,32 @@ final class RateLimiter
         if (!@rename($tmp, $path)) {
             @unlink($tmp);
         }
+    }
+
+    /**
+     * Unlink files whose mtime is older than two windows. Caps how many
+     * entries one request will look at so a large dir cannot stall.
+     */
+    private static function gc(string $dir): void
+    {
+        $handle = @opendir($dir);
+        if ($handle === false) {
+            return;
+        }
+        $cutoff = time() - (2 * self::WINDOW_SECONDS);
+        $scanned = 0;
+        while ($scanned < self::GC_MAX_FILES && ($name = readdir($handle)) !== false) {
+            if (!str_ends_with($name, '.json')) {
+                continue;
+            }
+            $scanned++;
+            $path = $dir . '/' . $name;
+            $mtime = @filemtime($path);
+            if ($mtime !== false && $mtime < $cutoff) {
+                @unlink($path);
+            }
+        }
+        closedir($handle);
     }
 
     private static function dir(): string
