@@ -1730,10 +1730,13 @@ public void VerifyBan(Database db, DBResultSet results, const char[] error, int 
 
 		db.Query(ErrorCheckCallback, Query, client, DBPrio_High);
 
-		// Ban via BanClient() so SourceMod uses an engine-supported ban method.
-		// The raw "banid <STEAM_...>" console command is rejected by some
-		// engines (e.g. Synergy), which left the player unbanned.
+		// Ban via BanClient() so SourceMod bans with the engine's own auth
+		// string. The raw "banid <STEAM_...>" console command is rejected by
+		// some engines (e.g. Synergy), which left the player unbanned.
+		// SetGlobalTransTarget() keeps the message in the client's language,
+		// which KickClient() used to do for us.
 		char BanReason[256];
+		SetGlobalTransTarget(client);
 		FormatEx(BanReason, sizeof(BanReason), "%t", "Banned Check Site", WebsiteAddress);
 		BanClient(client, 5, BANFLAG_AUTHID, BanReason, BanReason, "sbpp");
 
@@ -2597,7 +2600,7 @@ stock void UTIL_InsertTempBan(int time, const char[] name, const char[] auth, co
 	delete dataPack;
 
 	// we add a temporary ban and then add the record into the queue to be processed when the database is available
-	char kickMessage[512];
+	char kickMessage[512] = "";
 
 	if (IsClientInGame(client))
 	{
@@ -2606,10 +2609,12 @@ stock void UTIL_InsertTempBan(int time, const char[] name, const char[] auth, co
 			FormatEx(length, sizeof(length), "permanent");
 		else
 			FormatEx(length, sizeof(length), "%d %s", time, time == 1 ? "minute" : "minutes");
+		// KickClient() used to localise this for us; keep doing so.
+		SetGlobalTransTarget(client);
 		FormatEx(kickMessage, sizeof(kickMessage), "%t\n\n%t", "Banned Check Site", WebsiteAddress, "Kick Reason", admin, reason, length);
 	}
 
-	SBPP_BanIdentity(auth, ProcessQueueTime, kickMessage);
+	SBPP_BanIdentity(auth, ProcessQueueTime, kickMessage, client);
 
 	char banName[MAX_NAME_LENGTH], banReason[256], query[512];
 
@@ -2841,50 +2846,110 @@ stock void AccountForLateLoading()
 /**
  * Converts a SteamID2 ("STEAM_X:Y:Z") into a SteamID3 ("[U:1:W]").
  *
- * @return true on success, false if the input was not a SteamID2.
+ * The universe is always rendered as 1 (public), mirroring how SourceMod
+ * itself renders AuthId_Steam3: mods that set "UseInvalidUniverseInSteam2IDs"
+ * render public-universe accounts as STEAM_0, so the X field is not a
+ * trustworthy universe.
+ *
+ * @return true on success, false if the input was not a convertible SteamID2.
  */
 stock bool SBPP_Steam2ToSteam3(const char[] steam2, char[] buffer, int maxlen)
 {
 	if (strncmp(steam2, "STEAM_", 6) != 0)
 		return false;
 
+	// "STEAM_ID_PENDING" / "STEAM_ID_LAN" carry no account id.
+	if (strncmp(steam2[6], "ID_", 3) == 0)
+		return false;
+
 	char parts[3][12];
 	if (ExplodeString(steam2[6], ":", parts, sizeof(parts), sizeof(parts[])) != 3)
 		return false;
 
+	if (parts[1][0] == '\0' || parts[2][0] == '\0')
+		return false;
+
 	int y = StringToInt(parts[1]);
 	int z = StringToInt(parts[2]);
-	FormatEx(buffer, maxlen, "[U:1:%d]", (z * 2) + y);
+
+	// %u, not %d: account ids past 2^31 would otherwise render negative.
+	FormatEx(buffer, maxlen, "[U:1:%u]", (z * 2) + y);
 	return true;
 }
 
 /**
  * Bans a player by authid regardless of whether they are still connected.
  *
- * Uses BanClient() when the player is in game so SourceMod picks the ban
- * method the running engine actually supports. Some engines (e.g. Synergy,
- * appid 17520) reject the "STEAM_" format passed to the "banid" console
- * command, which silently dropped the ban. When the player is offline we
- * fall back to "banid" using the SteamID3 format for the same reason.
+ * Uses BanClient() when the player is in game so SourceMod bans with the
+ * engine's own auth string (SourceMod feeds "banid" the string the engine
+ * itself reports for that player). Some engines (e.g. Synergy, appid 17520)
+ * reject the "STEAM_" format passed to the "banid" console command, which
+ * silently dropped the ban. When the player is offline we ban by identity
+ * using the SteamID3 form for the same reason.
+ *
+ * @param auth          SteamID2 of the target.
+ * @param minutes       Ban length in minutes.
+ * @param kickMessage   Message shown to the target if still connected; the
+ *                      generic "check the website" phrase is used when empty.
+ * @param client        Optional client index hint for the target.
  */
-stock void SBPP_BanIdentity(const char[] auth, int minutes, const char[] kickMessage = "")
+stock void SBPP_BanIdentity(const char[] auth, int minutes, const char[] kickMessage = "", int client = 0)
 {
-	for (int i = 1; i <= MaxClients; i++)
+	if (auth[0] == '\0')
+		return;
+
+	// These are always temporary holds until the database catches up, so never
+	// let a misconfigured length through: "banid 0" is a permanent ban and
+	// SourceMod additionally writes it out to banned_user.cfg.
+	if (minutes < 1)
+		minutes = 5;
+
+	int target = 0;
+
+	if (client > 0 && client <= MaxClients && IsClientInGame(client) && !IsFakeClient(client)
+		&& StrEqual(g_sSteamIDs[client], auth, false))
 	{
-		if (IsClientInGame(i) && IsClientAuthorized(i) && StrEqual(g_sSteamIDs[i], auth, false))
+		target = client;
+	}
+	else
+	{
+		for (int i = 1; i <= MaxClients; i++)
 		{
-			BanClient(i, minutes, BANFLAG_AUTHID, kickMessage, kickMessage, "sbpp");
-			return;
+			if (IsClientInGame(i) && !IsFakeClient(i) && StrEqual(g_sSteamIDs[i], auth, false))
+			{
+				target = i;
+				break;
+			}
 		}
 	}
 
-	char cmd[64], steam3[MAX_AUTHID_LENGTH];
-	if (SBPP_Steam2ToSteam3(auth, steam3, sizeof(steam3)))
-		FormatEx(cmd, sizeof(cmd), "banid %d \"%s\"", minutes, steam3);
-	else
-		FormatEx(cmd, sizeof(cmd), "banid %d %s", minutes, auth);
+	if (target)
+	{
+		char message[512];
 
-	ServerCommand(cmd);
+		if (kickMessage[0] != '\0')
+		{
+			strcopy(message, sizeof(message), kickMessage);
+		}
+		else
+		{
+			SetGlobalTransTarget(target);
+			FormatEx(message, sizeof(message), "%t", "Banned Check Site", WebsiteAddress);
+		}
+
+		// BanClient() kicks on the next frame, so callers passing a global
+		// buffer (g_sSteamIDs[] & co.) can keep using it after this returns.
+		BanClient(target, minutes, BANFLAG_AUTHID, message, message, "sbpp");
+		return;
+	}
+
+	// BanIdentity() rather than a hand-built ServerCommand("banid ..."): it
+	// strips command separators out of the identity and notifies OnBanIdentity.
+	char steam3[MAX_AUTHID_LENGTH];
+	if (SBPP_Steam2ToSteam3(auth, steam3, sizeof(steam3)))
+		BanIdentity(steam3, minutes, BANFLAG_AUTHID, kickMessage, "sbpp");
+	else
+		BanIdentity(auth, minutes, BANFLAG_AUTHID, kickMessage, "sbpp");
 }
 
 //Yarr!
