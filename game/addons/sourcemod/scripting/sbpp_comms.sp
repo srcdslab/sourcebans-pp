@@ -365,7 +365,7 @@ public void VerifyBlock(int client)
 		WHERE		RemoveType IS NULL \
 						AND c.authid REGEXP '^STEAM_[0-9]:%s$' \
 						AND (length = '0' OR ends > UNIX_TIMESTAMP())",
-		DatabasePrefix, DatabasePrefix, DatabasePrefix, g_sSteamIDs[client][8]) >= sizeof(Query))
+		DatabasePrefix, DatabasePrefix, DatabasePrefix, g_sSteamIDs[client][8]) >= sizeof(Query) - 1)
 	{
 		LogError("VerifyBlock query truncated for %L", client);
 		return;
@@ -1566,7 +1566,7 @@ public void Query_UnBlockSelect(Database db, DBResultSet results, const char[] e
 							RemovedOn = UNIX_TIMESTAMP(), \
 							ureason = '%s' \
 					WHERE	bid = %d",
-					DatabasePrefix, iAID, reason, bid) >= sizeof(query))
+					DatabasePrefix, iAID, reason, bid) >= sizeof(query) - 1)
 				{
 					LogError("Query_UnBlockSelect update query truncated");
 					delete newDataPack;
@@ -1737,7 +1737,7 @@ public void Query_ProcessQueue(Database db, DBResultSet results, const char[] er
 				VALUES		 ('%s', '%s', %d, %d, %d, '%s', \
 								IFNULL((SELECT aid FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), '0'), \
 								'%s', IFNULL((SELECT user FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), ''), %d, %d)",
-			DatabasePrefix, auth, name, startTime, (startTime + (time * 60)), (time * 60), reason, DatabasePrefix, adminAuth, adminAuth[8], adminIp, DatabasePrefix, adminAuth, adminAuth[8], serverID, type) >= sizeof(query))
+			DatabasePrefix, auth, name, startTime, (startTime + (time * 60)), (time * 60), reason, DatabasePrefix, adminAuth, adminAuth[8], adminIp, DatabasePrefix, adminAuth, adminAuth[8], serverID, type) >= sizeof(query) - 1)
 		{
 			LogError("Query_ProcessQueue insert query truncated");
 			continue;
@@ -1758,7 +1758,7 @@ public void Query_AddBlockFromQueue(Database db, DBResultSet results, const char
 		if (SQLiteDB.Format(query, sizeof(query),
 			"DELETE FROM queue2 \
 			WHERE		id = %d",
-			data) >= sizeof(query))
+			data) >= sizeof(query) - 1)
 		{
 			LogError("Query_AddBlockFromQueue delete query truncated");
 			return;
@@ -2608,7 +2608,7 @@ stock void ProcessUnBlock(int client, int targetId = 0, int type, char[] sReason
 								AND (c.authid = '%s' OR c.authid REGEXP '^STEAM_[0-9]:%s$') \
 								AND (length = '0' OR ends > UNIX_TIMESTAMP()) \
 								AND %!s",
-				DatabasePrefix, adminAuth, adminAuth[8], DatabasePrefix, DatabasePrefix, DatabasePrefix, targetAuth, targetAuth[8], typeWHERE) >= sizeof(query))
+				DatabasePrefix, adminAuth, adminAuth[8], DatabasePrefix, DatabasePrefix, DatabasePrefix, targetAuth, targetAuth[8], typeWHERE) >= sizeof(query) - 1)
 			{
 				LogError("ProcessUnBlock select query truncated");
 				return;
@@ -2760,7 +2760,7 @@ stock void InsertTempBlock(int length, int type, const char[] name, const char[]
 	// steam_id time start_time reason name admin_id admin_ip
 	if (SQLiteDB.Format(sQueryVal, sizeof(sQueryVal),
 		"'%s', %d, %d, '%s', '%s', '%s', '%s'",
-		auth, length, GetTime(), reason, name, adminAuth, adminIp) >= sizeof(sQueryVal))
+		auth, length, GetTime(), reason, name, adminAuth, adminIp) >= sizeof(sQueryVal) - 1)
 	{
 		LogError("InsertTempBlock values query truncated");
 		return;
@@ -2778,8 +2778,8 @@ stock void InsertTempBlock(int length, int type, const char[] name, const char[]
 	}
 
 	if (SQLiteDB.Format(sQuery, sizeof(sQuery),
-		"INSERT INTO queue2 (steam_id, time, start_time, reason, name, admin_id, admin_ip, type) VALUES %s%s%s",
-		sQueryMute, type == TYPE_SILENCE ? ", " : "", sQueryGag) >= sizeof(sQuery))
+		"INSERT INTO queue2 (steam_id, time, start_time, reason, name, admin_id, admin_ip, type) VALUES %!s%!s%!s",
+		sQueryMute, type == TYPE_SILENCE ? ", " : "", sQueryGag) >= sizeof(sQuery) - 1)
 	{
 		LogError("InsertTempBlock insert query truncated");
 		return;
@@ -3164,7 +3164,7 @@ stock void SavePunishment(int admin = 0, int target, int type, int length = -1, 
 		// bid	authid	name	created ends lenght reason aid adminip	sid	removedBy removedType removedon type ureason
 		if (g_hDatabase.Format(sQueryAdm, sizeof(sQueryAdm),
 			"IFNULL((SELECT aid FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), 0)",
-			DatabasePrefix, adminAuth, adminAuth[8]) >= sizeof(sQueryAdm))
+			DatabasePrefix, adminAuth, adminAuth[8]) >= sizeof(sQueryAdm) - 1)
 		{
 			LogError("SavePunishment admin subquery truncated");
 			return;
@@ -3173,7 +3173,7 @@ stock void SavePunishment(int admin = 0, int target, int type, int length = -1, 
 		char sQueryAdmName[512];
 		if (g_hDatabase.Format(sQueryAdmName, sizeof(sQueryAdmName),
 			"IFNULL((SELECT user FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), '')",
-			DatabasePrefix, adminAuth, adminAuth[8]) >= sizeof(sQueryAdmName))
+			DatabasePrefix, adminAuth, adminAuth[8]) >= sizeof(sQueryAdmName) - 1)
 		{
 			LogError("SavePunishment admin name subquery truncated");
 			return;
@@ -3184,7 +3184,7 @@ stock void SavePunishment(int admin = 0, int target, int type, int length = -1, 
 			// authid name, created, ends, length, reason, aid, adminIp, admin_name, sid
 			if (g_hDatabase.Format(sQueryVal, sizeof(sQueryVal),
 				"'%s', '%s', UNIX_TIMESTAMP(), UNIX_TIMESTAMP() + %d, %d, '%s', %!s, '%s', %!s, %d",
-				targetAuth, sName, length * 60, length * 60, reason, sQueryAdm, adminIp, sQueryAdmName, serverID) >= sizeof(sQueryVal))
+				targetAuth, sName, length * 60, length * 60, reason, sQueryAdm, adminIp, sQueryAdmName, serverID) >= sizeof(sQueryVal) - 1)
 			{
 				LogError("SavePunishment values query truncated");
 				return;
@@ -3195,7 +3195,7 @@ stock void SavePunishment(int admin = 0, int target, int type, int length = -1, 
 			// authid name, created, ends, length, reason, aid, adminIp, admin_name, sid
 			if (g_hDatabase.Format(sQueryVal, sizeof(sQueryVal),
 				"'%s', '%s', UNIX_TIMESTAMP(), UNIX_TIMESTAMP() + %d, %d, '%s', %!s, '%s', %!s, %d",
-				targetAuth, sName, SESSION_MUTE_FALLBACK, -1, reason, sQueryAdm, adminIp, sQueryAdmName, serverID) >= sizeof(sQueryVal))
+				targetAuth, sName, SESSION_MUTE_FALLBACK, -1, reason, sQueryAdm, adminIp, sQueryAdmName, serverID) >= sizeof(sQueryVal) - 1)
 			{
 				LogError("SavePunishment values query truncated");
 				return;
@@ -3218,7 +3218,7 @@ stock void SavePunishment(int admin = 0, int target, int type, int length = -1, 
 		// litle magic - one query for all actions (mute, gag or silence)
 		if (g_hDatabase.Format(sQuery, sizeof(sQuery),
 			"INSERT INTO %!s_comms (authid, name, created, ends, length, reason, aid, adminIp, admin_name, sid, type) VALUES %!s%!s%!s",
-			DatabasePrefix, sQueryMute, type == TYPE_SILENCE ? ", " : "", sQueryGag) >= sizeof(sQuery))
+			DatabasePrefix, sQueryMute, type == TYPE_SILENCE ? ", " : "", sQueryGag) >= sizeof(sQuery) - 1)
 		{
 			LogError("SavePunishment insert query truncated");
 			return;
