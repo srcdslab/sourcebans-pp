@@ -346,7 +346,7 @@
                    comments when opened. Drawer Overview still mirrors
                    the same data via api_bans_detail. *}
                 {assign var=_ban_ccount value=0}
-                {if $ban.commentdata != "None" && $ban.commentdata|@count > 0}{assign var=_ban_ccount value=$ban.commentdata|@count}{/if}
+                {if $view_comments && isset($ban.commentdata) && $ban.commentdata != "None" && $ban.commentdata|@count > 0}{assign var=_ban_ccount value=$ban.commentdata|@count}{/if}
                 {if $view_comments && ($_ban_ccount > 0 || $can_comment)}
                 <details class="ban-comments-inline"
                          data-testid="ban-comments-inline"
