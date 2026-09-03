@@ -778,6 +778,22 @@
         ).join('')
       + '</dl>';
 
+    // #1554 — surface the demo download affordance the way SB 1.x's
+    // sliding ban panel did. `bans.detail` carries `demo_count`; when a
+    // ban has an uploaded demo the file is served by `getdemo.php?type=B`
+    // (see web/getdemo.php). Comm-blocks have no demo column, so this is
+    // ban-focal only.
+    let demoHtml = '';
+    if (!isComm && Number((data && data.demo_count) || 0) > 0) {
+      const demoUrl = 'getdemo.php?type=B&id=' + encodeURIComponent(String(data.bid));
+      demoHtml = '<section data-testid="drawer-demo" style="margin-top:0.5rem">'
+        + '<h3 class="text-xs text-faint" style="text-transform:uppercase;letter-spacing:0.06em;margin:0 0 0.5rem">Demo</h3>'
+        + '<a class="btn btn--secondary btn--sm" data-testid="drawer-demo-download" href="' + escapeHtml(demoUrl) + '">'
+        +   '<i data-lucide="download" style="width:14px;height:14px"></i> Download demo'
+        + '</a>'
+        + '</section>';
+    }
+
     let commentsHtml = '';
     if (commentsVisible) {
       commentsHtml = '<section data-testid="drawer-comments" style="margin-top:0.5rem">'
@@ -798,7 +814,7 @@
         + '</section>';
     }
 
-    return idHtml + focalHtml + commentsHtml;
+    return idHtml + focalHtml + demoHtml + commentsHtml;
   }
 
   /**
