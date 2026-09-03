@@ -75,6 +75,7 @@ Database SQLiteDB;
 
 char
 	ServerIp[24]
+	, ServerIpOverride[24] /* Optional public/NAT IP from sourcebans.cfg */
 	, ServerPort[7]
 	, DatabasePrefix[10] = "sb"
 	, WebsiteAddress[128]
@@ -97,6 +98,7 @@ bool
 	, requireSiteLogin = false /* Require a lastvisited from SB site */
 	, backupConfig = true
 	, enableAdmins = true
+	, ConfigLoaded = false /* sourcebans.cfg has been parsed at least once */
 	, PlayerStatus[MAXPLAYERS + 1]; /* Player ban check status */
 
 int
@@ -1081,6 +1083,13 @@ public void GotDatabase(Database db, const char[] error, any data)
 		// Fallback to async method
 		Format(query, sizeof(query), "SET NAMES utf8mb4");
 		DB.Query(ErrorCheckCallback, query);
+	}
+
+	// The database can be ready before the first ReadConfig() (OnMapStart), and every
+	// query below depends on config values (DatabasePrefix, AutoAdd, ServerIP override).
+	if (!ConfigLoaded)
+	{
+		ResetSettings();
 	}
 
 	InsertServerInfo();
@@ -2257,6 +2266,26 @@ public SMCResult ReadConfig_KeyValue(SMCParser smc, const char[] key, const char
 					CommandDisable |= DISABLE_ADDBAN;
 				}
 			}
+			else if (strcmp("ServerIP", key, false) == 0)
+			{
+				char ipValue[64];
+				strcopy(ipValue, sizeof(ipValue), value);
+				TrimString(ipValue);
+
+				ServerIpOverride[0] = '\0';
+
+				if (ipValue[0] != '\0')
+				{
+					if (IsValidServerIp(ipValue))
+					{
+						strcopy(ServerIpOverride, sizeof(ServerIpOverride), ipValue);
+					}
+					else
+					{
+						LogError("Invalid \"ServerIP\" value \"%s\" in sourcebans.cfg, falling back to the auto-detected server IP", value);
+					}
+				}
+			}
 			else if (strcmp("AutoAddServer", key, false) == 0)
 			{
 				int sAutoAdd = StringToInt(value);
@@ -2647,13 +2676,57 @@ stock void CheckLoadAdmins(AdminCachePart part)
 	}
 }
 
-stock void InsertServerInfo()
+/**
+ * Validates that the given string is a dotted-quad IPv4 address.
+ */
+stock bool IsValidServerIp(const char[] ip)
 {
-    if (DB == INVALID_HANDLE) {
+    int octets = 0, value = 0, digits = 0;
+
+    for (int i = 0; ; i++)
+    {
+        if (ip[i] == '.' || ip[i] == '\0')
+        {
+            if (digits == 0 || value > 255)
+                return false;
+
+            octets++;
+
+            if (ip[i] == '\0')
+                break;
+
+            if (octets == 4)
+                return false;
+
+            value = 0;
+            digits = 0;
+        }
+        else if (ip[i] >= '0' && ip[i] <= '9')
+        {
+            if (++digits > 3)
+                return false;
+
+            value = value * 10 + (ip[i] - '0');
+        }
+        else
+        {
+            return false;
+        }
+    }
+
+    return (octets == 4);
+}
+
+/**
+ * Refreshes ServerIp/ServerPort from the game cvars, applying the optional
+ * "ServerIP" override from sourcebans.cfg (public/NAT address).
+ */
+stock void UpdateServerIp()
+{
+    if (CvarHostIp == null || CvarPort == null) {
         return;
     }
 
-    char query[100];
     int pieces[4];
     int longip = CvarHostIp.IntValue;
 
@@ -2664,6 +2737,23 @@ stock void InsertServerInfo()
 
     FormatEx(ServerIp, sizeof(ServerIp), "%d.%d.%d.%d", pieces[0], pieces[1], pieces[2], pieces[3]);
     CvarPort.GetString(ServerPort, sizeof(ServerPort));
+
+    // Prefer the public/NAT IP configured in sourcebans.cfg over the auto-detected hostip.
+    if (ServerIpOverride[0] != '\0')
+    {
+        strcopy(ServerIp, sizeof(ServerIp), ServerIpOverride);
+    }
+}
+
+stock void InsertServerInfo()
+{
+    if (DB == INVALID_HANDLE) {
+        return;
+    }
+
+    char query[100];
+
+    UpdateServerIp();
 
     if (AutoAdd != AUTO_ADD_SERVER_DISABLED) {
         FormatEx(query, sizeof(query), "SELECT sid FROM %s_servers WHERE ip = '%s' AND port = '%s'", DatabasePrefix, ServerIp, ServerPort);
@@ -2733,9 +2823,14 @@ stock void ReadConfig()
 	char ConfigFile[PLATFORM_MAX_PATH];
 	BuildPath(Path_SM, ConfigFile, sizeof(ConfigFile), "configs/sourcebans/sourcebans.cfg");
 
+	// Reset so a removed/emptied "ServerIP" key does not keep a stale override on reload.
+	ServerIpOverride[0] = '\0';
+
 	if (FileExists(ConfigFile))
 	{
+		ConfigLoaded = true;
 		InternalReadConfig(ConfigFile);
+		UpdateServerIp();
 		PrintToServer("%sLoading configs/sourcebans.cfg config file", Prefix);
 	} else {
 		char Error[PLATFORM_MAX_PATH + 64];

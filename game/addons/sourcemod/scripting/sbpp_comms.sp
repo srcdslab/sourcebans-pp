@@ -96,6 +96,7 @@ Database SQLiteDB;
 
 char
 	ServerIp[24]
+	, ServerIpOverride[24] /* Optional public/NAT IP from sourcebans.cfg */
 	, ServerPort[7]
 	, DatabasePrefix[10] = "sb"
 #if defined LOG_QUERIES
@@ -2029,6 +2030,26 @@ public SMCResult ReadConfig_KeyValue(SMCParser smc, const char[] key, const char
 					RetryTime = 60.0;
 				}
 			}
+			else if (strcmp("ServerIP", key, false) == 0)
+			{
+				char ipValue[64];
+				strcopy(ipValue, sizeof(ipValue), value);
+				TrimString(ipValue);
+
+				ServerIpOverride[0] = '\0';
+
+				if (ipValue[0] != '\0')
+				{
+					if (IsValidServerIp(ipValue))
+					{
+						strcopy(ServerIpOverride, sizeof(ServerIpOverride), ipValue);
+					}
+					else
+					{
+						LogError("Invalid \"ServerIP\" value \"%s\" in sourcebans.cfg, falling back to the auto-detected server IP", value);
+					}
+				}
+			}
 			else if (strcmp("ServerID", key, false) == 0)
 			{
 				serverID = StringToInt(value);
@@ -2794,8 +2815,54 @@ stock void InsertTempBlock(int length, int type, const char[] name, const char[]
 	SQLiteDB.Query(Query_ErrorCheck, sQuery);
 }
 
+/**
+ * Validates that the given string is a dotted-quad IPv4 address.
+ */
+stock bool IsValidServerIp(const char[] ip)
+{
+	int octets = 0, value = 0, digits = 0;
+
+	for (int i = 0; ; i++)
+	{
+		if (ip[i] == '.' || ip[i] == '\0')
+		{
+			if (digits == 0 || value > 255)
+				return false;
+
+			octets++;
+
+			if (ip[i] == '\0')
+				break;
+
+			if (octets == 4)
+				return false;
+
+			value = 0;
+			digits = 0;
+		}
+		else if (ip[i] >= '0' && ip[i] <= '9')
+		{
+			if (++digits > 3)
+				return false;
+
+			value = value * 10 + (ip[i] - '0');
+		}
+		else
+		{
+			return false;
+		}
+	}
+
+	return (octets == 4);
+}
+
 stock void ServerInfo()
 {
+	if (CvarHostIp == null || CvarPort == null)
+	{
+		return;
+	}
+
 	int pieces[4];
 	int longip = CvarHostIp.IntValue;
 	pieces[0] = (longip >> 24) & 0x000000FF;
@@ -2804,6 +2871,12 @@ stock void ServerInfo()
 	pieces[3] = longip & 0x000000FF;
 	FormatEx(ServerIp, sizeof(ServerIp), "%d.%d.%d.%d", pieces[0], pieces[1], pieces[2], pieces[3]);
 	CvarPort.GetString(ServerPort, sizeof(ServerPort));
+
+	// Prefer the public/NAT IP configured in sourcebans.cfg over the auto-detected hostip.
+	if (ServerIpOverride[0] != '\0')
+	{
+		strcopy(ServerIp, sizeof(ServerIp), ServerIpOverride);
+	}
 }
 
 stock void ReadConfig()
@@ -2816,6 +2889,10 @@ stock void ReadConfig()
 	}
 
 	char ConfigFile1[PLATFORM_MAX_PATH], ConfigFile2[PLATFORM_MAX_PATH];
+
+	// Reset so a removed/emptied "ServerIP" key does not keep a stale override on reload.
+	ServerIpOverride[0] = '\0';
+
 	BuildPath(Path_SM, ConfigFile1, sizeof(ConfigFile1), "configs/sourcebans/sourcebans.cfg");
 	BuildPath(Path_SM, ConfigFile2, sizeof(ConfigFile2), "configs/sourcebans/sourcecomms.cfg");
 
@@ -2823,6 +2900,8 @@ stock void ReadConfig()
 	{
 		PrintToServer("%sLoading configs/sourcebans/sourcebans.cfg config file", PREFIX);
 		InternalReadConfig(ConfigFile1);
+		// Re-apply the (possibly changed) "ServerIP" override on top of the auto-detected hostip.
+		ServerInfo();
 	}
 	else
 	{
