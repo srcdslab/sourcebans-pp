@@ -1002,7 +1002,9 @@ fallback). This is a **separate product** from `POST /api.php`.
 - GET `/protests` and `/submissions` require the matching queue flags.
   DELETE is hard-delete (`archiv=0`). GET comments on a ban or comm is
   public and empty when `config.enablepubliccomments` is off (admins
-  still see them). DELETE `/comments/{id}` is Owner. GET/PATCH
+  still see them). Anonymous GET `/comms/{cid}/comments` is 404 when
+  `config.enablecomms` is off (a PAT still reads), matching GET
+  `/comms`. DELETE `/comments/{id}` is Owner. GET/PATCH
   `/settings` never returns or writes `smtp.pass` or
   `telemetry.instance_id`.
 - OpenAPI (`web/api/openapi-v1.yaml`) lands in the **same PR** as the

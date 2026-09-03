@@ -103,6 +103,30 @@ final class RestCommentsTest extends RestTestCase
         $this->assertNull($anon->payload['data'][0]['author_aid']);
     }
 
+    public function testAnonymousGetCommCommentsIs404WhenCommsDisabled(): void
+    {
+        $cid = $this->seedComm('STEAM_0:1:9506');
+        $pdo = Fixture::rawPdo();
+        $pdo->prepare(sprintf(
+            'REPLACE INTO `%s_settings` (`value`, `setting`) VALUES ("0", "config.enablecomms")',
+            DB_PREFIX
+        ))->execute();
+        \Config::init($GLOBALS['PDO']);
+
+        $anon = $this->rest('GET', '/comms/' . $cid . '/comments');
+        $this->assertRestError($anon, 404, 'not_found');
+
+        $token = $this->mintToken();
+        $pat = $this->rest('GET', '/comms/' . $cid . '/comments', token: $token);
+        $this->assertSame(200, $pat->status, json_encode($pat->payload));
+
+        $pdo->prepare(sprintf(
+            'REPLACE INTO `%s_settings` (`value`, `setting`) VALUES ("1", "config.enablecomms")',
+            DB_PREFIX
+        ))->execute();
+        \Config::init($GLOBALS['PDO']);
+    }
+
     public function testCreateOnComm(): void
     {
         $cid = $this->seedComm('STEAM_0:1:9503');

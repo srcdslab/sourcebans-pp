@@ -355,7 +355,9 @@ Writes reuse `servers.add` / `servers.remove` / `servers.send_rcon`,
 Slice 3: `/protests` and `/submissions` (GET list/get, DELETE hard-delete
 via `protests.remove` / `submissions.remove` with `archiv=0`), nested
 comments on `/bans/{bid}/comments` and `/comms/{cid}/comments` (public GET
-honours `config.enablepubliccomments` and `banlist.hideadminname`; POST /
+honours `config.enablepubliccomments` and `banlist.hideadminname`;
+anonymous GET of comm comments is 404 when `config.enablecomms` is off,
+matching `/comms`; POST /
 PATCH reuse `bans.add_comment` / `bans.edit_comment`; DELETE is Owner via
 `bans.remove_comment`), `/settings` GET+PATCH (dedicated; never
 `smtp.pass` or `telemetry.instance_id`).

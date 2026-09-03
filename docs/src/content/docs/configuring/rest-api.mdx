@@ -154,7 +154,7 @@ A 429 includes `Retry-After`.
 | DELETE | `/protests/{pid}` | Hard delete |
 | GET | `/submissions`, `/submissions/{sid}` | Current queue. `archived=true` for the archive |
 | DELETE | `/submissions/{sid}` | Hard delete |
-| GET | `/bans/{bid}/comments`, `/comms/{cid}/comments` | Public. Empty when public comments are off |
+| GET | `/bans/{bid}/comments`, `/comms/{cid}/comments` | Public. Empty when public comments are off. Anonymous GET `/comms/{cid}/comments` is 404 when Comm blocks are off (`config.enablecomms`); a PAT still reads |
 | POST | `/bans/{bid}/comments`, `/comms/{cid}/comments` | `body`. Any web admin |
 | PATCH | `/comments/{cid}` | `body` |
 | DELETE | `/comments/{cid}` | Owner only |
@@ -172,7 +172,9 @@ GET `/servers` never includes `rcon`, even with a PAT. Anonymous GET
 `group_ids`, and 404s a disabled `{sid}`. A PAT may pass `enabled=` and
 sees `group_ids`. A well-formed token that is revoked, expired, or
 unknown is 401 even on those GETs. GET comments on a ban or comm is also
-public (empty when public comments are off). GET `/protests`,
+public (empty when public comments are off). Anonymous GET
+`/comms/{cid}/comments` is 404 when Comm blocks are off, matching GET
+`/comms`. A PAT still reads. GET `/protests`,
 `/submissions`, and `/settings` need a PAT.
 
 POST `/bans` `length` is minutes (0 = permanent), matching the panel form.

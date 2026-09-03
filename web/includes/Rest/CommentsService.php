@@ -164,6 +164,9 @@ final class CommentsService
             'C' => '`:prefix_comms`',
             default => throw new ApiError('bad_type', 'Bad comment type.', null, 400),
         };
+        if ($ctype === 'C') {
+            PublicVisibility::assertCommsFeature();
+        }
         $pdo = $this->db();
         $pdo->query("SELECT bid FROM {$table} WHERE bid = :id");
         $pdo->bind(':id', $parentId);

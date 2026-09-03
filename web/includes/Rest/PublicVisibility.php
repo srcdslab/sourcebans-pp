@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace Sbpp\Rest;
 
+use Sbpp\Api\ApiError;
 use Sbpp\Auth\UserManager;
 use Sbpp\Config;
 
@@ -31,5 +32,16 @@ final class PublicVisibility
     {
         $userbank = $GLOBALS['userbank'] ?? null;
         return $userbank instanceof UserManager && $userbank->is_admin();
+    }
+
+    /**
+     * Anonymous GET `/comms` (and nested `/comms/{cid}/comments`) is 404
+     * when Comm blocks are off. A PAT still reads.
+     */
+    public static function assertCommsFeature(): void
+    {
+        if (!Config::getBool('config.enablecomms') && !self::isAdmin()) {
+            throw new ApiError('not_found', 'Not found.', null, 404);
+        }
     }
 }

@@ -11,7 +11,6 @@ use BanRemoval;
 use Sbpp\Api\Api;
 use Sbpp\Api\ApiError;
 use Sbpp\Auth\UserManager;
-use Sbpp\Config;
 use Sbpp\Db\Database;
 use SteamID\SteamID;
 
@@ -359,9 +358,7 @@ final class CommsService
 
     private function assertPublicFeature(): void
     {
-        if (!Config::getBool('config.enablecomms') && !PublicVisibility::isAdmin()) {
-            throw new ApiError('not_found', 'Not found.', null, 404);
-        }
+        PublicVisibility::assertCommsFeature();
     }
 
     private function db(): Database
