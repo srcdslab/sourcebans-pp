@@ -139,11 +139,26 @@
                         <div>
                             <div class="flex items-center justify-between gap-2 mb-2">
                                 <label class="label m-0">Permission flags</label>
-                                {* #1258: `data-testid="flag-bitmask"` lets the page-tail JS
-                                   below (and future E2E specs) anchor on the contract instead
-                                   of visible copy. SSR is the source of truth for the initial
-                                   paint; the listener re-folds the OR-sum on each `change`. *}
-                                <span class="text-xs text-muted" data-testid="flag-bitmask">{$selected_group.flags} bitmask</span>
+                                <div class="flex items-center gap-2">
+                                    {* #1436: bulk toggle for the flag grid so operators don't
+                                       have to tick every permission individually. Gated on
+                                       `permission_editgroup` like the checkboxes themselves. *}
+                                    {if $permission_editgroup}
+                                        <button type="button"
+                                                class="btn btn--ghost btn--sm"
+                                                data-testid="flag-select-all"
+                                                onclick="SbppGroupsToggleAllFlags(true);">Select all</button>
+                                        <button type="button"
+                                                class="btn btn--ghost btn--sm"
+                                                data-testid="flag-select-none"
+                                                onclick="SbppGroupsToggleAllFlags(false);">Select none</button>
+                                    {/if}
+                                    {* #1258: `data-testid="flag-bitmask"` lets the page-tail JS
+                                       below (and future E2E specs) anchor on the contract instead
+                                       of visible copy. SSR is the source of truth for the initial
+                                       paint; the listener re-folds the OR-sum on each `change`. *}
+                                    <span class="text-xs text-muted" data-testid="flag-bitmask">{$selected_group.flags} bitmask</span>
+                                </div>
                             </div>
                             {* #1258: per-flag rows are bare `<label class="flex items-center
                                gap-2">` — no inline border / background / radius — so the grid
@@ -547,6 +562,28 @@ function SbppFoldFlags(root) {
         bitmask |= Number(input.dataset.flagValue || input.value);
     }
     return bitmask >>> 0;
+}
+
+/**
+ * #1436 — bulk toggle for the web-group permission flag grid.
+ * Sets every enabled `input[name="flags[]"]` checkbox to `checked`,
+ * then refreshes the live bitmask preview so the operator sees the
+ * new value before saving. Disabled checkboxes (no `permission_editgroup`)
+ * are left untouched, though the buttons are not rendered in that case.
+ *
+ * @param {boolean} checked
+ */
+function SbppGroupsToggleAllFlags(checked) {
+    var grid = document.querySelector('[data-testid="flag-grid"]');
+    if (!grid) return;
+    var checks = grid.querySelectorAll('input[name="flags[]"]');
+    for (var i = 0; i < checks.length; i++) {
+        var input = /** @type {HTMLInputElement} */ (checks[i]);
+        if (input.disabled) continue;
+        input.checked = !!checked;
+    }
+    var preview = document.querySelector('[data-testid="flag-bitmask"]');
+    if (preview) preview.textContent = SbppFoldFlags(grid) + ' bitmask';
 }
 
 /**
