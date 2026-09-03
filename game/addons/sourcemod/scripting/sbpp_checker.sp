@@ -167,6 +167,9 @@ public int Native_SBCheckerGetClientsBans(Handle plugin, int numParams)
 public int Native_SBCheckerGetClientsComms(Handle plugin, int numParams)
 {
 	int client = GetNativeCell(1);
+	if (g_iMuteCounts[client] == -1 || g_iGagCounts[client] == -1)
+		return -1;
+
 	return g_iMuteCounts[client] + g_iGagCounts[client];
 }
 
@@ -227,6 +230,12 @@ public void OnConnectBanCheck(Database db, DBResultSet results, const char[] err
 	int client = GetClientOfUserId(userid);
 	if (!client || results == null || !results.FetchRow())
 		return;
+
+	// The check completed: clear the "not yet available" sentinel on the counters
+	// that are only filled in by the optional rows below, so that the natives and
+	// the arithmetic underneath never operate on -1.
+	g_iMuteCounts[client] = 0;
+	g_iGagCounts[client] = 0;
 
 	// SteamID bans
 	g_iBanCounts[client] = results.FetchInt(0);
