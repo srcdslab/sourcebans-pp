@@ -989,7 +989,9 @@ fallback). This is a **separate product** from `POST /api.php`.
   and ignores `enabled=`. A well-formed PAT that fails to resolve is
   401. Cookie JWT never authenticates REST (would leak IPs on public GET).
 - `web/api/v1.php` defines `SBPP_REST` before `init.php`. `CSRF::init()`
-  no-ops so REST does not start a PHP session. After PAT bind,
+  no-ops so REST does not start a PHP session. `Auth::verify()` also
+  no-ops so REST does not read `sbpp_auth` or slide
+  `:prefix_login_tokens`. After PAT bind,
   `Log::init` is rebound to the PAT (or anonymous) userbank.
 - POST `/bans` and `/comms` `length` is minutes (0 = permanent). GET
   `length` is seconds. Optional `kick: true` on POST `/bans` fans

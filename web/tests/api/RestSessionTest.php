@@ -5,6 +5,7 @@ namespace Sbpp\Tests\Api;
 use PHPUnit\Framework\Attributes\PreserveGlobalState;
 use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\TestCase;
+use Sbpp\Tests\Fixture;
 
 final class RestSessionTest extends TestCase
 {
@@ -31,5 +32,64 @@ final class RestSessionTest extends TestCase
         $this->assertNotSame(PHP_SESSION_ACTIVE, session_status());
         \CSRF::init();
         $this->assertNotSame(PHP_SESSION_ACTIVE, session_status());
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testAuthVerifyDoesNotReadCookieWhenRestFlagIsSet(): void
+    {
+        if (!defined('SBPP_REST')) {
+            define('SBPP_REST', true);
+        }
+        Fixture::reset();
+
+        $jti = \Sbpp\Security\Crypto::genJTI();
+        $past = time() - 120;
+        $pdo = Fixture::rawPdo();
+        $pdo->prepare(sprintf(
+            'INSERT INTO `%s_login_tokens` (jti, secret, lastAccessed) VALUES (?, ?, ?)',
+            DB_PREFIX
+        ))->execute([$jti, 'test-secret', $past]);
+
+        $token = \Sbpp\Auth\JWT::create($jti, 3600, Fixture::adminAid());
+        $_COOKIE['sbpp_auth'] = $token->toString();
+
+        $this->assertNull(\Auth::verify());
+
+        $stmt = $pdo->prepare(sprintf(
+            'SELECT lastAccessed FROM `%s_login_tokens` WHERE jti = ?',
+            DB_PREFIX
+        ));
+        $stmt->execute([$jti]);
+        $this->assertSame($past, (int) $stmt->fetchColumn());
+    }
+
+    #[RunInSeparateProcess]
+    #[PreserveGlobalState(false)]
+    public function testAuthVerifySlidesSessionWhenRestFlagIsNotSet(): void
+    {
+        $this->assertFalse(defined('SBPP_REST'));
+        Fixture::reset();
+
+        $jti = \Sbpp\Security\Crypto::genJTI();
+        $past = time() - 120;
+        $pdo = Fixture::rawPdo();
+        $pdo->prepare(sprintf(
+            'INSERT INTO `%s_login_tokens` (jti, secret, lastAccessed) VALUES (?, ?, ?)',
+            DB_PREFIX
+        ))->execute([$jti, 'test-secret', $past]);
+
+        $token = \Sbpp\Auth\JWT::create($jti, 3600, Fixture::adminAid());
+        $_COOKIE['sbpp_auth'] = $token->toString();
+
+        $verified = \Auth::verify();
+        $this->assertNotNull($verified);
+
+        $stmt = $pdo->prepare(sprintf(
+            'SELECT lastAccessed FROM `%s_login_tokens` WHERE jti = ?',
+            DB_PREFIX
+        ));
+        $stmt->execute([$jti]);
+        $this->assertGreaterThan($past, (int) $stmt->fetchColumn());
     }
 }

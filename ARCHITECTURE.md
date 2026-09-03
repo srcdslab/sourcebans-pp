@@ -317,11 +317,12 @@ GET /api/v1/…  ->   │  api/v1.php  │ -> │ FrontController     │ -> │
 ```
 
 1. `api/v1.php` defines `SBPP_REST` before including `init.php` so
-   `CSRF::init()` does not start a PHP session, then calls
-   `FrontController::dispatch()`.
+   `CSRF::init()` does not start a PHP session and `Auth::verify()`
+   does not read `sbpp_auth` or slide `:prefix_login_tokens`, then
+   calls `FrontController::dispatch()`.
 2. The controller **replaces** `$GLOBALS['userbank']` with the PAT
    identity or an anonymous `UserManager(null)`, then rebinds
-   `Log::init` to that userbank. The panel cookie is ignored.
+   `Log::init` to that userbank. The panel cookie is never read.
 3. Rate limit (file under `SB_CACHE/rest-rl/`, 60 req/min). Authenticated
    by token id, anonymous by IP.
 4. A well-formed `sbpp_pat_…` that does not resolve is 401 on every route,
