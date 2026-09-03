@@ -96,6 +96,7 @@ Database SQLiteDB;
 
 char
 	ServerIp[24]
+	, ServerIpOverride[24] /* Optional public/NAT IP from sourcebans.cfg */
 	, ServerPort[7]
 	, DatabasePrefix[10] = "sb"
 #if defined LOG_QUERIES
@@ -2029,6 +2030,14 @@ public SMCResult ReadConfig_KeyValue(SMCParser smc, const char[] key, const char
 					RetryTime = 60.0;
 				}
 			}
+			else if (strcmp("ServerIP", key, false) == 0)
+			{
+				strcopy(ServerIpOverride, sizeof(ServerIpOverride), value);
+				if (ServerIpOverride[0] != '\0')
+				{
+					strcopy(ServerIp, sizeof(ServerIp), ServerIpOverride);
+				}
+			}
 			else if (strcmp("ServerID", key, false) == 0)
 			{
 				serverID = StringToInt(value);
@@ -2804,6 +2813,12 @@ stock void ServerInfo()
 	pieces[3] = longip & 0x000000FF;
 	FormatEx(ServerIp, sizeof(ServerIp), "%d.%d.%d.%d", pieces[0], pieces[1], pieces[2], pieces[3]);
 	CvarPort.GetString(ServerPort, sizeof(ServerPort));
+
+	// Prefer the public/NAT IP configured in sourcebans.cfg over the auto-detected hostip.
+	if (ServerIpOverride[0] != '\0')
+	{
+		strcopy(ServerIp, sizeof(ServerIp), ServerIpOverride);
+	}
 }
 
 stock void ReadConfig()
