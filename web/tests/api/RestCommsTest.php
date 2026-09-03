@@ -92,6 +92,7 @@ final class RestCommsTest extends RestTestCase
         $this->assertNotNull($data['gag']);
         $this->assertSame('mute', $data['mute']['kind']);
         $this->assertSame('gag', $data['gag']['kind']);
+        $this->assertNotSame($data['mute']['id'], $data['gag']['id']);
     }
 
     public function testDuplicateCreateIs409(): void

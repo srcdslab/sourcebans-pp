@@ -79,22 +79,18 @@ final class ModsService
     {
         $folder = (string) ($body['folder'] ?? $body['modfolder'] ?? '');
         $name = (string) ($body['name'] ?? '');
-        Api::invoke('mods.add', [
+        $out = Api::invoke('mods.add', [
             'name' => $name,
             'folder' => $folder,
             'icon' => (string) ($body['icon'] ?? ''),
             'steam_universe' => (int) ($body['steam_universe'] ?? 0),
             'enabled' => $body['enabled'] ?? true,
         ]);
-        $pdo = $this->db();
-        $pdo->query('SELECT mid FROM `:prefix_mods` WHERE modfolder = :folder OR name = :name ORDER BY mid DESC');
-        $pdo->bind(':folder', $folder);
-        $pdo->bind(':name', $name);
-        $row = $pdo->single();
-        if (!is_array($row)) {
+        $mid = (int) ($out['mid'] ?? 0);
+        if ($mid <= 0) {
             throw new ApiError('server_error', 'Mod was not created.', null, 500);
         }
-        return $this->get((int) $row['mid']);
+        return $this->get($mid);
     }
 
     /**

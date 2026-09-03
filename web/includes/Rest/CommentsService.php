@@ -91,9 +91,6 @@ final class CommentsService
         ]);
         $id = (int) ($out['cid'] ?? 0);
         if ($id <= 0) {
-            $id = $this->latestCid($parentId, $ctype);
-        }
-        if ($id <= 0) {
             throw new ApiError('server_error', 'Comment was not created.', null, 500);
         }
         return $this->get($id);
@@ -217,19 +214,6 @@ final class CommentsService
     private function commentsVisible(): bool
     {
         return Config::getBool('config.enablepubliccomments') || PublicVisibility::isAdmin();
-    }
-
-    private function latestCid(int $parentId, string $ctype): int
-    {
-        $pdo = $this->db();
-        $pdo->query(
-            'SELECT cid FROM `:prefix_comments` WHERE type = :type AND bid = :bid'
-            . ' ORDER BY cid DESC LIMIT 1'
-        );
-        $pdo->bind(':type', $ctype);
-        $pdo->bind(':bid', $parentId);
-        $row = $pdo->single();
-        return is_array($row) ? (int) ($row['cid'] ?? 0) : 0;
     }
 
     /**

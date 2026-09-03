@@ -19,11 +19,14 @@ final class ModsTest extends ApiTestCase
         ]);
         $this->assertTrue($env['ok']);
         $this->assertSame('Mod Added', $env['data']['message']['title']);
-        $this->assertSnapshot('mods/add_success', $env);
+        $this->assertIsInt($env['data']['mid']);
+        $this->assertGreaterThan(0, $env['data']['mid']);
+        $this->assertSnapshot('mods/add_success', $env, ['data.mid']);
 
         $row = $this->row('mods', ['modfolder' => 'tmod']);
         $this->assertNotNull($row);
         $this->assertSame('Test Mod', $row['name']);
+        $this->assertSame((int) $row['mid'], $env['data']['mid']);
     }
 
     public function testAddRejectsAnonymous(): void

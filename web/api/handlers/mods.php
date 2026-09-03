@@ -25,6 +25,7 @@ function api_mods_add(array $params): array
     Log::add(LogType::Message, 'Mod Added', "Mod ($name) has been added.");
 
     return [
+        'mid' => (int) $GLOBALS['PDO']->lastInsertId(),
         'reload'  => true,
         'message' => [
             'title' => 'Mod Added',

@@ -10,7 +10,6 @@ namespace Sbpp\Rest;
 use BanRemoval;
 use Sbpp\Api\Api;
 use Sbpp\Api\ApiError;
-use Sbpp\Auth\UserManager;
 use Sbpp\Db\Database;
 use SteamID\SteamID;
 
@@ -108,15 +107,14 @@ final class CommsService
             'reason' => (string) ($body['reason'] ?? ''),
         ];
 
-        $pdo = $this->db();
-        $beforeRow = $pdo->query('SELECT MAX(bid) AS m FROM `:prefix_comms`')->single();
-        $before = is_array($beforeRow) ? (int) ($beforeRow['m'] ?? 0) : 0;
-
-        Api::invoke('comms.add', $params);
-
-        $created = $this->rowsAfter($before, $steam);
-        if ($created === []) {
+        $out = Api::invoke('comms.add', $params);
+        $bids = $out['bids'] ?? [];
+        if (!is_array($bids) || $bids === []) {
             throw new ApiError('server_error', 'Block was not created.', null, 500);
+        }
+        $created = [];
+        foreach ($bids as $bid) {
+            $created[] = $this->get((int) $bid);
         }
         if (count($created) === 1) {
             return $created[0];
@@ -322,38 +320,6 @@ final class CommsService
             throw new ApiError('validation', 'type must be 1 (mute), 2 (gag), or 3 (silence).', 'type', 400);
         }
         return $type;
-    }
-
-    /**
-     * @return list<array<string, mixed>>
-     */
-    private function rowsAfter(int $before, string $rawSteam): array
-    {
-        $steam2 = $rawSteam;
-        if ($rawSteam !== '' && SteamID::isValidID($rawSteam)) {
-            $converted = SteamID::toSteam2($rawSteam);
-            if (is_string($converted) && $converted !== '') {
-                $steam2 = $converted;
-            }
-        }
-        /** @var UserManager $userbank */
-        $userbank = $GLOBALS['userbank'];
-        $aid = $userbank->GetAid();
-        $pdo = $this->db();
-        $pdo->query(
-            $this->selectSql()
-            . ' WHERE C.bid > :before AND C.authid = :authid AND C.aid = :aid'
-            . ' ORDER BY C.bid ASC'
-        );
-        $pdo->bind(':before', $before);
-        $pdo->bind(':authid', $steam2);
-        $pdo->bind(':aid', $aid);
-        $rows = $pdo->resultset();
-        $out = [];
-        foreach ($rows as $row) {
-            $out[] = $this->toResource($row);
-        }
-        return $out;
     }
 
     private function assertPublicFeature(): void
