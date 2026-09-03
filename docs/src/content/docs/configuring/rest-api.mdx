@@ -45,7 +45,10 @@ Pretty URLs (production Docker image, and the dev image after rebuild):
 
 <Code lang="text" code="https://bans.example.com/api/v1/me" />
 
-PATH_INFO fallback (always works, including tarball installs without rewrite):
+PATH_INFO form (`/api/v1.php/me`). nginx + PHP-FPM must split PATH_INFO
+(see the snippet below). If PATH_INFO is empty, the panel still routes
+from `REQUEST_URI` when it contains `/api/v1` or `/api/v1.php` plus the
+path. Pretty `/api/v1/…` still needs rewrite.
 
 <Code lang="text" code="https://bans.example.com/api/v1.php/me" />
 
@@ -204,12 +207,20 @@ location /api/v1 {
 }
 ```
 
-Pass `Authorization` through to PHP. Some Apache/PHP builds leave
-`$_SERVER['HTTP_AUTHORIZATION']` empty. The panel also reads the header
-via `getallheaders()`. For nginx + PHP-FPM:
+That rewrite produces `/api/v1.php/me`. A stock
+`location ~ \.php$` that sets `SCRIPT_FILENAME` from `$uri` will then
+fail with "Primary script unknown". Split PATH_INFO in the PHP-FPM
+location:
 
 ```nginx
+fastcgi_split_path_info ^(.+\.php)(/.*)$;
+fastcgi_param PATH_INFO $fastcgi_path_info;
 fastcgi_param HTTP_AUTHORIZATION $http_authorization;
 ```
 
-Tarball installs without rewrite should use `/api/v1.php/…`.
+Pass `Authorization` through to PHP. Some Apache/PHP builds leave
+`$_SERVER['HTTP_AUTHORIZATION']` empty. The panel also reads the header
+via `getallheaders()`.
+
+Tarball installs without rewrite should call `/api/v1.php/…` and still
+need PATH_INFO (or a `REQUEST_URI` that keeps `/api/v1.php/` in it).
