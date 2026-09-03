@@ -55,9 +55,11 @@ DatabaseState g_DatabaseState;
 int g_iSequence = 0;
 int g_iConnectLock = 0;
 
-int g_iBanCounts[MAXPLAYERS + 1];
-int g_iMuteCounts[MAXPLAYERS + 1];
-int g_iGagCounts[MAXPLAYERS + 1];
+int g_iBanCounts[MAXPLAYERS + 1] = {-1, ...};
+int g_iMuteCounts[MAXPLAYERS + 1] = {-1, ...};
+int g_iGagCounts[MAXPLAYERS + 1] = {-1, ...};
+
+GlobalForward g_fwdClientBanCheckPost;
 
 public Plugin myinfo =
 {
@@ -149,6 +151,8 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 	CreateNative("SBPP_CheckerGetClientsMutes", Native_SBCheckerGetClientsMutes);
 	CreateNative("SBPP_CheckerGetClientsGags", Native_SBCheckerGetClientsGags);
 
+	g_fwdClientBanCheckPost = CreateGlobalForward("SBPP_CheckerClientBanCheckPost", ET_Ignore, Param_Cell);
+
 	g_bLate = late;
 
 	return APLRes_Success;
@@ -163,6 +167,9 @@ public int Native_SBCheckerGetClientsBans(Handle plugin, int numParams)
 public int Native_SBCheckerGetClientsComms(Handle plugin, int numParams)
 {
 	int client = GetNativeCell(1);
+	if (g_iMuteCounts[client] == -1 || g_iGagCounts[client] == -1)
+		return -1;
+
 	return g_iMuteCounts[client] + g_iGagCounts[client];
 }
 
@@ -176,6 +183,13 @@ public int Native_SBCheckerGetClientsGags(Handle plugin, int numParams)
 {
 	int client = GetNativeCell(1);
 	return g_iGagCounts[client];
+}
+
+public void OnClientDisconnect_Post(int client)
+{
+	g_iBanCounts[client] = -1;
+	g_iMuteCounts[client] = -1;
+	g_iGagCounts[client] = -1;
 }
 
 public void OnClientAuthorized(int client, const char[] auth)
@@ -217,6 +231,12 @@ public void OnConnectBanCheck(Database db, DBResultSet results, const char[] err
 	if (!client || results == null || !results.FetchRow())
 		return;
 
+	// The check completed: clear the "not yet available" sentinel on the counters
+	// that are only filled in by the optional rows below, so that the natives and
+	// the arithmetic underneath never operate on -1.
+	g_iMuteCounts[client] = 0;
+	g_iGagCounts[client] = 0;
+
 	// SteamID bans
 	g_iBanCounts[client] = results.FetchInt(0);
 
@@ -234,6 +254,10 @@ public void OnConnectBanCheck(Database db, DBResultSet results, const char[] err
 
 	int bancount = g_iBanCounts[client];
 	int commcount = g_iMuteCounts[client] + g_iGagCounts[client];
+
+	Call_StartForward(g_fwdClientBanCheckPost);
+	Call_PushCell(client);
+	Call_Finish();
 
 	if (!g_bPrintCheckOnConnect)
 		return;
