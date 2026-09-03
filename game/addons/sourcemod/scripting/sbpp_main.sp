@@ -144,6 +144,7 @@ public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max
 
 	CreateNative("SBBanPlayer", Native_SBBanPlayer);
 	CreateNative("SBPP_BanPlayer", Native_SBBanPlayer);
+	CreateNative("SBPP_BanPlayerBySteamId", Native_SBPP_BanPlayerBySteamId);
 	CreateNative("SBPP_ReportPlayer", Native_SBReportPlayer);
 
 	g_hFwd_OnBanAdded = CreateGlobalForward("SBPP_OnBanPlayer", ET_Ignore, Param_Cell, Param_Cell, Param_Cell, Param_String);
@@ -2384,6 +2385,216 @@ public int Native_SBBanPlayer(Handle plugin, int numParams)
 
 	PrepareBan(client, target, time, reason);
 	return true;
+}
+
+// Validates a SteamID2 authid ("STEAM_X:Y:Z" with X/Y single digits and Z a
+// non-empty run of digits). A prefix-only check would let malformed strings
+// such as "STEAM_junk" through, and the INSERT below slices authid[8] to build
+// the '^STEAM_[0-9]:%s$' REGEXP, so a bad tail silently produces a garbage row.
+static bool UTIL_IsValidSteamID2(const char[] authid)
+{
+	if (strncmp(authid, "STEAM_", 6, false) != 0)
+		return false;
+
+	if (!IsCharNumeric(authid[6]) || authid[7] != ':')
+		return false;
+
+	if ((authid[8] != '0' && authid[8] != '1') || authid[9] != ':')
+		return false;
+
+	if (authid[10] == '\0')
+		return false;
+
+	for (int i = 10; authid[i] != '\0'; i++)
+	{
+		if (!IsCharNumeric(authid[i]))
+			return false;
+	}
+
+	return true;
+}
+
+public int Native_SBPP_BanPlayerBySteamId(Handle plugin, int numParams)
+{
+	if (DB == INVALID_HANDLE)
+	{
+		ThrowNativeError(SP_ERROR_NATIVE, "SourceBans++ database is not available.");
+		return 0;
+	}
+
+	int admin = GetNativeCell(1);
+	int iTime = GetNativeCell(4);
+
+	char steamId[MAX_AUTHID_LENGTH], name[MAX_NAME_LENGTH], reason[128];
+	GetNativeString(2, steamId, sizeof(steamId));
+	GetNativeString(3, name, sizeof(name));
+	GetNativeString(5, reason, sizeof(reason));
+
+	if (!UTIL_IsValidSteamID2(steamId))
+	{
+		ThrowNativeError(SP_ERROR_NATIVE, "SBPP_BanPlayerBySteamId: steamId must be in SteamID2 format (STEAM_X:Y:Z), got: %s", steamId);
+		return 0;
+	}
+
+	if (iTime < 0)
+	{
+		ThrowNativeError(SP_ERROR_NATIVE, "SBPP_BanPlayerBySteamId: iTime must be >= 0 (0 = permanent), got: %d", iTime);
+		return 0;
+	}
+
+	// Mirrors Native_SBBanPlayer: a client index is only honoured when it maps
+	// to a real, in-game admin holding the ban flag. Bounds-check first so a
+	// bogus index cannot fault IsClientInGame()/g_sSteamIDs[].
+	bool bHasAdmin = (admin > 0 && admin <= MaxClients && IsClientInGame(admin));
+	if (bHasAdmin)
+	{
+		AdminId aid = GetUserAdmin(admin);
+		if (aid == INVALID_ADMIN_ID)
+		{
+			ThrowNativeError(SP_ERROR_NATIVE, "Ban Error: Player is not an admin.");
+			return 0;
+		}
+
+		if (!aid.HasFlag(Admin_Ban))
+		{
+			ThrowNativeError(SP_ERROR_NATIVE, "Ban Error: Player does not have BAN flag.");
+			return 0;
+		}
+	}
+
+	if (reason[0] == '\0')
+		strcopy(reason, sizeof(reason), "Banned by SourceBans");
+
+	char adminAuth[MAX_AUTHID_LENGTH], adminIp[16];
+	if (!bHasAdmin)
+	{
+		// Collapse anything that is not a live client to 0 (server/automated) so
+		// SBPP_OnBanPlayer never hands subscribers an index they cannot use.
+		admin = 0;
+		strcopy(adminAuth, sizeof(adminAuth), "STEAM_ID_SERVER");
+		strcopy(adminIp, sizeof(adminIp), ServerIp);
+	}
+	else
+	{
+		strcopy(adminAuth, sizeof(adminAuth), g_sSteamIDs[admin]);
+		strcopy(adminIp, sizeof(adminIp), g_sPlayerIP[admin]);
+	}
+
+	DataPack pack = new DataPack();
+	pack.WriteCell(admin);
+	pack.WriteCell(iTime);
+	pack.WriteString(reason);
+	pack.WriteString(steamId);
+	pack.WriteString(name);
+	pack.WriteString(adminAuth);
+	pack.WriteString(adminIp);
+
+	char steamIdEscaped[MAX_AUTHID_LENGTH * 2 + 1];
+	DB.Escape(steamId, steamIdEscaped, sizeof(steamIdEscaped));
+
+	char query[512];
+	FormatEx(query, sizeof(query), "SELECT bid FROM %s_bans WHERE type = 0 AND authid = '%s' AND (length = 0 OR ends > UNIX_TIMESTAMP()) AND RemoveType IS NULL",
+		DatabasePrefix, steamIdEscaped);
+
+	DB.Query(DB_OnBanBySteamIdSelect, query, pack, DBPrio_High);
+
+	return 0;
+}
+
+public void DB_OnBanBySteamIdSelect(Database db, DBResultSet results, const char[] error, DataPack pack)
+{
+	if (results == null)
+	{
+		LogToFile(logFile, "BanPlayerBySteamId Select Query Failed: %s", error);
+		delete pack;
+		return;
+	}
+
+	pack.Reset();
+	int admin = pack.ReadCell();
+	int iTime = pack.ReadCell();
+	char reason[128], steamId[MAX_AUTHID_LENGTH], name[MAX_NAME_LENGTH], adminAuth[MAX_AUTHID_LENGTH], adminIp[16];
+	pack.ReadString(reason, sizeof(reason));
+	pack.ReadString(steamId, sizeof(steamId));
+	pack.ReadString(name, sizeof(name));
+	pack.ReadString(adminAuth, sizeof(adminAuth));
+	pack.ReadString(adminIp, sizeof(adminIp));
+	delete pack;
+
+	if (results.RowCount > 0)
+	{
+		LogToFile(logFile, "BanPlayerBySteamId: %s is already banned, skipping.", steamId);
+		return;
+	}
+
+	// reasonEscaped must hold sizeof(reason) * 2 + 1: SQL_EscapeString() refuses
+	// to write at all when the destination is one byte short, which would leave
+	// an uninitialised buffer spliced into the INSERT below.
+	char steamIdEscaped[MAX_AUTHID_LENGTH * 2 + 1], nameEscaped[MAX_NAME_LENGTH * 2 + 1], reasonEscaped[sizeof(reason) * 2 + 1];
+	db.Escape(steamId, steamIdEscaped, sizeof(steamIdEscaped));
+	db.Escape(name, nameEscaped, sizeof(nameEscaped));
+	db.Escape(reason, reasonEscaped, sizeof(reasonEscaped));
+
+	// 2048, not 1024: with the fork's extra admin_name sub-select the worst-case
+	// rendering of this statement is ~1210 bytes (128-byte escaped authid,
+	// 64-byte escaped name, 256-byte escaped reason, four DatabasePrefix and
+	// four adminAuth expansions), which FormatEx would silently truncate into
+	// invalid SQL.
+	char query[2048];
+	if (serverID == -1)
+	{
+		FormatEx(query, sizeof(query), "INSERT INTO %s_bans (authid, name, created, ends, length, reason, aid, adminIp, admin_name, sid, country) VALUES \
+			('%s', '%s', UNIX_TIMESTAMP(), UNIX_TIMESTAMP() + %d, %d, '%s', \
+			IFNULL((SELECT aid FROM %s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'),'0'), '%s', \
+			IFNULL((SELECT user FROM %s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), ''), \
+			(SELECT sid FROM %s_servers WHERE ip = '%s' AND port = '%s' LIMIT 0,1), ' ')",
+			DatabasePrefix, steamIdEscaped, nameEscaped, (iTime * 60), (iTime * 60), reasonEscaped,
+			DatabasePrefix, adminAuth, adminAuth[8], adminIp,
+			DatabasePrefix, adminAuth, adminAuth[8],
+			DatabasePrefix, ServerIp, ServerPort);
+	}
+	else
+	{
+		FormatEx(query, sizeof(query), "INSERT INTO %s_bans (authid, name, created, ends, length, reason, aid, adminIp, admin_name, sid, country) VALUES \
+			('%s', '%s', UNIX_TIMESTAMP(), UNIX_TIMESTAMP() + %d, %d, '%s', \
+			IFNULL((SELECT aid FROM %s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'),'0'), '%s', \
+			IFNULL((SELECT user FROM %s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), ''), \
+			%d, ' ')",
+			DatabasePrefix, steamIdEscaped, nameEscaped, (iTime * 60), (iTime * 60), reasonEscaped,
+			DatabasePrefix, adminAuth, adminAuth[8], adminIp,
+			DatabasePrefix, adminAuth, adminAuth[8],
+			serverID);
+	}
+
+	DataPack fwdPack = new DataPack();
+	fwdPack.WriteCell(admin);
+	fwdPack.WriteCell(iTime);
+	fwdPack.WriteString(reason);
+
+	db.Query(DB_OnBanBySteamIdInsert, query, fwdPack, DBPrio_High);
+}
+
+public void DB_OnBanBySteamIdInsert(Database db, DBResultSet results, const char[] error, DataPack pack)
+{
+	pack.Reset();
+	int admin = pack.ReadCell();
+	int iTime = pack.ReadCell();
+	char reason[128];
+	pack.ReadString(reason, sizeof(reason));
+	delete pack;
+
+	if (results == null)
+	{
+		LogToFile(logFile, "BanPlayerBySteamId Insert Query Failed: %s", error);
+		return;
+	}
+
+	Call_StartForward(g_hFwd_OnBanAdded);
+	Call_PushCell(admin);
+	Call_PushCell(-1);
+	Call_PushCell(iTime);
+	Call_PushString(reason);
+	Call_Finish();
 }
 
 public int Native_SBReportPlayer(Handle plugin, int numParams)
