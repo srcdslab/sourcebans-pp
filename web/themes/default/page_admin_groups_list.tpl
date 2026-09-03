@@ -147,10 +147,12 @@
                                         <button type="button"
                                                 class="btn btn--ghost btn--sm"
                                                 data-testid="flag-select-all"
+                                                aria-label="Select all permission flags"
                                                 onclick="SbppGroupsToggleAllFlags(true);">Select all</button>
                                         <button type="button"
                                                 class="btn btn--ghost btn--sm"
                                                 data-testid="flag-select-none"
+                                                aria-label="Select no permission flags"
                                                 onclick="SbppGroupsToggleAllFlags(false);">Select none</button>
                                     {/if}
                                     {* #1258: `data-testid="flag-bitmask"` lets the page-tail JS
@@ -571,17 +573,44 @@ function SbppFoldFlags(root) {
  * new value before saving. Disabled checkboxes (no `permission_editgroup`)
  * are left untouched, though the buttons are not rendered in that case.
  *
+ * A programmatic `input.checked = …` fires NO `change` event, so the two
+ * listeners further down that a manual click would have driven — the
+ * grid's live-preview fold and, more importantly, the master-detail
+ * `markDirty` tracker bound on the form — would both miss a bulk toggle.
+ * Missing `markDirty` is the dangerous half: the left-rail selection
+ * handler would treat the pane as pristine and silently discard the
+ * bulk change when the operator clicks another group, instead of raising
+ * the "Unsaved changes" confirm. So dispatch one bubbling `change` from
+ * the grid (the tracker only cares that something under the form
+ * changed) and repaint the preview here — the grid's own listener
+ * ignores non-checkbox targets by design.
+ *
+ * The repaint goes through `SbppFoldFlags`, the same helper
+ * `SbppGroupsSave` and the `change` listener use, so the `>>> 0`
+ * unsigned-32-bit projection from #1272 can't drift on this path:
+ * OR-folding every flag sets bit 31 (`ADMIN_UNBAN_GROUP_BANS`), which
+ * a bare `|=` would render negative.
+ *
  * @param {boolean} checked
  */
 function SbppGroupsToggleAllFlags(checked) {
     var grid = document.querySelector('[data-testid="flag-grid"]');
     if (!grid) return;
+    var next = !!checked;
     var checks = grid.querySelectorAll('input[name="flags[]"]');
+    var changed = false;
     for (var i = 0; i < checks.length; i++) {
         var input = /** @type {HTMLInputElement} */ (checks[i]);
-        if (input.disabled) continue;
-        input.checked = !!checked;
+        if (input.disabled || input.checked === next) continue;
+        input.checked = next;
+        changed = true;
     }
+    // No-op click (already all-on / all-off): leave the form pristine
+    // so a stray press doesn't arm the unsaved-changes prompt.
+    if (!changed) return;
+
+    grid.dispatchEvent(new Event('change', { bubbles: true }));
+
     var preview = document.querySelector('[data-testid="flag-bitmask"]');
     if (preview) preview.textContent = SbppFoldFlags(grid) + ' bitmask';
 }
