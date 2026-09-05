@@ -183,6 +183,39 @@ final class RestCommentsTest extends RestTestCase
         $this->assertRestError($denied, 403, 'forbidden');
     }
 
+    public function testPatchIsAuthorOrOwner(): void
+    {
+        $bid = $this->seedBan('STEAM_0:1:9507');
+        $authorAid = $this->insertAdmin('comment-author', 'STEAM_0:0:9507', ADMIN_ADD_BAN);
+        $otherAid = $this->insertAdmin('comment-other', 'STEAM_0:0:9508', ADMIN_ADD_BAN);
+        $authorToken = $this->mintToken($authorAid);
+        $otherToken = $this->mintToken($otherAid);
+        $ownerToken = $this->mintToken();
+
+        $mine = $this->rest('POST', '/bans/' . $bid . '/comments', [
+            'body' => 'authors comment',
+        ], $authorToken);
+        $this->assertSame(201, $mine->status, json_encode($mine->payload));
+        $id = $mine->payload['data']['id'];
+
+        $denied = $this->rest('PATCH', '/comments/' . $id, [
+            'body' => 'hijack',
+        ], $otherToken);
+        $this->assertRestError($denied, 403, 'forbidden');
+
+        $own = $this->rest('PATCH', '/comments/' . $id, [
+            'body' => 'author edit',
+        ], $authorToken);
+        $this->assertSame(200, $own->status, json_encode($own->payload));
+        $this->assertSame('author edit', $own->payload['data']['body']);
+
+        $asOwner = $this->rest('PATCH', '/comments/' . $id, [
+            'body' => 'owner edit',
+        ], $ownerToken);
+        $this->assertSame(200, $asOwner->status, json_encode($asOwner->payload));
+        $this->assertSame('owner edit', $asOwner->payload['data']['body']);
+    }
+
     public function testMissingCommentIs404(): void
     {
         $token = $this->mintToken();
@@ -198,6 +231,18 @@ final class RestCommentsTest extends RestTestCase
              VALUES (UNIX_TIMESTAMP(), 0, ?, ?, ?, UNIX_TIMESTAMP(), 0, ?, ?, "127.0.0.1", ?)',
             DB_PREFIX
         ))->execute(['1.1.1.1', $steam, 'Cheater', 'test', Fixture::adminAid(), 'admin']);
+        return (int) $pdo->lastInsertId();
+    }
+
+    private function insertAdmin(string $user, string $steam, int $flags): int
+    {
+        $pdo = Fixture::rawPdo();
+        $hash = password_hash('other', PASSWORD_BCRYPT);
+        $pdo->prepare(sprintf(
+            'INSERT INTO `%s_admins` (user, authid, password, gid, email, extraflags, immunity, enabled)
+             VALUES (?, ?, ?, -1, ?, ?, 0, 1)',
+            DB_PREFIX
+        ))->execute([$user, $steam, $hash, $user . '@example.test', $flags]);
         return (int) $pdo->lastInsertId();
     }
 

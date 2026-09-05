@@ -355,6 +355,19 @@ function api_bans_edit_comment(array $params): array
         throw new ApiError('bad_type', 'Bad comment type.');
     }
 
+    $row = $GLOBALS['PDO']->query(
+        "SELECT cid, aid FROM `:prefix_comments` WHERE cid = ?"
+    )->single([$cid]);
+    if (!$row) {
+        throw new ApiError('not_found', 'Comment not found.', null, 404);
+    }
+
+    $authorAid = (int) $row['aid'];
+    $canEdit = $authorAid === $userbank->GetAid() || $userbank->HasAccess(WebPermission::Owner);
+    if (!$canEdit) {
+        throw new ApiError('forbidden', 'You can only edit your own comments.', null, 403);
+    }
+
     $GLOBALS['PDO']->query(
         "UPDATE `:prefix_comments` SET commenttxt = ?, editaid = ?, edittime = UNIX_TIMESTAMP() WHERE cid = ?"
     )->execute([$ctext, $userbank->GetAid(), $cid]);
