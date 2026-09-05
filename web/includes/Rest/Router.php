@@ -79,9 +79,14 @@ final class Router
     private static function matchPath(string $pattern, string $path): ?array
     {
         $pattern = self::normalize($pattern);
-        $regex = preg_replace_callback('/\{([a-zA-Z_][a-zA-Z0-9_]*)\}/', static function (array $m): string {
-            return '(?P<' . $m[1] . '>[^/]+)';
-        }, $pattern);
+        $quoted = preg_quote($pattern, '#');
+        $regex = preg_replace_callback(
+            '/\\\\\{([a-zA-Z_][a-zA-Z0-9_]*)\\\\\}/',
+            static function (array $m): string {
+                return '(?P<' . $m[1] . '>[^/]+)';
+            },
+            $quoted,
+        );
         if ($regex === null) {
             return null;
         }

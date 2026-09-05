@@ -88,8 +88,10 @@ final class Envelope
             'conflict' => 409,
             'delete_failed',
             'archive_failed',
-            'restore_failed' => 500,
-            default => 400,
+            'restore_failed',
+            'create_failed',
+            'server_error' => 500,
+            default => str_ends_with($code, '_failed') ? 500 : 400,
         };
     }
 }

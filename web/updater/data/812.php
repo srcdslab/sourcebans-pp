@@ -22,8 +22,10 @@ $this->dbs->query(
     . 'PRIMARY KEY (`id`),'
     . 'UNIQUE KEY `token_hash` (`token_hash`),'
     . 'KEY `aid` (`aid`)'
-    . ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+    . ') ENGINE=InnoDB DEFAULT CHARSET=:charset'
 );
+// @phpstan-ignore variable.undefined
+$this->dbs->bind(':charset', DB_CHARSET);
 // @phpstan-ignore variable.undefined
 $this->dbs->execute();
 

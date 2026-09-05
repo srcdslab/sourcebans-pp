@@ -142,7 +142,7 @@ final class FrontController
 
         $uri = (string) (parse_url((string) ($_SERVER['REQUEST_URI'] ?? ''), PHP_URL_PATH) ?? '');
         if (preg_match('#/api/v1(?:\.php)?(/.*)?$#', $uri, $m) === 1) {
-            return Router::normalize($m[1] ?? '/');
+            return Router::normalize(rawurldecode($m[1] ?? '/'));
         }
         return '/';
     }
@@ -179,19 +179,31 @@ final class FrontController
         if (!defined('SB_REST_CORS_ORIGINS') || SB_REST_CORS_ORIGINS === '') {
             return [];
         }
-        $origin = (string) ($_SERVER['HTTP_ORIGIN'] ?? '');
+        return self::corsHeadersFor(
+            (string) ($_SERVER['HTTP_ORIGIN'] ?? ''),
+            (string) SB_REST_CORS_ORIGINS,
+        );
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public static function corsHeadersFor(string $origin, string $allowedCsv): array
+    {
+        if ($allowedCsv === '') {
+            return [];
+        }
+        $headers = ['Vary' => 'Origin'];
         if ($origin === '') {
-            return [];
+            return $headers;
         }
-        $allowed = array_map('trim', explode(',', (string) SB_REST_CORS_ORIGINS));
+        $allowed = array_map('trim', explode(',', $allowedCsv));
         if (!in_array($origin, $allowed, true)) {
-            return [];
+            return $headers;
         }
-        return [
-            'Access-Control-Allow-Origin' => $origin,
-            'Access-Control-Allow-Headers' => 'Authorization, Content-Type',
-            'Access-Control-Allow-Methods' => 'GET, PUT, PATCH, POST, DELETE, OPTIONS',
-            'Vary' => 'Origin',
-        ];
+        $headers['Access-Control-Allow-Origin'] = $origin;
+        $headers['Access-Control-Allow-Headers'] = 'Authorization, Content-Type';
+        $headers['Access-Control-Allow-Methods'] = 'GET, PUT, PATCH, POST, DELETE, OPTIONS';
+        return $headers;
     }
 }

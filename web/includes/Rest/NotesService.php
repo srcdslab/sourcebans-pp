@@ -97,7 +97,10 @@ final class NotesService
         $steam2 = (string) $row['steam_id'];
         $steam64 = null;
         if ($steam2 !== '' && SteamID::isValidID($steam2)) {
-            $steam64 = SteamID::toSteam64($steam2);
+            $converted = SteamID::toSteam64($steam2);
+            if ($converted !== false && $converted !== null && $converted !== '') {
+                $steam64 = (string) $converted;
+            }
         }
         return [
             'id' => (int) $row['nid'],

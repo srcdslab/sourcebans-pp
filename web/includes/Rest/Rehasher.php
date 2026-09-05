@@ -10,6 +10,7 @@ namespace Sbpp\Rest;
 use Sbpp\Api\Api;
 use Sbpp\Auth\UserManager;
 use Sbpp\Config;
+use Sbpp\Db\Database;
 use WebPermission;
 
 /**
@@ -57,7 +58,11 @@ final class Rehasher
      */
     public static function allEnabledSids(): array
     {
-        $rows = $GLOBALS['PDO']->query(
+        $pdo = $GLOBALS['PDO'] ?? null;
+        if (!$pdo instanceof Database) {
+            $pdo = new Database(DB_HOST, (int) DB_PORT, DB_NAME, DB_USER, DB_PASS, DB_PREFIX, DB_CHARSET);
+        }
+        $rows = $pdo->query(
             'SELECT sid FROM `:prefix_servers` WHERE enabled = 1'
         )->resultset();
         $sids = [];
