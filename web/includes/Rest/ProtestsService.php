@@ -80,6 +80,26 @@ final class ProtestsService
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function archive(int $pid): array
+    {
+        $this->get($pid);
+        Api::invoke('protests.remove', ['pid' => $pid, 'archiv' => '1']);
+        return $this->get($pid);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function restore(int $pid): array
+    {
+        $this->get($pid);
+        Api::invoke('protests.remove', ['pid' => $pid, 'archiv' => '2']);
+        return $this->get($pid);
+    }
+
+    /**
      * @param array<string, mixed> $row
      * @return array<string, mixed>
      */
@@ -106,8 +126,7 @@ final class ProtestsService
         if (!array_key_exists('archived', $query)) {
             return false;
         }
-        $v = $query['archived'];
-        return $v === true || $v === 1 || $v === '1' || $v === 'true';
+        return Coerce::bool($query['archived']);
     }
 
     /**

@@ -324,6 +324,20 @@ final class Routes
                 'handler' => self::protestsDelete(...),
             ],
             [
+                'method' => 'POST',
+                'path' => '/protests/{pid}/archive',
+                'auth' => true,
+                'perm' => $protests,
+                'handler' => self::protestsArchive(...),
+            ],
+            [
+                'method' => 'POST',
+                'path' => '/protests/{pid}/restore',
+                'auth' => true,
+                'perm' => $protests,
+                'handler' => self::protestsRestore(...),
+            ],
+            [
                 'method' => 'GET',
                 'path' => '/submissions',
                 'auth' => true,
@@ -343,6 +357,20 @@ final class Routes
                 'auth' => true,
                 'perm' => $submissions,
                 'handler' => self::submissionsDelete(...),
+            ],
+            [
+                'method' => 'POST',
+                'path' => '/submissions/{sid}/archive',
+                'auth' => true,
+                'perm' => $submissions,
+                'handler' => self::submissionsArchive(...),
+            ],
+            [
+                'method' => 'POST',
+                'path' => '/submissions/{sid}/restore',
+                'auth' => true,
+                'perm' => $submissions,
+                'handler' => self::submissionsRestore(...),
             ],
             [
                 'method' => 'PATCH',
@@ -870,6 +898,26 @@ final class Routes
      * @param array<string, mixed> $body
      * @param array<string, mixed> $query
      */
+    private static function protestsArchive(array $params, array $body, array $query): Response
+    {
+        return Envelope::ok((new ProtestsService())->archive(self::positiveId($params['pid'] ?? '', 'pid')));
+    }
+
+    /**
+     * @param array<string, string> $params
+     * @param array<string, mixed> $body
+     * @param array<string, mixed> $query
+     */
+    private static function protestsRestore(array $params, array $body, array $query): Response
+    {
+        return Envelope::ok((new ProtestsService())->restore(self::positiveId($params['pid'] ?? '', 'pid')));
+    }
+
+    /**
+     * @param array<string, string> $params
+     * @param array<string, mixed> $body
+     * @param array<string, mixed> $query
+     */
     private static function submissionsList(array $params, array $body, array $query): Response
     {
         $result = (new SubmissionsService())->list($query);
@@ -894,6 +942,26 @@ final class Routes
     private static function submissionsDelete(array $params, array $body, array $query): Response
     {
         return Envelope::ok((new SubmissionsService())->delete(self::positiveId($params['sid'] ?? '', 'sid')));
+    }
+
+    /**
+     * @param array<string, string> $params
+     * @param array<string, mixed> $body
+     * @param array<string, mixed> $query
+     */
+    private static function submissionsArchive(array $params, array $body, array $query): Response
+    {
+        return Envelope::ok((new SubmissionsService())->archive(self::positiveId($params['sid'] ?? '', 'sid')));
+    }
+
+    /**
+     * @param array<string, string> $params
+     * @param array<string, mixed> $body
+     * @param array<string, mixed> $query
+     */
+    private static function submissionsRestore(array $params, array $body, array $query): Response
+    {
+        return Envelope::ok((new SubmissionsService())->restore(self::positiveId($params['sid'] ?? '', 'sid')));
     }
 
     /**

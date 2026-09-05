@@ -43,6 +43,22 @@ final class RestProtestsTest extends RestTestCase
         $this->assertSame('wrong ban', $got->payload['data']['reason']);
         $this->assertFalse($got->payload['data']['archived']);
         $this->assertSame('127.0.0.1', $got->payload['data']['ip']);
+        $this->assertSame('protest@example.test', $got->payload['data']['email']);
+
+        $archivedLive = $this->rest('POST', '/protests/' . $current . '/archive', [], $token);
+        $this->assertSame(200, $archivedLive->status, json_encode($archivedLive->payload));
+        $this->assertTrue($archivedLive->payload['data']['archived']);
+
+        $afterArchive = $this->rest('GET', '/protests', token: $token);
+        $this->assertNotContains($current, array_column($afterArchive->payload['data'], 'id'));
+        $archiveAfter = $this->rest('GET', '/protests', token: $token, query: ['archived' => 'true']);
+        $this->assertContains($current, array_column($archiveAfter->payload['data'], 'id'));
+
+        $restored = $this->rest('POST', '/protests/' . $current . '/restore', [], $token);
+        $this->assertSame(200, $restored->status, json_encode($restored->payload));
+        $this->assertFalse($restored->payload['data']['archived']);
+        $afterRestore = $this->rest('GET', '/protests', token: $token);
+        $this->assertContains($current, array_column($afterRestore->payload['data'], 'id'));
 
         $deleted = $this->rest('DELETE', '/protests/' . $current, [], $token);
         $this->assertSame(200, $deleted->status, json_encode($deleted->payload));
@@ -55,6 +71,16 @@ final class RestProtestsTest extends RestTestCase
         $token = $this->mintToken();
         $response = $this->rest('GET', '/protests/999999', token: $token);
         $this->assertRestError($response, 404, 'not_found');
+        $this->assertRestError(
+            $this->rest('POST', '/protests/999999/archive', [], $token),
+            404,
+            'not_found',
+        );
+        $this->assertRestError(
+            $this->rest('POST', '/protests/999999/restore', [], $token),
+            404,
+            'not_found',
+        );
     }
 
     private function seedProtest(string $archiv = '0'): int

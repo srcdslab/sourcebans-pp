@@ -83,6 +83,26 @@ final class SubmissionsService
     }
 
     /**
+     * @return array<string, mixed>
+     */
+    public function archive(int $sid): array
+    {
+        $this->get($sid);
+        Api::invoke('submissions.remove', ['sid' => $sid, 'archiv' => '1']);
+        return $this->get($sid);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function restore(int $sid): array
+    {
+        $this->get($sid);
+        Api::invoke('submissions.remove', ['sid' => $sid, 'archiv' => '2']);
+        return $this->get($sid);
+    }
+
+    /**
      * @param array<string, mixed> $row
      * @return array<string, mixed>
      */
@@ -107,7 +127,7 @@ final class SubmissionsService
 
         return [
             'id' => (int) $row['subid'],
-            'steam' => $steam2 ?? ($rawSteam !== '' ? $rawSteam : null),
+            'steam' => $steam2,
             'steam64' => $steam64,
             'player_name' => (string) ($row['name'] ?? ''),
             'email' => (string) ($row['email'] ?? ''),
@@ -131,8 +151,7 @@ final class SubmissionsService
         if (!array_key_exists('archived', $query)) {
             return false;
         }
-        $v = $query['archived'];
-        return $v === true || $v === 1 || $v === '1' || $v === 'true';
+        return Coerce::bool($query['archived']);
     }
 
     /**
