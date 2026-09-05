@@ -997,17 +997,21 @@ fallback). This is a **separate product** from `POST /api.php`.
   `:prefix_login_tokens`. After PAT bind,
   `Log::init` is rebound to the PAT (or anonymous) userbank.
 - POST `/bans` and `/comms` `length` is minutes (0 = permanent). GET
-  `length` is seconds. Optional `kick: true` on POST `/bans` fans
-  RCON (`meta.kick`). Unban/unblock require non-empty `ureason`.
+  `length` is also minutes. `ends` is unix seconds. Optional `kick: true`
+  on POST `/bans` fans RCON (`meta.kick`). Unban/unblock require
+  non-empty `ureason`.
 - POST `/servers/{sid}/rcon` requires SourceMod RCON or Root **and**
   per-server mapping. GET `/notes` requires any web admin and
   `?steam=`. DELETE `/notes/{nid}` is author or Owner.
-- GET `/protests` and `/submissions` require the matching queue flags.
-  DELETE is hard-delete (`archiv=0`). GET comments on a ban or comm is
+- GET `/protests` and `/submissions` require the matching queue flags
+  and return reporter `email` / `ip`. POST `/{id}/archive` and
+  `/{id}/restore` reuse `*.remove` with `archiv=1` / `archiv=2`. DELETE
+  is hard-delete (`archiv=0`). GET comments on a ban or comm is
   public and empty when `config.enablepubliccomments` is off (admins
   still see them). Anonymous GET `/comms/{cid}/comments` is 404 when
   `config.enablecomms` is off (a PAT still reads), matching GET
-  `/comms`. DELETE `/comments/{id}` is Owner. GET/PATCH
+  `/comms`. PATCH `/comments/{id}` is author or Owner (same gate as
+  `bans.edit_comment`). DELETE `/comments/{id}` is Owner. GET/PATCH
   `/settings` never returns or writes `smtp.pass` or
   `telemetry.instance_id`.
 - OpenAPI (`web/api/openapi-v1.yaml`) lands in the **same PR** as the

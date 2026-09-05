@@ -238,6 +238,18 @@ paths:
     get:
       tags: [groups]
       summary: List web groups and SourceMod server groups
+      description: >
+        Returns `{web, server}` arrays. Default `per_page` is 100.
+        Pass `kind=web` or `kind=server` to page one catalog.
+        `meta.web_total` and `meta.server_total` are the unpaged counts.
+      parameters:
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/perPage"
+        - name: kind
+          in: query
+          schema:
+            type: string
+            enum: [web, server]
       responses:
         "200":
           description: Group catalog
@@ -282,7 +294,8 @@ paths:
         Public. Anonymous callers follow `banlist.hideplayerips` and
         `banlist.hideadminname`. A valid PAT of a web admin sees IPs and
         admin names. A well-formed but invalid PAT is 401.
-        `length` is seconds. Filter with `state`, `search`, `server`.
+        `length` is minutes (0 = permanent), same as POST. `ends` is unix seconds.
+        Filter with `state`, `search`, `server`.
       parameters:
         - $ref: "#/components/parameters/page"
         - $ref: "#/components/parameters/perPage"
@@ -931,6 +944,52 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+  /protests/{pid}/archive:
+    parameters:
+      - name: pid
+        in: path
+        required: true
+        schema:
+          type: integer
+    post:
+      tags: [protests]
+      summary: Archive a protest
+      responses:
+        "200":
+          description: Archived protest
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProtestEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /protests/{pid}/restore:
+    parameters:
+      - name: pid
+        in: path
+        required: true
+        schema:
+          type: integer
+    post:
+      tags: [protests]
+      summary: Restore a protest from the archive
+      responses:
+        "200":
+          description: Restored protest
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProtestEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /submissions:
     get:
       tags: [submissions]
@@ -990,6 +1049,52 @@ paths:
           $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
+  /submissions/{sid}/archive:
+    parameters:
+      - name: sid
+        in: path
+        required: true
+        schema:
+          type: integer
+    post:
+      tags: [submissions]
+      summary: Archive a submission
+      responses:
+        "200":
+          description: Archived submission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubmissionEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /submissions/{sid}/restore:
+    parameters:
+      - name: sid
+        in: path
+        required: true
+        schema:
+          type: integer
+    post:
+      tags: [submissions]
+      summary: Restore a submission from the archive
+      responses:
+        "200":
+          description: Restored submission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubmissionEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
   /comments/{cid}:
     parameters:
       - name: cid
@@ -1001,6 +1106,7 @@ paths:
     patch:
       tags: [comments]
       summary: Edit a comment
+      description: Author or Owner.
       requestBody:
         required: true
         content:
@@ -1018,6 +1124,8 @@ paths:
           $ref: "#/components/responses/Error"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
         "404":
           $ref: "#/components/responses/NotFound"
     delete:
@@ -1056,7 +1164,9 @@ paths:
       summary: Update existing settings
       description: >
         Only keys that already exist. Unknown or forbidden keys are 400.
-        Never writes `smtp.pass` or `telemetry.instance_id`.
+        Enable flags must be 0/1. Integer settings (auth lifetimes, page
+        size) must be a non-negative integer. Never writes `smtp.pass`
+        or `telemetry.instance_id`.
       requestBody:
         required: true
         content:
@@ -1273,7 +1383,7 @@ components:
               type: integer
     GroupsEnvelope:
       type: object
-      required: [data]
+      required: [data, meta]
       properties:
         data:
           type: object
@@ -1302,6 +1412,17 @@ components:
                     type: string
                   immunity:
                     type: integer
+        meta:
+          type: object
+          properties:
+            page:
+              type: integer
+            per_page:
+              type: integer
+            web_total:
+              type: integer
+            server_total:
+              type: integer
     Ban:
       type: object
       properties:
@@ -1330,7 +1451,7 @@ components:
           type: integer
         length:
           type: integer
-          description: Seconds stored on the row.
+          description: Minutes. 0 is permanent.
         state:
           type: string
           enum: [permanent, active, expired, unbanned]
@@ -1423,7 +1544,7 @@ components:
           type: integer
         length:
           type: integer
-          description: Seconds stored on the row.
+          description: Minutes. 0 is permanent.
         state:
           type: string
           enum: [permanent, active, expired, unmuted]

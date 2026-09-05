@@ -341,9 +341,9 @@ the current password; changing it revokes every token.
 Slice 1: `/bans`, `/bans/{bid}`, POST unban; `/comms`, `/comms/{cid}`,
 POST unblock, DELETE. GET list/get is public and applies the same hide-*
 as the panel. Anonymous GET `/comms` is 404 when `config.enablecomms` is
-off (a PAT still reads). Writes require a PAT. POST `/bans` `length` is
-minutes; GET `length` is seconds. Optional `kick: true` fans RCON via
-`kickit.kick_player` and records `meta.kick`.
+off (a PAT still reads). Writes require a PAT. POST `/bans` and GET
+`length` are minutes. `ends` is unix seconds. Optional `kick: true` fans
+RCON via `kickit.kick_player` and records `meta.kick`.
 
 Slice 2: `/servers` (public GET of enabled hosts with A2S `query`, never
 `rcon`, no `group_ids` for anonymous; PAT may filter `enabled=` and sees
@@ -353,13 +353,15 @@ Writes reuse `servers.add` / `servers.remove` / `servers.send_rcon`,
 `notes.add` / `notes.delete`, `mods.add` / `mods.remove`. PATCH
 `/servers` is dedicated (no RPC handler).
 
-Slice 3: `/protests` and `/submissions` (GET list/get, DELETE hard-delete
-via `protests.remove` / `submissions.remove` with `archiv=0`), nested
+Slice 3: `/protests` and `/submissions` (GET list/get, POST archive /
+restore via `protests.remove` / `submissions.remove` with `archiv=1` /
+`archiv=2`, DELETE hard-delete with `archiv=0`), nested
 comments on `/bans/{bid}/comments` and `/comms/{cid}/comments` (public GET
 honours `config.enablepubliccomments` and `banlist.hideadminname`;
 anonymous GET of comm comments is 404 when `config.enablecomms` is off,
 matching `/comms`; POST /
-PATCH reuse `bans.add_comment` / `bans.edit_comment`; DELETE is Owner via
+PATCH reuse `bans.add_comment` / `bans.edit_comment`, and PATCH is author
+or Owner on both REST and the RPC handler; DELETE is Owner via
 `bans.remove_comment`), `/settings` GET+PATCH (dedicated; never
 `smtp.pass` or `telemetry.instance_id`).
 
