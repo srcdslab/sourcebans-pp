@@ -687,6 +687,30 @@ final class BansTest extends ApiTestCase
         $this->assertEnvelopeError($env, 'bad_type');
     }
 
+    public function testEditCommentRejectsNonAuthor(): void
+    {
+        $authorAid = $this->createAdminWithFlags(ADMIN_ADD_BAN);
+        $editorAid = $this->createAdminWithFlags(ADMIN_UNBAN);
+        $this->loginAs($authorAid);
+        $bid = $this->seedBan();
+        $this->api('bans.add_comment', ['bid' => $bid, 'ctype' => 'B', 'ctext' => 'authors', 'page' => -1]);
+        $cid = (int) $this->row('comments', ['bid' => $bid])['cid'];
+
+        $this->loginAs($editorAid);
+        $denied = $this->api('bans.edit_comment', [
+            'cid' => $cid, 'ctype' => 'B', 'ctext' => 'hijack', 'page' => -1,
+        ]);
+        $this->assertEnvelopeError($denied, 'forbidden');
+        $this->assertSame('authors', $this->row('comments', ['cid' => $cid])['commenttxt']);
+
+        $this->loginAsAdmin();
+        $owned = $this->api('bans.edit_comment', [
+            'cid' => $cid, 'ctype' => 'B', 'ctext' => 'owner-edit', 'page' => -1,
+        ]);
+        $this->assertTrue($owned['ok']);
+        $this->assertSame('owner-edit', $this->row('comments', ['cid' => $cid])['commenttxt']);
+    }
+
     public function testRemoveCommentDeletesRow(): void
     {
         $this->loginAsAdmin();

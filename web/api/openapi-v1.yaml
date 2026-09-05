@@ -1,0 +1,1981 @@
+openapi: 3.0.3
+info:
+  title: SourceBans++ REST API
+  version: 1.0.0
+  description: >
+    Versioned HTTP API for external clients (bots, website-next, scripts).
+    Authenticate with a Personal Access Token. The panel JavaScript continues
+    to use POST /api.php (cookie JWT + CSRF) and is not a client of this API.
+servers:
+  - url: /api/v1
+    description: Pretty URL (Apache rewrite)
+  - url: /api/v1.php
+    description: PATH_INFO fallback
+security:
+  - bearerAuth: []
+tags:
+  - name: me
+  - name: admins
+  - name: groups
+  - name: bans
+  - name: comms
+  - name: servers
+  - name: notes
+  - name: mods
+  - name: protests
+  - name: submissions
+  - name: comments
+  - name: settings
+  - name: system
+  - name: meta
+paths:
+  /openapi.yaml:
+    get:
+      tags: [meta]
+      security: []
+      summary: OpenAPI 3 document for this API
+      responses:
+        "200":
+          description: YAML spec
+          content:
+            application/yaml:
+              schema:
+                type: string
+  /me:
+    get:
+      tags: [me]
+      summary: The admin bound to this token
+      responses:
+        "200":
+          description: Admin resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+  /admins:
+    get:
+      tags: [admins]
+      summary: List admins
+      parameters:
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/perPage"
+      responses:
+        "200":
+          description: Paginated admin list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminListEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /admins/{id}:
+    parameters:
+      - $ref: "#/components/parameters/adminId"
+    get:
+      tags: [admins]
+      summary: Get one admin by aid or Steam64
+      responses:
+        "200":
+          description: Admin resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEnvelope"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [admins]
+      summary: Create or replace an admin
+      description: >
+        `{id}` as Steam64 upserts (201 create, 200 update, reactivates if
+        enabled=0). `{id}` as aid replaces an existing row (404 if missing).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminWrite"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEnvelope"
+        "201":
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEnvelope"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Error"
+    patch:
+      tags: [admins]
+      summary: Merge-update an existing admin (never creates)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AdminWrite"
+      responses:
+        "200":
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [admins]
+      summary: Hard-delete an admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Deleted
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Error"
+  /admins/{id}/deactivate:
+    parameters:
+      - $ref: "#/components/parameters/adminId"
+    post:
+      tags: [admins]
+      summary: Soft-retire an admin (enabled=0)
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Deactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEnvelope"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Error"
+  /admins/{id}/reactivate:
+    parameters:
+      - $ref: "#/components/parameters/adminId"
+    post:
+      tags: [admins]
+      summary: Restore a soft-retired admin
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+      responses:
+        "200":
+          description: Reactivated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Error"
+  /groups:
+    get:
+      tags: [groups]
+      summary: List web groups and SourceMod server groups
+      description: >
+        Returns `{web, server}` arrays. Default `per_page` is 100.
+        Pass `kind=web` or `kind=server` to page one catalog.
+        `meta.web_total` and `meta.server_total` are the unpaged counts.
+      parameters:
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/perPage"
+        - name: kind
+          in: query
+          schema:
+            type: string
+            enum: [web, server]
+      responses:
+        "200":
+          description: Group catalog
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GroupsEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /system/rehash:
+    post:
+      tags: [system]
+      summary: Run sm_rehash on game servers
+      description: >
+        If `sids` is omitted or empty, every enabled server is targeted.
+        Admin create/update/deactivate/reactivate already rehashes automatically.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                sids:
+                  type: array
+                  items:
+                    type: integer
+      responses:
+        "200":
+          description: Rehash result
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /bans:
+    get:
+      tags: [bans]
+      security: []
+      summary: List bans
+      description: >
+        Public. Anonymous callers follow `banlist.hideplayerips` and
+        `banlist.hideadminname`. A valid PAT of a web admin sees IPs and
+        admin names. A well-formed but invalid PAT is 401.
+        `length` is minutes (0 = permanent), same as POST. `ends` is unix seconds.
+        Filter with `state`, `search`, `server`.
+      parameters:
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/perPage"
+        - $ref: "#/components/parameters/search"
+        - $ref: "#/components/parameters/banState"
+        - $ref: "#/components/parameters/serverId"
+      responses:
+        "200":
+          description: Paginated ban list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BanListEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [bans]
+      summary: Create a ban
+      description: >
+        `length` is minutes (0 = permanent), same as the panel form.
+        Optional `kick: true` fans RCON kicks to enabled servers
+        (`meta.kick`). The plugin still blocks on next connect without it.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BanWrite"
+      responses:
+        "201":
+          description: Ban created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BanEnvelope"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Error"
+  /bans/{bid}:
+    parameters:
+      - $ref: "#/components/parameters/banId"
+    get:
+      tags: [bans]
+      security: []
+      summary: Get one ban
+      responses:
+        "200":
+          description: Ban resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BanEnvelope"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /bans/{bid}/unban:
+    parameters:
+      - $ref: "#/components/parameters/banId"
+    post:
+      tags: [bans]
+      summary: Lift an active ban
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ureason]
+              properties:
+                ureason:
+                  type: string
+      responses:
+        "200":
+          description: Ban after lift
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BanEnvelope"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Error"
+  /bans/{bid}/comments:
+    parameters:
+      - $ref: "#/components/parameters/banId"
+    get:
+      tags: [comments]
+      security: []
+      summary: Comments on a ban
+      description: >
+        Public. Empty when public comments are off and the caller is not a
+        token admin. Author fields follow `banlist.hideadminname`.
+      parameters:
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/perPage"
+      responses:
+        "200":
+          description: Comment list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommentListEnvelope"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [comments]
+      summary: Add a comment on a ban
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommentWrite"
+      responses:
+        "201":
+          description: Created comment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommentEnvelope"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /comms:
+    get:
+      tags: [comms]
+      security: []
+      summary: List mute and gag rows
+      description: >
+        Public when `config.enablecomms` is on. Same hide-admin-name
+        rule as bans. Anonymous GET is 404 when the setting is off.
+        A PAT still lists rows. `kind` on the resource is `mute`
+        (type 1) or `gag` (type 2). Silence is two rows.
+      parameters:
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/perPage"
+        - $ref: "#/components/parameters/search"
+        - $ref: "#/components/parameters/commState"
+        - $ref: "#/components/parameters/serverId"
+        - name: kind
+          in: query
+          schema:
+            type: string
+            enum: [mute, gag]
+      responses:
+        "200":
+          description: Paginated comms list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommListEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [comms]
+      summary: Create a mute, gag, or silence
+      description: >
+        `length` is minutes. `kind` is `mute`, `gag`, or `silence`
+        (or `type` 1 / 2 / 3). Silence returns both rows.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommWrite"
+      responses:
+        "201":
+          description: Block created
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Error"
+  /comms/{cid}:
+    parameters:
+      - $ref: "#/components/parameters/commId"
+    get:
+      tags: [comms]
+      security: []
+      summary: Get one mute or gag row
+      description: >
+        Public when `config.enablecomms` is on. Anonymous GET is 404
+        when the setting is off. A PAT still returns the row.
+      responses:
+        "200":
+          description: Comm resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommEnvelope"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [comms]
+      summary: Hard-delete a mute or gag row
+      responses:
+        "200":
+          description: Deleted
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /comms/{cid}/unblock:
+    parameters:
+      - $ref: "#/components/parameters/commId"
+    post:
+      tags: [comms]
+      summary: Lift an active mute or gag
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [ureason]
+              properties:
+                ureason:
+                  type: string
+      responses:
+        "200":
+          description: Block after lift
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommEnvelope"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Error"
+  /comms/{cid}/comments:
+    parameters:
+      - $ref: "#/components/parameters/commId"
+    get:
+      tags: [comments]
+      security: []
+      summary: Comments on a mute or gag
+      description: Same visibility rules as GET `/bans/{bid}/comments`.
+      parameters:
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/perPage"
+      responses:
+        "200":
+          description: Comment list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommentListEnvelope"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    post:
+      tags: [comments]
+      summary: Add a comment on a mute or gag
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommentWrite"
+      responses:
+        "201":
+          description: Created comment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommentEnvelope"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /servers:
+    get:
+      tags: [servers]
+      security: []
+      summary: List game servers
+      description: >
+        Public. A2S summary is in `query` (null when the probe fails).
+        Never includes `rcon`. Anonymous GET returns enabled hosts only
+        and ignores `enabled=`. A PAT may filter with `enabled=true|false`.
+      parameters:
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/perPage"
+        - name: enabled
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Paginated server list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServerListEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+    post:
+      tags: [servers]
+      summary: Add a game server
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServerWrite"
+      responses:
+        "201":
+          description: Server created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServerEnvelope"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Error"
+  /servers/{sid}:
+    parameters:
+      - $ref: "#/components/parameters/serverSid"
+    get:
+      tags: [servers]
+      security: []
+      summary: Get one game server
+      description: >
+        Public for enabled hosts. Anonymous GET of a disabled host is
+        404. A PAT can still fetch a disabled host.
+      responses:
+        "200":
+          description: Server resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServerEnvelope"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [servers]
+      summary: Update a game server
+      description: >
+        Omit `rcon` to keep the stored password. Sending `rcon` replaces it.
+        `group_ids` replaces membership when present.
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ServerWrite"
+      responses:
+        "200":
+          description: Server after update
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServerEnvelope"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Error"
+    delete:
+      tags: [servers]
+      summary: Delete a game server
+      responses:
+        "200":
+          description: Deleted id
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /servers/{sid}/rcon:
+    parameters:
+      - $ref: "#/components/parameters/serverSid"
+    post:
+      tags: [servers]
+      summary: Send an RCON command
+      description: >
+        Requires SourceMod RCON or Root on the token admin, plus per-server
+        mapping. The stored RCON password is never returned.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                command:
+                  type: string
+      responses:
+        "200":
+          description: Command result (`kind` is append, error, noop, or clear)
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /notes:
+    get:
+      tags: [notes]
+      summary: List notes for a Steam ID
+      parameters:
+        - name: steam
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Steam2, Steam3, or Steam64. Canonicalised to Steam2.
+      responses:
+        "200":
+          description: Notes newest first
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NoteListEnvelope"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [notes]
+      summary: Add a note
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [steam, body]
+              properties:
+                steam:
+                  type: string
+                body:
+                  type: string
+                  maxLength: 4000
+      responses:
+        "201":
+          description: Note created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/NoteEnvelope"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /notes/{nid}:
+    delete:
+      tags: [notes]
+      summary: Delete a note
+      description: Author or Owner only.
+      parameters:
+        - $ref: "#/components/parameters/noteId"
+      responses:
+        "200":
+          description: Deleted id
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /mods:
+    get:
+      tags: [mods]
+      summary: List game mods
+      parameters:
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/perPage"
+      responses:
+        "200":
+          description: Paginated mod list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModListEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    post:
+      tags: [mods]
+      summary: Add a game mod
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ModWrite"
+      responses:
+        "201":
+          description: Mod created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "409":
+          $ref: "#/components/responses/Error"
+  /mods/{mid}:
+    parameters:
+      - $ref: "#/components/parameters/modId"
+    get:
+      tags: [mods]
+      summary: Get one game mod
+      responses:
+        "200":
+          description: Mod resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [mods]
+      summary: Delete a game mod
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ureason:
+                  type: string
+      responses:
+        "200":
+          description: Deleted id
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /protests:
+    get:
+      tags: [protests]
+      summary: List ban protests
+      description: Current queue by default. Pass `archived=true` for the archive.
+      parameters:
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/perPage"
+        - name: archived
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Paginated protest list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProtestListEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /protests/{pid}:
+    parameters:
+      - name: pid
+        in: path
+        required: true
+        schema:
+          type: integer
+    get:
+      tags: [protests]
+      summary: Get one protest
+      responses:
+        "200":
+          description: Protest resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProtestEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [protests]
+      summary: Hard-delete a protest
+      responses:
+        "200":
+          description: Deleted id
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /protests/{pid}/archive:
+    parameters:
+      - name: pid
+        in: path
+        required: true
+        schema:
+          type: integer
+    post:
+      tags: [protests]
+      summary: Archive a protest
+      responses:
+        "200":
+          description: Archived protest
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProtestEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /protests/{pid}/restore:
+    parameters:
+      - name: pid
+        in: path
+        required: true
+        schema:
+          type: integer
+    post:
+      tags: [protests]
+      summary: Restore a protest from the archive
+      responses:
+        "200":
+          description: Restored protest
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProtestEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /submissions:
+    get:
+      tags: [submissions]
+      summary: List ban submissions
+      description: Current queue by default. Pass `archived=true` for the archive.
+      parameters:
+        - $ref: "#/components/parameters/page"
+        - $ref: "#/components/parameters/perPage"
+        - name: archived
+          in: query
+          schema:
+            type: boolean
+      responses:
+        "200":
+          description: Paginated submission list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubmissionListEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+  /submissions/{sid}:
+    parameters:
+      - name: sid
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: Submission id (`subid`).
+    get:
+      tags: [submissions]
+      summary: Get one submission
+      responses:
+        "200":
+          description: Submission resource
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubmissionEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [submissions]
+      summary: Hard-delete a submission
+      responses:
+        "200":
+          description: Deleted id
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /submissions/{sid}/archive:
+    parameters:
+      - name: sid
+        in: path
+        required: true
+        schema:
+          type: integer
+    post:
+      tags: [submissions]
+      summary: Archive a submission
+      responses:
+        "200":
+          description: Archived submission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubmissionEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /submissions/{sid}/restore:
+    parameters:
+      - name: sid
+        in: path
+        required: true
+        schema:
+          type: integer
+    post:
+      tags: [submissions]
+      summary: Restore a submission from the archive
+      responses:
+        "200":
+          description: Restored submission
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubmissionEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /comments/{cid}:
+    parameters:
+      - name: cid
+        in: path
+        required: true
+        schema:
+          type: integer
+        description: Comment id.
+    patch:
+      tags: [comments]
+      summary: Edit a comment
+      description: Author or Owner.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CommentWrite"
+      responses:
+        "200":
+          description: Updated comment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommentEnvelope"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [comments]
+      summary: Delete a comment
+      description: Owner only.
+      responses:
+        "200":
+          description: Deleted id
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+  /settings:
+    get:
+      tags: [settings]
+      summary: Panel settings
+      description: >
+        Flat key/value map. Never includes `smtp.pass` or
+        `telemetry.instance_id`.
+      responses:
+        "200":
+          description: Settings object
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SettingsEnvelope"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+    patch:
+      tags: [settings]
+      summary: Update existing settings
+      description: >
+        Only keys that already exist. Unknown or forbidden keys are 400.
+        Enable flags must be 0/1. Integer settings (auth lifetimes, page
+        size) must be a non-negative integer. Never writes `smtp.pass`
+        or `telemetry.instance_id`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: Settings after update
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SettingsEnvelope"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Personal Access Token (`sbpp_pat_` + 64 hex chars). Minted on Your Account.
+  parameters:
+    adminId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Numeric aid, or a 17-digit Steam64 that round-trips through Steam2. Steam2/Steam3 is 400.
+    page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        default: 1
+    perPage:
+      name: per_page
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 30
+    search:
+      name: search
+      in: query
+      schema:
+        type: string
+      description: Match name, SteamID, reason (and IP when the caller can see IPs).
+    banState:
+      name: state
+      in: query
+      schema:
+        type: string
+        enum: [permanent, active, expired, unbanned]
+    commState:
+      name: state
+      in: query
+      schema:
+        type: string
+        enum: [permanent, active, expired, unmuted]
+    serverId:
+      name: server
+      in: query
+      schema:
+        type: integer
+        minimum: 1
+    banId:
+      name: bid
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    commId:
+      name: cid
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    serverSid:
+      name: sid
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    noteId:
+      name: nid
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+    modId:
+      name: mid
+      in: path
+      required: true
+      schema:
+        type: integer
+        minimum: 1
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: object
+          required: [code, message]
+          properties:
+            code:
+              type: string
+            message:
+              type: string
+            field:
+              type: string
+    Admin:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        steam:
+          type: string
+          nullable: true
+        steam64:
+          type: string
+          nullable: true
+          description: Decimal string. Never a JSON number.
+        email:
+          type: string
+        enabled:
+          type: boolean
+        immunity:
+          type: integer
+        web_group_id:
+          type: integer
+          nullable: true
+        web_group_name:
+          type: string
+          nullable: true
+        server_group_id:
+          type: integer
+          nullable: true
+        server_group_name:
+          type: string
+          nullable: true
+        server_ids:
+          type: array
+          items:
+            type: integer
+        lastvisit:
+          type: integer
+          nullable: true
+    AdminWrite:
+      type: object
+      properties:
+        name:
+          type: string
+        steam:
+          type: string
+        email:
+          type: string
+        web_group_id:
+          type: integer
+          nullable: true
+        server_group_id:
+          type: integer
+          nullable: true
+        server_ids:
+          type: array
+          items:
+            type: integer
+        immunity:
+          type: integer
+        password:
+          type: string
+          description: Optional. Generated when omitted on create.
+    AdminEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/Admin"
+        meta:
+          type: object
+          properties:
+            rehash:
+              type: object
+    AdminListEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Admin"
+        meta:
+          type: object
+          properties:
+            page:
+              type: integer
+            per_page:
+              type: integer
+            total:
+              type: integer
+    GroupsEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: object
+          properties:
+            web:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  name:
+                    type: string
+                  flags:
+                    type: integer
+            server:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: integer
+                  name:
+                    type: string
+                  flags:
+                    type: string
+                  immunity:
+                    type: integer
+        meta:
+          type: object
+          properties:
+            page:
+              type: integer
+            per_page:
+              type: integer
+            web_total:
+              type: integer
+            server_total:
+              type: integer
+    Ban:
+      type: object
+      properties:
+        id:
+          type: integer
+        player_name:
+          type: string
+        type:
+          type: string
+          enum: [steam, ip]
+        steam:
+          type: string
+          nullable: true
+        steam64:
+          type: string
+          nullable: true
+          description: Decimal string. Never a JSON number.
+        ip:
+          type: string
+          nullable: true
+        reason:
+          type: string
+        created:
+          type: integer
+        ends:
+          type: integer
+        length:
+          type: integer
+          description: Minutes. 0 is permanent.
+        state:
+          type: string
+          enum: [permanent, active, expired, unbanned]
+        admin_name:
+          type: string
+          nullable: true
+        server_id:
+          type: integer
+          nullable: true
+        unban_reason:
+          type: string
+          nullable: true
+        removed_at:
+          type: integer
+          nullable: true
+    BanWrite:
+      type: object
+      properties:
+        steam:
+          type: string
+        type:
+          description: 0 / steam or 1 / ip
+          oneOf:
+            - type: integer
+              enum: [0, 1]
+            - type: string
+              enum: [steam, ip]
+        ip:
+          type: string
+        name:
+          type: string
+        reason:
+          type: string
+        length:
+          type: integer
+          minimum: 0
+          description: Minutes. 0 is permanent.
+        kick:
+          type: boolean
+          description: Fan RCON kicks to enabled servers after insert.
+    BanEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/Ban"
+        meta:
+          type: object
+          properties:
+            kick:
+              type: object
+    BanListEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Ban"
+        meta:
+          type: object
+          properties:
+            page:
+              type: integer
+            per_page:
+              type: integer
+            total:
+              type: integer
+    Comm:
+      type: object
+      properties:
+        id:
+          type: integer
+        player_name:
+          type: string
+        kind:
+          type: string
+          enum: [mute, gag, unknown]
+        steam:
+          type: string
+          nullable: true
+        steam64:
+          type: string
+          nullable: true
+        reason:
+          type: string
+        created:
+          type: integer
+        ends:
+          type: integer
+        length:
+          type: integer
+          description: Minutes. 0 is permanent.
+        state:
+          type: string
+          enum: [permanent, active, expired, unmuted]
+        admin_name:
+          type: string
+          nullable: true
+        server_id:
+          type: integer
+          nullable: true
+        unblock_reason:
+          type: string
+          nullable: true
+        removed_at:
+          type: integer
+          nullable: true
+    CommWrite:
+      type: object
+      required: [steam]
+      properties:
+        steam:
+          type: string
+        kind:
+          type: string
+          enum: [mute, gag, silence]
+        type:
+          type: integer
+          enum: [1, 2, 3]
+          description: 1 mute, 2 gag, 3 silence. Prefer kind.
+        name:
+          type: string
+        reason:
+          type: string
+        length:
+          type: integer
+          minimum: 0
+          description: Minutes. 0 is permanent.
+    CommEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/Comm"
+    CommListEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Comm"
+        meta:
+          type: object
+          properties:
+            page:
+              type: integer
+            per_page:
+              type: integer
+            total:
+              type: integer
+    Server:
+      type: object
+      properties:
+        id:
+          type: integer
+        ip:
+          type: string
+        port:
+          type: integer
+        enabled:
+          type: boolean
+        mod:
+          type: object
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+            folder:
+              type: string
+        group_ids:
+          type: array
+          items:
+            type: integer
+          description: Server group membership. Present for PAT callers. Omitted on anonymous GET.
+        query:
+          type: object
+          nullable: true
+          description: A2S summary. Null when the probe fails. Never includes rcon.
+          properties:
+            hostname:
+              type: string
+            map:
+              type: string
+            players:
+              type: integer
+            maxplayers:
+              type: integer
+            secure:
+              type: boolean
+    ServerWrite:
+      type: object
+      properties:
+        ip:
+          type: string
+          description: IPv4, IPv6, or hostname. Alias `address`.
+        port:
+          type: integer
+          minimum: 1
+          maximum: 65535
+        rcon:
+          type: string
+          description: On create, stored password. On PATCH, omit to keep the stored value.
+        rcon2:
+          type: string
+          description: Must match `rcon` when both are sent on create.
+        mod:
+          type: integer
+          description: Game mod id. Alias `mod_id`.
+        enabled:
+          type: boolean
+          description: Defaults to true on create when omitted.
+        group_ids:
+          type: array
+          items:
+            type: integer
+          description: On PATCH, replaces membership when present.
+    ServerEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/Server"
+    ServerListEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Server"
+        meta:
+          type: object
+          properties:
+            page:
+              type: integer
+            per_page:
+              type: integer
+            total:
+              type: integer
+    Note:
+      type: object
+      properties:
+        id:
+          type: integer
+        steam:
+          type: string
+        steam64:
+          type: string
+          nullable: true
+          description: Decimal string. Never a JSON number.
+        body:
+          type: string
+        created:
+          type: integer
+        author:
+          type: string
+          nullable: true
+        author_aid:
+          type: integer
+    NoteEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/Note"
+    NoteListEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Note"
+        meta:
+          type: object
+          properties:
+            total:
+              type: integer
+    Mod:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        folder:
+          type: string
+        icon:
+          type: string
+        steam_universe:
+          type: integer
+        enabled:
+          type: boolean
+    ModWrite:
+      type: object
+      required: [name, folder]
+      properties:
+        name:
+          type: string
+        folder:
+          type: string
+          description: Alias `modfolder`.
+        icon:
+          type: string
+        steam_universe:
+          type: integer
+        enabled:
+          type: boolean
+    ModEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/Mod"
+    ModListEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Mod"
+        meta:
+          type: object
+          properties:
+            page:
+              type: integer
+            per_page:
+              type: integer
+            total:
+              type: integer
+    Protest:
+      type: object
+      properties:
+        id:
+          type: integer
+        ban_id:
+          type: integer
+        submitted:
+          type: integer
+        reason:
+          type: string
+        email:
+          type: string
+        ip:
+          type: string
+        archived:
+          type: boolean
+        archived_by:
+          type: integer
+          nullable: true
+    ProtestEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/Protest"
+    ProtestListEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Protest"
+        meta:
+          type: object
+          properties:
+            page:
+              type: integer
+            per_page:
+              type: integer
+            total:
+              type: integer
+    Submission:
+      type: object
+      properties:
+        id:
+          type: integer
+        steam:
+          type: string
+          nullable: true
+        steam64:
+          type: string
+          nullable: true
+        player_name:
+          type: string
+        email:
+          type: string
+        reason:
+          type: string
+        ip:
+          type: string
+        submitter_name:
+          type: string
+          nullable: true
+        submitter_ip:
+          type: string
+          nullable: true
+        server_id:
+          type: integer
+          nullable: true
+        mod_id:
+          type: integer
+          nullable: true
+        submitted:
+          type: integer
+        archived:
+          type: boolean
+        archived_by:
+          type: integer
+          nullable: true
+    SubmissionEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/Submission"
+    SubmissionListEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Submission"
+        meta:
+          type: object
+          properties:
+            page:
+              type: integer
+            per_page:
+              type: integer
+            total:
+              type: integer
+    Comment:
+      type: object
+      properties:
+        id:
+          type: integer
+        parent_id:
+          type: integer
+        type:
+          type: string
+          enum: [ban, comm, submission, protest]
+        body:
+          type: string
+        created:
+          type: integer
+        author:
+          type: string
+          nullable: true
+        author_aid:
+          type: integer
+          nullable: true
+        edited_at:
+          type: integer
+          nullable: true
+        editor_aid:
+          type: integer
+          nullable: true
+    CommentWrite:
+      type: object
+      required: [body]
+      properties:
+        body:
+          type: string
+    CommentEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          $ref: "#/components/schemas/Comment"
+    CommentListEnvelope:
+      type: object
+      required: [data, meta]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Comment"
+        meta:
+          type: object
+          properties:
+            page:
+              type: integer
+            per_page:
+              type: integer
+            total:
+              type: integer
+    SettingsEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          additionalProperties:
+            type: string
+          description: Setting key to stored string value. Never `smtp.pass` or `telemetry.instance_id`.
+  responses:
+    Error:
+      description: Structured error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: Missing or invalid PAT
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Forbidden:
+      description: Token admin lacks the required flag
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

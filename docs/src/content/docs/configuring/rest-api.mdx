@@ -1,0 +1,235 @@
+---
+title: REST API
+description: Personal Access Tokens and the versioned /api/v1 HTTP API for bots, scripts, and website backends.
+sidebar:
+  order: 3
+  label: REST API
+---
+
+import { Aside, Code, Tabs, TabItem } from '@astrojs/starlight/components';
+
+The panel ships a versioned REST API at `/api/v1` for **external** clients.
+Mint a Personal Access Token on **Your account**, then send it as
+`Authorization: Bearer sbpp_pat_…`.
+
+The in-panel JavaScript does **not** use this API. It keeps talking to
+`POST /api.php` with the session cookie and a CSRF token.
+
+<Aside type="caution">
+Put the token on a **server** (your website backend, a bot host). Never
+embed it in browser JavaScript. Anyone who can read the token can act as
+that admin.
+</Aside>
+
+## Create a token
+
+1. Sign in to the panel.
+2. Open **Your account**.
+3. Under **API tokens**, give the token a name (for example `website-next`),
+   enter your current password, and pick an expiry (or Never).
+4. Copy the secret. It is shown once.
+
+The secret looks like `sbpp_pat_` plus 64 hex characters. The panel stores
+only a SHA-256 hash. Revoke the token from the same card if it leaks.
+
+The token inherits that admin's web flags. There are no extra scopes. A
+read-only bot is an admin with list flags, not a trimmed token.
+
+Soft-retired admins (`enabled = 0`) cannot use a token. Password lockout
+does not apply. Changing your panel password revokes every token. Revoke
+is otherwise the kill switch.
+
+## Call the API
+
+Pretty URLs (production Docker image, and the dev image after rebuild):
+
+<Code lang="text" code="https://bans.example.com/api/v1/me" />
+
+PATH_INFO form (`/api/v1.php/me`). nginx + PHP-FPM must split PATH_INFO
+(see the snippet below). If PATH_INFO is empty, the panel still routes
+from `REQUEST_URI` when it contains `/api/v1` or `/api/v1.php` plus the
+path. Pretty `/api/v1/…` still needs rewrite.
+
+<Code lang="text" code="https://bans.example.com/api/v1.php/me" />
+
+<Tabs>
+<TabItem label="curl">
+
+```bash
+TOKEN='sbpp_pat_…'
+
+curl -sS -H "Authorization: Bearer $TOKEN" \
+  https://bans.example.com/api/v1.php/me
+```
+
+</TabItem>
+<TabItem label="upsert admin">
+
+```bash
+TOKEN='sbpp_pat_…'
+STEAM64='76561198000000000'
+
+curl -sS -X PUT \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"Moderator","web_group_id":2,"server_group_id":1}' \
+  "https://bans.example.com/api/v1.php/admins/$STEAM64"
+```
+
+</TabItem>
+</Tabs>
+
+Success bodies are `{ "data": …, "meta": … }`. Errors are
+`{ "error": { "code", "message", "field"? } }`. HTTP status is real
+(200, 201, 400, 401, 403, 404, 409, 429, 500), unlike `POST /api.php`
+which usually returns 200.
+
+Steam64 values in JSON are **strings**, not numbers. In `/admins/{id}`
+the `{id}` is a numeric aid or a 17-digit community ID (typically
+`7656119…`). Steam2 and Steam3 in the URL return 400.
+
+The OpenAPI document is at `GET /api/v1/openapi.yaml` (public).
+
+## website-next (staff hub)
+
+Use this API to grant or revoke in-game admin from your site. Discord
+roles stay in your bot. SourceBans does not know about Discord.
+
+1. Create an Owner (or Add/Edit/Delete Admins) account in the panel.
+2. Mint a PAT on that account.
+3. Store the PAT in the website-next **backend** environment.
+4. `PUT /admins/{steam64}` to create or update. A missing row is created.
+   An inactive row is reactivated.
+5. `POST /admins/{steam64}/deactivate` to demote. That is a soft retire,
+   not a hard delete, so ban history still shows the name.
+6. Create/update/deactivate already run `sm_rehash` when
+   `config.enableadminrehashing` is on. You can also `POST /system/rehash`.
+
+`GET /groups` returns web groups and SourceMod groups so you can map
+"Moderator" to a `gid`. Group create/edit is not in this version. Make
+the groups in the panel first.
+
+CORS is off by default. A backend-to-panel call does not need it. To
+allow a browser origin, set this in `config.php`:
+
+```php
+define('SB_REST_CORS_ORIGINS', 'https://staff.example.com');
+```
+
+## Rate limit
+
+Default 60 requests per minute. Anonymous callers (OpenAPI spec, public
+ban/comms/servers GET) are keyed by `REMOTE_ADDR`. Token callers are
+keyed by token. A 429 includes `Retry-After`.
+
+If you terminate TLS at a reverse proxy, the production Apache config
+already sets `RemoteIPHeader X-Forwarded-For`
+(`docker/apache/sbpp-prod.conf`). nginx needs `real_ip`. Without that,
+every anonymous visitor shares one 60/min bucket. Do not parse
+`X-Forwarded-For` in PHP. It is spoofable.
+
+## Routes
+
+| Method | Path | Notes |
+| --- | --- | --- |
+| GET | `/me` | Caller admin |
+| GET | `/admins` | Paginated list (`page`, `per_page`, cap 100) |
+| GET | `/admins/{id}` | `{id}` is aid or Steam64 |
+| PUT | `/admins/{id}` | Steam64 upserts. aid 404s if missing |
+| PATCH | `/admins/{id}` | Merge. Never creates |
+| POST | `/admins/{id}/deactivate` | Soft retire |
+| POST | `/admins/{id}/reactivate` | Restore |
+| DELETE | `/admins/{id}` | Hard delete |
+| GET | `/groups` | Web + SourceMod groups. `page`, `per_page` (cap 100), optional `kind=web` or `kind=server` |
+| POST | `/system/rehash` | Optional `{ "sids": [1,2] }` |
+| GET | `/bans`, `/bans/{bid}` | Public. Hide IP / admin name like the panel. `length` is minutes |
+| POST | `/bans` | `length` is minutes. Optional `kick: true` |
+| POST | `/bans/{bid}/unban` | Requires `ureason` |
+| GET | `/comms`, `/comms/{cid}` | Public when Comm blocks are enabled. Hide admin name like the panel. Anonymous GET is 404 when `config.enablecomms` is off. `length` is minutes |
+| POST | `/comms` | `kind`: mute, gag, or silence. `length` is minutes |
+| POST | `/comms/{cid}/unblock` | Requires `ureason` |
+| DELETE | `/comms/{cid}` | Hard delete |
+| GET | `/servers`, `/servers/{sid}` | Public for enabled hosts. A2S in `query`. Never returns `rcon`. Anonymous GET omits `group_ids` and ignores `enabled=` |
+| POST | `/servers` | `ip` / `address`, `port`, `mod`. `enabled` defaults to true |
+| PATCH | `/servers/{sid}` | Merge. Omit `rcon` to keep the stored password |
+| DELETE | `/servers/{sid}` | Hard delete |
+| POST | `/servers/{sid}/rcon` | SourceMod RCON or Root, plus per-server mapping |
+| GET | `/notes` | Requires `?steam=`. Any web admin |
+| POST | `/notes` | `steam` + `body` |
+| DELETE | `/notes/{nid}` | Author or Owner |
+| GET | `/mods`, `/mods/{mid}` | List / get |
+| POST | `/mods` | `name` + `folder` |
+| DELETE | `/mods/{mid}` | Optional `ureason` |
+| GET | `/protests`, `/protests/{pid}` | Current queue. `archived=true` for the archive. Includes reporter `email` and `ip` |
+| POST | `/protests/{pid}/archive` | Move to the archive (`archiv=1`) |
+| POST | `/protests/{pid}/restore` | Return to the current queue |
+| DELETE | `/protests/{pid}` | Hard delete |
+| GET | `/submissions`, `/submissions/{sid}` | Current queue. `archived=true` for the archive. Includes reporter `email` and `ip` |
+| POST | `/submissions/{sid}/archive` | Move to the archive (`archiv=1`) |
+| POST | `/submissions/{sid}/restore` | Return to the current queue |
+| DELETE | `/submissions/{sid}` | Hard delete |
+| GET | `/bans/{bid}/comments`, `/comms/{cid}/comments` | Public. Empty when public comments are off. Anonymous GET `/comms/{cid}/comments` is 404 when Comm blocks are off (`config.enablecomms`); a PAT still reads |
+| POST | `/bans/{bid}/comments`, `/comms/{cid}/comments` | `body`. Any web admin |
+| PATCH | `/comments/{cid}` | `body`. Author or Owner |
+| DELETE | `/comments/{cid}` | Owner only |
+| GET | `/settings` | Flat key/value map. Never `smtp.pass` or `telemetry.instance_id` |
+| PATCH | `/settings` | Existing keys only. Same forbidden keys. Enable flags are 0/1. Integer settings must be an integer |
+| GET | `/openapi.yaml` | This spec |
+
+GET `/bans`, `/comms`, and `/servers` work without a token. Ban and comm
+GET apply the same hide-* settings as the public lists
+(`banlist.hideplayerips`, `banlist.hideadminname`). Send a valid PAT to
+see IPs and admin names. Anonymous GET `/comms` is 404 when Comm blocks
+are off in Settings (`config.enablecomms`). A PAT still reads comms.
+GET `/servers` never includes `rcon`, even with a PAT. Anonymous GET
+`/servers` returns enabled hosts only (the same as `?p=servers`), omits
+`group_ids`, and 404s a disabled `{sid}`. A PAT may pass `enabled=` and
+sees `group_ids`. A well-formed token that is revoked, expired, or
+unknown is 401 even on those GETs. GET comments on a ban or comm is also
+public (empty when public comments are off). Anonymous GET
+`/comms/{cid}/comments` is 404 when Comm blocks are off, matching GET
+`/comms`. A PAT still reads. GET `/protests`,
+`/submissions`, and `/settings` need a PAT.
+
+GET `/protests` and `/submissions` return reporter `email` and `ip`
+(protest `pip`, submission `ip` / submitter `sip`). Same fields as the
+panel queue pages. Those routes already require the matching queue flags.
+`smtp.pass` and `telemetry.instance_id` stay hidden on `/settings`.
+
+POST `/bans` and `/comms` `length` is minutes (0 = permanent), matching
+the panel form. GET `length` is also minutes. `ends` stays unix seconds.
+Steam64 in JSON is always a string.
+
+POST `/bans` with `"kick": true` runs RCON kicks on enabled servers and
+puts a summary in `meta.kick`. Without it, SourceMod still blocks the
+player on their next connect.
+
+## nginx snippet
+
+If you terminate TLS on nginx and proxy to Apache/PHP, you can also
+rewrite in nginx:
+
+```nginx
+location /api/v1 {
+    rewrite ^/api/v1$ /api/v1.php last;
+    rewrite ^/api/v1/(.*)$ /api/v1.php/$1 last;
+}
+```
+
+That rewrite produces `/api/v1.php/me`. A stock
+`location ~ \.php$` that sets `SCRIPT_FILENAME` from `$uri` will then
+fail with "Primary script unknown". Split PATH_INFO in the PHP-FPM
+location:
+
+```nginx
+fastcgi_split_path_info ^(.+\.php)(/.*)$;
+fastcgi_param PATH_INFO $fastcgi_path_info;
+fastcgi_param HTTP_AUTHORIZATION $http_authorization;
+```
+
+Pass `Authorization` through to PHP. Some Apache/PHP builds leave
+`$_SERVER['HTTP_AUTHORIZATION']` empty. The panel also reads the header
+via `getallheaders()`.
+
+Tarball installs without rewrite should call `/api/v1.php/…` and still
+need PATH_INFO (or a `REQUEST_URI` that keeps `/api/v1.php/` in it).

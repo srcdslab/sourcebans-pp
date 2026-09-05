@@ -68,7 +68,7 @@ plugins are stable and updated less often.
 ```
 web/
 ├── index.php             Page entry point
-├── api.php               JSON API entry point
+├── api.php               Panel JSON RPC entry point (cookie + CSRF)
 ├── init.php              Bootstrap (constants, autoload, DB, Auth, CSRF, Smarty)
 ├── config.php            DB credentials etc. (generated; ignored by git)
 ├── config.php.template   Template the installer + dev entrypoint render
@@ -77,6 +77,8 @@ web/
 ├── getdemo.php           Demo file download
 │
 ├── api/handlers/         JSON API: one file per topic, _register.php wires them
+├── api/openapi-v1.yaml   REST v1 OpenAPI source of truth
+├── api/v1.php            REST v1 front controller (pretty URL /api/v1/… + PATH_INFO)
 ├── pages/                Page handlers (procedural .php, included by build())
 │   └── core/             header / navbar / title / footer chrome
 ├── includes/             Library code (PSR-4 Sbpp\ at this prefix; #1290 phase B)
@@ -85,6 +87,7 @@ web/
 │   ├── Log.php               Sbpp\Log — audit + error log (writes to sb_log)
 │   ├── Api/Api.php           Sbpp\Api\Api — JSON dispatcher
 │   ├── Api/ApiError.php      Sbpp\Api\ApiError — structured API error
+│   ├── Rest/                 Sbpp\Rest\* — REST /api/v1 (FrontController, Router, PatAuthenticator, RateLimiter, Envelope, AdminsService, BansService, CommsService, ServersService, NotesService, ModsService, ProtestsService, SubmissionsService, CommentsService, SettingsService, Kicker)
 │   ├── Auth/UserManager.php  Sbpp\Auth\UserManager (was CUserManager) — current admin + perms
 │   ├── Auth/Auth.php         Sbpp\Auth\Auth — login flow / cookie issue
 │   ├── Auth/JWT.php          Sbpp\Auth\JWT — token encode/decode
@@ -301,6 +304,66 @@ The `notes` topic was added with #1165 to back the player-detail
 drawer's admin-only Notes tab; `bans.player_history` and
 `comms.player_history` (live in their existing topic files) feed the
 drawer's History and Comms tabs.
+
+### REST API request lifecycle
+
+```
+Bearer PAT          ┌──────────────┐    ┌─────────────────────┐    ┌─────────────┐
+GET /api/v1/…  ->   │  api/v1.php  │ -> │ FrontController     │ -> │ Routes.php  │
+                    └──────────────┘    │ PatAuthenticator    │    └──────┬──────┘
+                                        │ RateLimiter         │           v
+                                        └─────────────────────┘    writes: Api::invoke
+                                                                   lists: Rest queries
+```
+
+1. `api/v1.php` defines `SBPP_REST` before including `init.php` so
+   `CSRF::init()` does not start a PHP session and `Auth::verify()`
+   does not read `sbpp_auth` or slide `:prefix_login_tokens`, then
+   calls `FrontController::dispatch()`.
+2. The controller **replaces** `$GLOBALS['userbank']` with the PAT
+   identity or an anonymous `UserManager(null)`, then rebinds
+   `Log::init` to that userbank. The panel cookie is never read.
+3. Rate limit (file under `SB_CACHE/rest-rl/`, 60 req/min). Authenticated
+   by token id, anonymous by IP.
+4. A well-formed `sbpp_pat_…` that does not resolve is 401 on every route,
+   including public GET. Missing or junk Authorization stays anonymous.
+5. `Router` matches method + path from `Routes::all()`. Writes that
+   already exist as RPC handlers go through `Api::invoke()`. List/get
+   and Steam64 upsert are dedicated queries.
+6. Envelope `{data, meta}` / `{error: {code, message, field?}}`. HTTP
+   status is load-bearing.
+
+Slice 0: `/me`, `/admins/{id}` (aid or Steam64), deactivate / reactivate,
+`/groups`, `/system/rehash`. PATs are minted on Your Account via
+`account.tokens_*` (that UI is panel RPC, not REST). Minting requires
+the current password; changing it revokes every token.
+
+Slice 1: `/bans`, `/bans/{bid}`, POST unban; `/comms`, `/comms/{cid}`,
+POST unblock, DELETE. GET list/get is public and applies the same hide-*
+as the panel. Anonymous GET `/comms` is 404 when `config.enablecomms` is
+off (a PAT still reads). Writes require a PAT. POST `/bans` and GET
+`length` are minutes. `ends` is unix seconds. Optional `kick: true` fans
+RCON via `kickit.kick_player` and records `meta.kick`.
+
+Slice 2: `/servers` (public GET of enabled hosts with A2S `query`, never
+`rcon`, no `group_ids` for anonymous; PAT may filter `enabled=` and sees
+`group_ids`; POST / PATCH / DELETE; POST `/{sid}/rcon`), `/notes` (GET
+`?steam=`, POST, DELETE; any web admin), `/mods` (GET / POST / DELETE).
+Writes reuse `servers.add` / `servers.remove` / `servers.send_rcon`,
+`notes.add` / `notes.delete`, `mods.add` / `mods.remove`. PATCH
+`/servers` is dedicated (no RPC handler).
+
+Slice 3: `/protests` and `/submissions` (GET list/get, POST archive /
+restore via `protests.remove` / `submissions.remove` with `archiv=1` /
+`archiv=2`, DELETE hard-delete with `archiv=0`), nested
+comments on `/bans/{bid}/comments` and `/comms/{cid}/comments` (public GET
+honours `config.enablepubliccomments` and `banlist.hideadminname`;
+anonymous GET of comm comments is 404 when `config.enablecomms` is off,
+matching `/comms`; POST /
+PATCH reuse `bans.add_comment` / `bans.edit_comment`, and PATCH is author
+or Owner on both REST and the RPC handler; DELETE is Owner via
+`bans.remove_comment`), `/settings` GET+PATCH (dedicated; never
+`smtp.pass` or `telemetry.instance_id`).
 
 ### Auth (`includes/Auth/` — `Sbpp\Auth\*`)
 
@@ -978,6 +1041,7 @@ in dev/CI). Major tables:
 | `sb_groups`                 | Web admin groups (permission bitmasks).       |
 | `sb_srvgroups`              | SourceMod admin groups (char flags).          |
 | `sb_admins_servers_groups`  | Admin × server × group mapping.               |
+| `sb_api_tokens`             | REST PAT hashes (SHA-256). Never plaintext.   |
 | `sb_servers` / `sb_servers_groups` | Game servers + server-group membership. |
 | `sb_bans`                   | The bans themselves (+ `admin_name` issuer snapshot). |
 | `sb_comms`                  | Mutes / gags / blocks (+ `admin_name` issuer snapshot). |
