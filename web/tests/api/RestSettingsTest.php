@@ -97,4 +97,24 @@ final class RestSettingsTest extends RestTestCase
             'config.enablecomms' => $original,
         ], $token);
     }
+
+    public function testPatchRejectsGarbageBoolean(): void
+    {
+        $token = $this->mintToken();
+        $response = $this->rest('PATCH', '/settings', [
+            'config.enablecomms' => 'maybe',
+        ], $token);
+        $this->assertRestError($response, 400, 'validation');
+        $this->assertSame('config.enablecomms', $response->payload['error']['field'] ?? null);
+    }
+
+    public function testPatchRejectsNonInteger(): void
+    {
+        $token = $this->mintToken();
+        $response = $this->rest('PATCH', '/settings', [
+            'auth.maxlife' => 'abc',
+        ], $token);
+        $this->assertRestError($response, 400, 'validation');
+        $this->assertSame('auth.maxlife', $response->payload['error']['field'] ?? null);
+    }
 }
