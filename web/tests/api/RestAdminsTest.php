@@ -3,9 +3,12 @@
 namespace Sbpp\Tests\Api;
 
 use Sbpp\Tests\Fixture;
+use Sbpp\Tests\QueryCountAssertions;
 
 final class RestAdminsTest extends RestTestCase
 {
+    use QueryCountAssertions;
+
     private const NEW_STEAM64 = '76561198000000000';
 
     public function testPutSteam64CreatesAdmin(): void
@@ -264,6 +267,38 @@ final class RestAdminsTest extends RestTestCase
             'server_ids' => [],
         ], $token);
         $this->assertSame(200, $servers->status, json_encode($servers->payload));
+    }
+
+    public function testListQueryCountDoesNotGrowWithMappedAdmins(): void
+    {
+        $pdo = Fixture::rawPdo();
+        $pdo->prepare(sprintf(
+            'INSERT INTO `%s_servers` (ip, port, rcon, modid, enabled) VALUES (?, ?, ?, 1, 1)',
+            DB_PREFIX
+        ))->execute(['203.0.113.90', 27015, '']);
+        $sid = (int) $pdo->lastInsertId();
+
+        $token = $this->mintToken();
+        $this->assertQueryCountDelta(
+            0,
+            function () use ($token): void {
+                $list = $this->rest('GET', '/admins', token: $token, query: ['per_page' => 100]);
+                $this->assertSame(200, $list->status, json_encode($list->payload));
+            },
+            function () use ($token, $sid): void {
+                for ($i = 0; $i < 8; $i++) {
+                    $aid = $this->insertAdmin('nplus-' . $i, 'STEAM_0:0:980' . $i, ADMIN_ADD_BAN);
+                    Fixture::rawPdo()->prepare(sprintf(
+                        'INSERT INTO `%s_admins_servers_groups` (admin_id, group_id, srv_group_id, server_id)
+                         VALUES (?, 0, -1, ?)',
+                        DB_PREFIX
+                    ))->execute([$aid, $sid]);
+                }
+                $list = $this->rest('GET', '/admins', token: $token, query: ['per_page' => 100]);
+                $this->assertSame(200, $list->status, json_encode($list->payload));
+            },
+            'GET /admins must batch server_ids, not issue one query per admin',
+        );
     }
 
     private function insertAdmin(string $user, string $steam, int $flags): int

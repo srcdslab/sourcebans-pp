@@ -4,9 +4,11 @@ namespace Sbpp\Tests\Api;
 
 use Sbpp\Servers\SourceQueryCache;
 use Sbpp\Tests\Fixture;
+use Sbpp\Tests\QueryCountAssertions;
 
 final class RestServersTest extends RestTestCase
 {
+    use QueryCountAssertions;
     protected function setUp(): void
     {
         parent::setUp();
@@ -194,6 +196,40 @@ final class RestServersTest extends RestTestCase
         $this->assertSame(200, $blocked->status, json_encode($blocked->payload));
         $this->assertSame('error', $blocked->payload['data']['kind']);
         $this->assertStringContainsString("Don't try to cheat", $blocked->payload['data']['error']);
+    }
+
+    public function testListQueryCountDoesNotGrowWithGroupedServers(): void
+    {
+        $token = $this->mintToken();
+        $this->assertQueryCountDelta(
+            0,
+            function () use ($token): void {
+                $list = $this->rest('GET', '/servers', token: $token, query: ['per_page' => 100]);
+                $this->assertSame(200, $list->status, json_encode($list->payload));
+            },
+            function () use ($token): void {
+                $pdo = Fixture::rawPdo();
+                $pdo->prepare(sprintf(
+                    'INSERT INTO `%s_srvgroups` (flags, immunity, name, groups_immune) VALUES ("", 0, ?, "")',
+                    DB_PREFIX
+                ))->execute(['RestSrvGroup']);
+                $gid = (int) $pdo->lastInsertId();
+                for ($i = 0; $i < 8; $i++) {
+                    $pdo->prepare(sprintf(
+                        'INSERT INTO `%s_servers` (ip, port, rcon, modid, enabled) VALUES (?, ?, ?, 1, 1)',
+                        DB_PREFIX
+                    ))->execute(['203.0.113.' . (70 + $i), 27015, '']);
+                    $sid = (int) $pdo->lastInsertId();
+                    $pdo->prepare(sprintf(
+                        'INSERT INTO `%s_servers_groups` (server_id, group_id) VALUES (?, ?)',
+                        DB_PREFIX
+                    ))->execute([$sid, $gid]);
+                }
+                $list = $this->rest('GET', '/servers', token: $token, query: ['per_page' => 100]);
+                $this->assertSame(200, $list->status, json_encode($list->payload));
+            },
+            'GET /servers must batch group_ids, not issue one query per server',
+        );
     }
 
     private function seedServer(string $rcon = ''): int

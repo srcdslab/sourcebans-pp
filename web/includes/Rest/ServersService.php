@@ -40,8 +40,7 @@ final class ServersService
         if (!$isAdmin) {
             $where .= ' AND S.enabled = 1';
         } elseif (array_key_exists('enabled', $query) && $query['enabled'] !== '' && $query['enabled'] !== null) {
-            $enabled = $query['enabled'];
-            $flag = $enabled === true || $enabled === 'true' || $enabled === '1' || $enabled === 1;
+            $flag = Coerce::bool($query['enabled']);
             $where .= ' AND S.enabled = :enabled';
             $binds[':enabled'] = $flag ? 1 : 0;
         }
@@ -67,9 +66,16 @@ final class ServersService
         $pdo->bind(':off', $offset);
         $rows = $pdo->resultset();
 
+        $sids = [];
+        foreach ($rows as $row) {
+            $sids[] = (int) $row['sid'];
+        }
+        $groupMap = $isAdmin ? $this->groupIdsForSids($sids) : [];
+
         $data = [];
         foreach ($rows as $row) {
-            $data[] = $this->toResource($row);
+            $sid = (int) $row['sid'];
+            $data[] = $this->toResource($row, $isAdmin ? ($groupMap[$sid] ?? []) : null);
         }
 
         return [
@@ -105,7 +111,7 @@ final class ServersService
         $rcon2 = array_key_exists('rcon2', $body) ? (string) $body['rcon2'] : $rcon;
         $mod = (int) ($body['mod'] ?? $body['mod_id'] ?? -2);
         $enabled = array_key_exists('enabled', $body)
-            ? ($body['enabled'] === true || $body['enabled'] === 'true' || $body['enabled'] === 1 || $body['enabled'] === '1')
+            ? Coerce::bool($body['enabled'])
             : true;
         $groupIds = $this->intList($body['group_ids'] ?? null);
         $group = $groupIds === [] ? '0' : implode(',', $groupIds);
@@ -147,7 +153,7 @@ final class ServersService
             ? (int) ($body['mod'] ?? $body['mod_id'] ?? 0)
             : (int) $row['modid'];
         $enabled = array_key_exists('enabled', $body)
-            ? ($body['enabled'] === true || $body['enabled'] === 'true' || $body['enabled'] === 1 || $body['enabled'] === '1')
+            ? Coerce::bool($body['enabled'])
             : ((int) $row['enabled'] === 1);
 
         if ($ip === '') {
@@ -229,9 +235,10 @@ final class ServersService
 
     /**
      * @param array<string, mixed> $row
+     * @param list<int>|null $groupIds
      * @return array<string, mixed>
      */
-    private function toResource(array $row): array
+    private function toResource(array $row, ?array $groupIds = null): array
     {
         $sid = (int) $row['sid'];
         $ip = (string) $row['ip'];
@@ -249,7 +256,7 @@ final class ServersService
             'query' => $this->liveQuery($ip, $port),
         ];
         if (PublicVisibility::isAdmin()) {
-            $resource['group_ids'] = $this->groupIds($sid);
+            $resource['group_ids'] = $groupIds ?? $this->groupIds($sid);
         }
         return $resource;
     }
@@ -279,17 +286,40 @@ final class ServersService
      */
     private function groupIds(int $sid): array
     {
+        return $this->groupIdsForSids([$sid])[$sid] ?? [];
+    }
+
+    /**
+     * @param list<int> $sids
+     * @return array<int, list<int>>
+     */
+    private function groupIdsForSids(array $sids): array
+    {
+        $map = [];
+        foreach ($sids as $sid) {
+            $map[$sid] = [];
+        }
+        if ($sids === []) {
+            return $map;
+        }
+        $placeholders = implode(',', array_fill(0, count($sids), '?'));
         $pdo = $this->db();
-        $pdo->query('SELECT group_id FROM `:prefix_servers_groups` WHERE server_id = :sid ORDER BY group_id ASC');
-        $pdo->bind(':sid', $sid);
-        $ids = [];
+        $pdo->query(
+            'SELECT server_id, group_id FROM `:prefix_servers_groups`'
+            . " WHERE server_id IN ({$placeholders}) ORDER BY group_id ASC"
+        );
+        $i = 1;
+        foreach ($sids as $sid) {
+            $pdo->bind($i++, $sid);
+        }
         foreach ($pdo->resultset() as $row) {
+            $sid = (int) $row['server_id'];
             $gid = (int) ($row['group_id'] ?? 0);
             if ($gid > 0) {
-                $ids[] = $gid;
+                $map[$sid][] = $gid;
             }
         }
-        return $ids;
+        return $map;
     }
 
     /**

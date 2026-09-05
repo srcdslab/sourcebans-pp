@@ -52,9 +52,16 @@ final class AdminsService
         $pdo->bind(':off', $offset);
         $rows = $pdo->resultset();
 
+        $aids = [];
+        foreach ($rows as $row) {
+            $aids[] = (int) $row['aid'];
+        }
+        $serverMap = $this->serverIdsForAids($aids);
+
         $data = [];
         foreach ($rows as $row) {
-            $data[] = $this->toResource($row, $this->serverIds((int) $row['aid']));
+            $aid = (int) $row['aid'];
+            $data[] = $this->toResource($row, $serverMap[$aid] ?? []);
         }
 
         return [
@@ -455,17 +462,40 @@ final class AdminsService
      */
     private function serverIds(int $aid): array
     {
+        return $this->serverIdsForAids([$aid])[$aid] ?? [];
+    }
+
+    /**
+     * @param list<int> $aids
+     * @return array<int, list<int>>
+     */
+    private function serverIdsForAids(array $aids): array
+    {
+        $map = [];
+        foreach ($aids as $aid) {
+            $map[$aid] = [];
+        }
+        if ($aids === []) {
+            return $map;
+        }
+        $placeholders = implode(',', array_fill(0, count($aids), '?'));
         $pdo = $this->db();
         $pdo->query(
-            'SELECT server_id FROM `:prefix_admins_servers_groups`'
-            . ' WHERE admin_id = :aid AND server_id > 0'
+            'SELECT admin_id, server_id FROM `:prefix_admins_servers_groups`'
+            . " WHERE admin_id IN ({$placeholders}) AND server_id > 0"
         );
-        $pdo->bind(':aid', $aid);
-        $ids = [];
-        foreach ($pdo->resultset() as $row) {
-            $ids[] = (int) $row['server_id'];
+        $i = 1;
+        foreach ($aids as $aid) {
+            $pdo->bind($i++, $aid);
         }
-        return $ids;
+        foreach ($pdo->resultset() as $row) {
+            $aid = (int) $row['admin_id'];
+            $sid = (int) $row['server_id'];
+            if ($sid > 0) {
+                $map[$aid][] = $sid;
+            }
+        }
+        return $map;
     }
 
     /**
