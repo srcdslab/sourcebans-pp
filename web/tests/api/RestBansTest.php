@@ -67,7 +67,7 @@ final class RestBansTest extends RestTestCase
         $ban = $created->payload['data'];
         $this->assertSame('RestBan', $ban['player_name']);
         $this->assertSame('STEAM_0:1:9101', $ban['steam']);
-        $this->assertSame(3600, $ban['length']);
+        $this->assertSame(60, $ban['length']);
         $this->assertSame('active', $ban['state']);
         $this->assertArrayNotHasKey('kick', $created->payload['meta'] ?? []);
 
@@ -89,6 +89,20 @@ final class RestBansTest extends RestTestCase
         $this->assertSame(200, $unban->status, json_encode($unban->payload));
         $this->assertSame('unbanned', $unban->payload['data']['state']);
         $this->assertSame('served time', $unban->payload['data']['unban_reason']);
+    }
+
+    public function testCreateKickTrueStringPutsKickInMeta(): void
+    {
+        $token = $this->mintToken();
+        $created = $this->rest('POST', '/bans', [
+            'steam' => 'STEAM_0:1:9103',
+            'name' => 'KickTrue',
+            'reason' => 'kick-true-string',
+            'length' => 0,
+            'kick' => 'true',
+        ], $token);
+        $this->assertSame(201, $created->status, json_encode($created->payload));
+        $this->assertArrayHasKey('kick', $created->payload['meta'] ?? []);
     }
 
     public function testDuplicateCreateIs409(): void
@@ -128,6 +142,22 @@ final class RestBansTest extends RestTestCase
     {
         $response = $this->rest('GET', '/bans/STEAM_0:1:1');
         $this->assertRestError($response, 400, 'validation');
+    }
+
+    public function testGetLengthIsMinutesFromStoredSeconds(): void
+    {
+        $pdo = Fixture::rawPdo();
+        $pdo->prepare(sprintf(
+            'INSERT INTO `%s_bans` (created, type, ip, authid, name, ends, length, reason, aid, adminIp, admin_name)
+             VALUES (UNIX_TIMESTAMP(), 0, ?, ?, ?, UNIX_TIMESTAMP() + 3600, 3600, ?, ?, "127.0.0.1", ?)',
+            DB_PREFIX
+        ))->execute(['1.1.1.1', 'STEAM_0:1:9010', 'HourBan', 'test', Fixture::adminAid(), 'admin']);
+        $bid = (int) $pdo->lastInsertId();
+
+        $response = $this->rest('GET', '/bans/' . $bid);
+        $this->assertSame(200, $response->status, json_encode($response->payload));
+        $this->assertSame(60, $response->payload['data']['length']);
+        $this->assertGreaterThan(time(), $response->payload['data']['ends']);
     }
 
     private function seedBan(string $steam, string $ip): int

@@ -292,7 +292,7 @@ final class CommsService
             'reason' => (string) ($row['reason'] ?? ''),
             'created' => $created,
             'ends' => $ends,
-            'length' => $length,
+            'length' => Coerce::minutesFromSeconds($length),
             'state' => $state,
             'admin_name' => $hideAdmin ? null : (string) ($row['admin_name'] ?? ''),
             'server_id' => $sid > 0 ? $sid : null,

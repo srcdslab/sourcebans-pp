@@ -280,7 +280,7 @@ final class BansService
             'reason' => (string) ($row['reason'] ?? ''),
             'created' => $created,
             'ends' => $ends,
-            'length' => $length,
+            'length' => Coerce::minutesFromSeconds($length),
             'state' => $state,
             'admin_name' => $hideAdmin ? null : (string) ($row['admin_name'] ?? ''),
             'server_id' => $sid > 0 ? $sid : null,
@@ -306,8 +306,7 @@ final class BansService
      */
     private function wantsKick(array $body): bool
     {
-        $kick = $body['kick'] ?? false;
-        return $kick === true || $kick === 1;
+        return Coerce::bool($body['kick'] ?? false);
     }
 
     private function db(): Database

@@ -54,7 +54,7 @@ final class RestCommsTest extends RestTestCase
         $this->assertSame(201, $created->status, json_encode($created->payload));
         $block = $created->payload['data'];
         $this->assertSame('mute', $block['kind']);
-        $this->assertSame(1800, $block['length']);
+        $this->assertSame(30, $block['length']);
         $this->assertSame('active', $block['state']);
 
         $empty = $this->rest('POST', '/comms/' . $block['id'] . '/unblock', [], $token);
