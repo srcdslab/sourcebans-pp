@@ -522,7 +522,8 @@ final class Routes
      */
     private static function groupsList(array $params, array $body, array $query): Response
     {
-        return Envelope::ok((new GroupsService())->list());
+        $result = (new GroupsService())->list($query);
+        return Envelope::ok($result['data'], $result['meta']);
     }
 
     /**
