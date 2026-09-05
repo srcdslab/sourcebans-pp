@@ -45,4 +45,20 @@ export class MyAccountPage extends BasePage {
     get tokenSecret(): Locator {
         return this.page.locator('[data-testid="account-token-secret"]');
     }
+
+    get tokensEmpty(): Locator {
+        return this.page.locator('[data-testid="account-tokens-empty"]');
+    }
+
+    get tokenRows(): Locator {
+        return this.page.locator('[data-testid^="account-token-row-"]');
+    }
+
+    tokenRowByName(name: string): Locator {
+        return this.page.locator('[data-testid^="account-token-row-"]', { hasText: name });
+    }
+
+    tokenRevokeByName(name: string): Locator {
+        return this.tokenRowByName(name).locator('[data-testid="account-token-revoke"]');
+    }
 }

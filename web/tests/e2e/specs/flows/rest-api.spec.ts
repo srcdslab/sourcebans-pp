@@ -11,7 +11,42 @@ import { test, expect } from '../../fixtures/auth.ts';
 import { MyAccountPage } from '../../pages/admin/MyAccount.ts';
 
 test.describe('REST API v1', () => {
+    test.describe.configure({ mode: 'serial' });
     test.skip(({ isMobile }) => isMobile, 'flow spec runs only on desktop chromium');
+
+    test('live-inserts a token row and restores empty state on last revoke', async ({ page }) => {
+        const account = new MyAccountPage(page);
+        await account.goto();
+        await expect(account.tokensCard).toBeVisible();
+
+        const before = await account.tokenRows.count();
+        const tokenName = `e2e-token-card-${Date.now()}`;
+        await account.tokenName.fill(tokenName);
+        await account.tokenPassword.fill('admin');
+        await account.tokenCreate.click();
+        await expect(account.tokenRowByName(tokenName)).toBeVisible();
+        await expect(account.tokensEmpty).toBeHidden();
+        await expect(account.tokenRows).toHaveCount(before + 1);
+
+        const revokeResponse = page.waitForResponse(
+            (response) =>
+                response.url().includes('api.php') &&
+                response.request().method() === 'POST',
+        );
+        await account.tokenRevokeByName(tokenName).click();
+        await page.locator('[data-testid="sbpp-confirm-dialog"]').waitFor({ state: 'visible' });
+        await page.locator('[data-testid="sbpp-confirm-submit"]').click();
+        const revokeEnvelope = await (await revokeResponse).json();
+        expect(revokeEnvelope.ok, JSON.stringify(revokeEnvelope)).toBe(true);
+
+        await expect(account.tokenRowByName(tokenName)).toHaveCount(0);
+        await expect(account.tokenRows).toHaveCount(before);
+        if (before === 0) {
+            await expect(account.tokensEmpty).toBeVisible();
+        } else {
+            await expect(account.tokensEmpty).toBeHidden();
+        }
+    });
 
     test('mints a token, GET /me, PUT admin by Steam64, deactivate', async ({ page, request }) => {
         const account = new MyAccountPage(page);
@@ -24,6 +59,8 @@ test.describe('REST API v1', () => {
         await account.tokenPassword.fill('admin');
         await account.tokenCreate.click();
         await expect(account.tokenSecret).toHaveText(/^sbpp_pat_[0-9a-f]{64}$/);
+        await expect(account.tokenRowByName(tokenName)).toBeVisible();
+        await expect(account.tokensEmpty).toBeHidden();
         const secret = (await account.tokenSecret.textContent()) ?? '';
 
         const me = await request.get('/api/v1.php/me', {

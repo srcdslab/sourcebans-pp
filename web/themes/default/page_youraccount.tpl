@@ -345,8 +345,7 @@
                     <button class="btn btn--primary" type="submit" data-testid="account-token-create">Create token</button>
                 </div>
             </form>
-            {if $api_tokens}
-            <div class="table-scroll">
+            <div class="table-scroll" data-testid="account-tokens-table"{if !$api_tokens} hidden{/if}>
                 <table class="table table--compact">
                     <thead>
                         <tr>
@@ -357,7 +356,7 @@
                             <th></th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody data-testid="account-tokens-body">
                         {foreach from=$api_tokens item=token}
                         <tr data-testid="account-token-row-{$token.id}">
                             <td>{$token.name}</td>
@@ -380,9 +379,7 @@
                     </tbody>
                 </table>
             </div>
-            {else}
-            <p class="text-sm text-muted m-0" data-testid="account-tokens-empty">No tokens yet.</p>
-            {/if}
+            <p class="text-sm text-muted m-0" data-testid="account-tokens-empty"{if $api_tokens} hidden{/if}>No tokens yet.</p>
         </div>
     </section>
 
@@ -670,6 +667,60 @@
         });
     }
 
+    function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, function (c) {
+            return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c];
+        });
+    }
+
+    function pad2(n) {
+        return n < 10 ? '0' + n : String(n);
+    }
+
+    function formatTokenDate(unix) {
+        if (!unix) return 'Never';
+        var d = new Date(Number(unix) * 1000);
+        if (isNaN(d.getTime())) return 'Never';
+        return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate());
+    }
+
+    function syncTokenEmptyState() {
+        var table = document.querySelector('[data-testid="account-tokens-table"]');
+        var empty = document.querySelector('[data-testid="account-tokens-empty"]');
+        var body = document.querySelector('[data-testid="account-tokens-body"]');
+        var hasRows = !!(body && body.querySelector('tr'));
+        if (table) table.hidden = !hasRows;
+        if (empty) empty.hidden = hasRows;
+    }
+
+    function insertTokenRow(data) {
+        var body = document.querySelector('[data-testid="account-tokens-body"]');
+        if (!body || !data || !data.id) return;
+        var id = String(data.id);
+        var name = String(data.name || '');
+        var prefix = String(data.token_prefix || '');
+        var tr = document.createElement('tr');
+        tr.setAttribute('data-testid', 'account-token-row-' + id);
+        tr.innerHTML =
+            '<td>' + escapeHtml(name) + '</td>' +
+            '<td><code>' + escapeHtml(prefix) + '</code></td>' +
+            '<td>Never</td>' +
+            '<td>' + escapeHtml(formatTokenDate(data.expires_at)) + '</td>' +
+            '<td class="row-actions row-actions--icons">' +
+            '<button type="button" class="btn btn--ghost btn--icon btn--sm"' +
+            ' data-action="account-token-revoke" data-id="' + escapeHtml(id) + '"' +
+            ' data-name="' + escapeHtml(name) + '"' +
+            ' data-testid="account-token-revoke" data-tooltip="Revoke"' +
+            ' aria-label="Revoke token">' +
+            '<i data-lucide="trash-2" style="width:14px;height:14px;color:var(--danger)"></i>' +
+            '</button></td>';
+        body.appendChild(tr);
+        syncTokenEmptyState();
+        if (window.lucide && typeof window.lucide.createIcons === 'function') {
+            window.lucide.createIcons();
+        }
+    }
+
     var tokenForm = document.getElementById('account-token-create-form');
     if (tokenForm) {
         tokenForm.addEventListener('submit', function (ev) {
@@ -710,6 +761,9 @@
                     wrap.hidden = false;
                 }
                 if (copyBtn) copyBtn.setAttribute('data-copy', env.data.token || '');
+                insertTokenRow(env.data);
+                var pwd = document.getElementById('account-token-password');
+                if (pwd && 'value' in pwd) pwd.value = '';
                 if (window.SBPP && typeof window.SBPP.showToast === 'function') {
                     window.SBPP.showToast({
                         kind: 'success',
@@ -745,6 +799,7 @@
                 if (env && env.ok) {
                     var row = btn.closest('tr');
                     if (row) row.remove();
+                    syncTokenEmptyState();
                     return;
                 }
                 setBusy(btn, false);
