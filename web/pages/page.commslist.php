@@ -873,15 +873,21 @@ foreach ($res as $row) {
                 $cdata            = [];
                 $cdata['morecom'] = ($morecom == 1 ? true : false);
                 if ($crow['aid'] == $userbank->GetAid() || $userbank->HasAccess(WebPermission::Owner)) {
-                    $cdata['editcomlink'] = CreateLinkR('<i class="fas fa-edit fa-lg"></i>', 'index.php?p=commslist&comment=' . $data['ban_id'] . '&ctype=C&cid=' . $crow['cid'] . $pagelink, 'Edit Comment');
+                    // #1544: icon-only edit link. `data-lucide` (not Font Awesome, which
+                    // the 2.0 theme no longer loads — the old `<i class="fas …">` rendered
+                    // an empty `<a>`); `aria-label` gives the icon-only control an
+                    // accessible name the way the row-action buttons do.
+                    $cdata['editcomlink'] = '<a href="index.php?p=commslist&comment=' . $data['ban_id'] . '&ctype=C&cid=' . (int) $crow['cid'] . $pagelink . '"'
+                        . ' class="tip" target="_self" data-tooltip="Edit Comment" aria-label="Edit comment"'
+                        . '><i data-lucide="pencil" style="width:13px;height:13px" aria-hidden="true"></i></a>';
                     if ($userbank->HasAccess(WebPermission::Owner)) {
                         // #1402: see web/scripts/comment-actions.js for the dispatcher.
-                        $cdata['delcomlink'] = '<a href="#" class="tip" title="Delete Comment" target="_self"'
+                        $cdata['delcomlink'] = '<a href="#" class="tip" title="Delete Comment" aria-label="Delete comment" target="_self"'
                             . ' data-action="comment-delete"'
                             . ' data-cid="' . (int) $crow['cid'] . '"'
                             . ' data-ctype="C"'
                             . ' data-page="' . (isset($_GET["page"]) ? (int) $_GET["page"] : -1) . '"'
-                            . '><i class="fas fa-trash fa-lg"></i></a>';
+                            . '><i data-lucide="trash-2" style="width:13px;height:13px" aria-hidden="true"></i></a>';
                     }
                 } else {
                     $cdata['editcomlink'] = "";
@@ -914,7 +920,9 @@ foreach ($res as $row) {
         $data['commentdata'] = $comment;
     }
 
-    $data['addcomment'] = CreateLinkR('<i class="fas fa-comment-dots fa-lg"></i> Add Comment', 'index.php?p=commslist&comment=' . $data['ban_id'] . '&ctype=C' . $pagelink);
+    // #1544: Lucide icon (the 2.0 theme dropped Font Awesome); keeps the
+    // visible "Add Comment" label so it degrades gracefully anyway.
+    $data['addcomment'] = CreateLinkR('<i data-lucide="message-square-plus" style="width:13px;height:13px" aria-hidden="true"></i> Add Comment', 'index.php?p=commslist&comment=' . $data['ban_id'] . '&ctype=C' . $pagelink);
     //-----------------------------------
     $data['counts']     = $delimiter . $mutes . $gags;
 
