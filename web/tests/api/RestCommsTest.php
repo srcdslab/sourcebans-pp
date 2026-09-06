@@ -52,7 +52,10 @@ final class RestCommsTest extends RestTestCase
             'length' => 30,
         ], $token);
         $this->assertSame(201, $created->status, json_encode($created->payload));
-        $block = $created->payload['data'];
+        $blocks = $created->payload['data']['blocks'];
+        $this->assertIsArray($blocks);
+        $this->assertCount(1, $blocks);
+        $block = $blocks[0];
         $this->assertSame('mute', $block['kind']);
         $this->assertSame(30, $block['length']);
         $this->assertSame('active', $block['state']);
@@ -69,7 +72,8 @@ final class RestCommsTest extends RestTestCase
 
         $delete = $this->rest('DELETE', '/comms/' . $block['id'], token: $token);
         $this->assertSame(200, $delete->status, json_encode($delete->payload));
-        $this->assertTrue($delete->payload['data']['deleted']);
+        $this->assertSame($block['id'], $delete->payload['data']['id']);
+        $this->assertArrayNotHasKey('deleted', $delete->payload['data']);
         $gone = $this->rest('GET', '/comms/' . $block['id']);
         $this->assertRestError($gone, 404, 'not_found');
     }
@@ -86,13 +90,14 @@ final class RestCommsTest extends RestTestCase
         ], $token);
         $this->assertSame(201, $created->status, json_encode($created->payload));
         $data = $created->payload['data'];
-        $this->assertSame('silence', $data['kind']);
+        $this->assertArrayNotHasKey('kind', $data);
+        $this->assertArrayNotHasKey('mute', $data);
+        $this->assertArrayNotHasKey('gag', $data);
         $this->assertCount(2, $data['blocks']);
-        $this->assertNotNull($data['mute']);
-        $this->assertNotNull($data['gag']);
-        $this->assertSame('mute', $data['mute']['kind']);
-        $this->assertSame('gag', $data['gag']['kind']);
-        $this->assertNotSame($data['mute']['id'], $data['gag']['id']);
+        $kinds = array_column($data['blocks'], 'kind');
+        sort($kinds);
+        $this->assertSame(['gag', 'mute'], $kinds);
+        $this->assertNotSame($data['blocks'][0]['id'], $data['blocks'][1]['id']);
     }
 
     public function testDuplicateCreateIs409(): void

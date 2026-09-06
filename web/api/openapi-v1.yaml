@@ -471,7 +471,8 @@ paths:
       summary: Create a mute, gag, or silence
       description: >
         `length` is minutes. `kind` is `mute`, `gag`, or `silence`
-        (or `type` 1 / 2 / 3). Silence returns both rows.
+        (or `type` 1 / 2 / 3). The 201 body is always `{blocks: [...]}`.
+        Mute and gag return one item. Silence returns two (one mute, one gag).
       requestBody:
         required: true
         content:
@@ -481,6 +482,10 @@ paths:
       responses:
         "201":
           description: Block created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommCreateEnvelope"
         "400":
           $ref: "#/components/responses/Error"
         "401":
@@ -517,7 +522,7 @@ paths:
       summary: Hard-delete a mute or gag row
       responses:
         "200":
-          description: Deleted
+          description: Deleted id
         "401":
           $ref: "#/components/responses/Unauthorized"
         "403":
@@ -1581,6 +1586,19 @@ components:
           type: integer
           minimum: 0
           description: Minutes. 0 is permanent.
+    CommCreateEnvelope:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          required: [blocks]
+          properties:
+            blocks:
+              type: array
+              items:
+                $ref: "#/components/schemas/Comm"
+              description: One row for mute or gag. Two for silence.
     CommEnvelope:
       type: object
       required: [data]

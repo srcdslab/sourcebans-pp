@@ -93,7 +93,7 @@ final class CommsService
 
     /**
      * @param array<string, mixed> $body
-     * @return array<string, mixed>
+     * @return array{blocks: list<array<string, mixed>>}
      */
     public function create(array $body): array
     {
@@ -116,19 +116,7 @@ final class CommsService
         foreach ($bids as $bid) {
             $created[] = $this->get((int) $bid);
         }
-        if (count($created) === 1) {
-            return $created[0];
-        }
-        $byKind = [];
-        foreach ($created as $block) {
-            $byKind[(string) $block['kind']] = $block;
-        }
-        return [
-            'kind' => 'silence',
-            'blocks' => $created,
-            'mute' => $byKind['mute'] ?? null,
-            'gag' => $byKind['gag'] ?? null,
-        ];
+        return ['blocks' => $created];
     }
 
     /**
@@ -144,7 +132,7 @@ final class CommsService
     }
 
     /**
-     * @return array{id: int, deleted: true}
+     * @return array{id: int}
      */
     public function delete(int $cid): array
     {
@@ -152,7 +140,7 @@ final class CommsService
             throw new ApiError('validation', 'Block id must be a positive integer.', 'cid', 400);
         }
         Api::invoke('comms.delete', ['bid' => $cid]);
-        return ['id' => $cid, 'deleted' => true];
+        return ['id' => $cid];
     }
 
     /**

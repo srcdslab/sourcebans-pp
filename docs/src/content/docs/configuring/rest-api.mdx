@@ -146,7 +146,7 @@ every anonymous visitor shares one 60/min bucket. Do not parse
 | POST | `/bans` | `length` is minutes. Optional `kick: true` |
 | POST | `/bans/{bid}/unban` | Requires `ureason` |
 | GET | `/comms`, `/comms/{cid}` | Public when Comm blocks are enabled. Hide admin name like the panel. Anonymous GET is 404 when `config.enablecomms` is off. `length` is minutes |
-| POST | `/comms` | `kind`: mute, gag, or silence. `length` is minutes |
+| POST | `/comms` | `kind`: mute, gag, or silence. `length` is minutes. Always `{blocks: [...]}` (one item, or two for silence) |
 | POST | `/comms/{cid}/unblock` | Requires `ureason` |
 | DELETE | `/comms/{cid}` | Hard delete |
 | GET | `/servers`, `/servers/{sid}` | Public for enabled hosts. A2S in `query`. Never returns `rcon`. Anonymous GET omits `group_ids` and ignores `enabled=` |
