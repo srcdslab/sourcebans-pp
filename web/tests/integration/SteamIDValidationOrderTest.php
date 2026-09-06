@@ -8,6 +8,17 @@ declare(strict_types=1);
 namespace Sbpp\Tests\Integration;
 
 use PHPUnit\Framework\TestCase;
+use Sbpp\View\AdminBansAddView;
+use Sbpp\View\AdminBansEditView;
+use Sbpp\View\AdminCommsAddView;
+use Sbpp\View\AdminCommsEditView;
+use Sbpp\View\AdminServersRconView;
+use Sbpp\View\BlockitView;
+use Sbpp\View\EditAdminDetailsView;
+use Sbpp\View\KickitView;
+use Sbpp\View\LoginView;
+use Sbpp\View\SubmitBanView;
+use Sbpp\View\View;
 use Smarty\Smarty;
 
 /**
@@ -75,6 +86,32 @@ use Smarty\Smarty;
  */
 final class SteamIDValidationOrderTest extends TestCase
 {
+    private static string $steamPatternCompileDir = '';
+
+    public static function tearDownAfterClass(): void
+    {
+        self::removeDir(self::$steamPatternCompileDir);
+    }
+
+    private static function removeDir(string $dir): void
+    {
+        if ($dir === '' || !is_dir($dir)) {
+            return;
+        }
+        $iterator = new \RecursiveIteratorIterator(
+            new \RecursiveDirectoryIterator($dir, \FilesystemIterator::SKIP_DOTS),
+            \RecursiveIteratorIterator::CHILD_FIRST,
+        );
+        foreach ($iterator as $file) {
+            if (!$file instanceof \SplFileInfo) {
+                continue;
+            }
+            $path = $file->getPathname();
+            $file->isDir() ? @rmdir($path) : @unlink($path);
+        }
+        @rmdir($dir);
+    }
+
     /**
      * @param string $relative Path relative to `web/`. Resolves against the
      *                         test bootstrap's `ROOT` constant.
@@ -102,6 +139,50 @@ final class SteamIDValidationOrderTest extends TestCase
             'themes/default/page_admin_edit_admins_details.tpl',
             'themes/default/page_submitban.tpl',
         ];
+    }
+
+    /**
+     * Bound View for a Steam-ID form template. The render test reads
+     * `DELIMITERS` from here so it compiles with the same pair the
+     * panel uses, not a hardcoded `{ }`.
+     *
+     * @return class-string<View>
+     */
+    private function viewClassForSteamFormTemplate(string $relative): string
+    {
+        return match (basename($relative)) {
+            'page_admin_comms_add.tpl' => AdminCommsAddView::class,
+            'page_admin_bans_add.tpl' => AdminBansAddView::class,
+            'page_admin_edit_ban.tpl' => AdminBansEditView::class,
+            'page_admin_edit_comms.tpl' => AdminCommsEditView::class,
+            'page_admin_edit_admins_details.tpl' => EditAdminDetailsView::class,
+            'page_submitban.tpl' => SubmitBanView::class,
+            default => throw new \LogicException("No View mapping for {$relative}"),
+        };
+    }
+
+    /**
+     * Templates whose View overrides `View::DELIMITERS`. `{17}` is
+     * inert text there (live tags are `-{` / `}-`), so the scanner
+     * must not tell the next author to wrap them in `{ldelim}`.
+     *
+     * @return list<string>
+     */
+    private function nonDefaultDelimiterTemplateBasenames(): array
+    {
+        $basenames = [];
+        foreach ([
+            LoginView::class,
+            BlockitView::class,
+            KickitView::class,
+            AdminServersRconView::class,
+        ] as $class) {
+            if ($class::DELIMITERS !== View::DELIMITERS) {
+                $basenames[] = basename($class::TEMPLATE);
+            }
+        }
+
+        return $basenames;
     }
 
     /**
@@ -316,6 +397,16 @@ final class SteamIDValidationOrderTest extends TestCase
                     . "quantifier braces. Loosening `[01]` or widening `\\d+` to "
                     . "`\\d*` would reintroduce the substring-bypass class of #1420.",
             );
+
+            $count = preg_match_all('/pattern="STEAM_[^"]+"/', $contents, $matches);
+            $this->assertGreaterThan(0, $count, "{$relative} must contain a Steam ID pattern attribute.");
+            foreach ($matches[0] as $attr) {
+                $this->assertStringContainsString(
+                    '{ldelim}17{rdelim}',
+                    $attr,
+                    "{$relative}: every `pattern=\"STEAM_…\"` must keep `{ldelim}17{rdelim}`.",
+                );
+            }
         }
     }
 
@@ -352,9 +443,9 @@ final class SteamIDValidationOrderTest extends TestCase
      */
     public function testRenderedSteamPatternKeepsSeventeenDigitQuantifier(): void
     {
-        $compileDir = sys_get_temp_dir() . '/sbpp-test-smarty-steam-pattern-' . getmypid();
-        if (!is_dir($compileDir)) {
-            mkdir($compileDir, 0o775, true);
+        self::$steamPatternCompileDir = sys_get_temp_dir() . '/sbpp-test-smarty-steam-pattern-' . getmypid();
+        if (!is_dir(self::$steamPatternCompileDir)) {
+            mkdir(self::$steamPatternCompileDir, 0o775, true);
         }
 
         $theme = new Smarty();
@@ -362,37 +453,44 @@ final class SteamIDValidationOrderTest extends TestCase
         $theme->setCompileId('steam-pattern');
         $theme->setCaching(Smarty::CACHING_OFF);
         $theme->setForceCompile(true);
-        $theme->setCompileDir($compileDir);
-        $theme->setCacheDir($compileDir);
+        $theme->setCompileDir(self::$steamPatternCompileDir);
+        $theme->setCacheDir(self::$steamPatternCompileDir);
         $theme->setEscapeHtml(true);
+        $theme->setTemplateDir(self::$steamPatternCompileDir);
 
         $expectedHtml = 'pattern="STEAM_[01]:[01]:\d+|\[U:1:\d+\]|\d{17}"';
 
         foreach ($this->steamIdFormTemplates() as $relative) {
+            $viewClass = $this->viewClassForSteamFormTemplate($relative);
+            [$left, $right] = $viewClass::DELIMITERS;
+            $theme->setLeftDelimiter($left);
+            $theme->setRightDelimiter($right);
+
             $contents = $this->fileContents($relative);
-            $matched = preg_match(
+            $count = preg_match_all(
                 '/pattern="STEAM_\[01\]:\[01\]:[^"]+"/',
                 $contents,
-                $m,
+                $matches,
             );
-            $this->assertSame(
-                1,
-                $matched,
+            $this->assertGreaterThan(
+                0,
+                $count,
                 "{$relative} must contain a Steam ID `pattern=\"STEAM_…\"` attribute.",
             );
 
-            $snippetPath = $compileDir . '/snippet.tpl';
-            file_put_contents($snippetPath, $m[0]);
-            $theme->setTemplateDir($compileDir);
-            $html = $theme->fetch('snippet.tpl');
+            foreach ($matches[0] as $i => $snippet) {
+                $snippetName = basename($relative, '.tpl') . "-{$i}.tpl";
+                file_put_contents(self::$steamPatternCompileDir . '/' . $snippetName, $snippet);
+                $html = $theme->fetch($snippetName);
 
-            $this->assertSame(
-                $expectedHtml,
-                $html,
-                "{$relative}: Smarty must emit `\\d{17}` in the pattern attribute. "
-                    . "A bare `{17}` is parsed as a Smarty tag and the browser "
-                    . "rejects valid SteamID64 input.",
-            );
+                $this->assertSame(
+                    $expectedHtml,
+                    $html,
+                    "{$relative} pattern #{$i}: Smarty must emit `\\d{17}` in the "
+                        . "pattern attribute. A bare `{17}` is parsed as a Smarty tag "
+                        . "and the browser rejects valid SteamID64 input.",
+                );
+            }
         }
     }
 
@@ -411,8 +509,13 @@ final class SteamIDValidationOrderTest extends TestCase
             ),
         );
 
+        $skipBasenames = $this->nonDefaultDelimiterTemplateBasenames();
+
         foreach ($iterator as $file) {
             if (!$file instanceof \SplFileInfo || $file->getExtension() !== 'tpl') {
+                continue;
+            }
+            if (in_array($file->getFilename(), $skipBasenames, true)) {
                 continue;
             }
             $src = (string) file_get_contents($file->getPathname());
@@ -427,9 +530,11 @@ final class SteamIDValidationOrderTest extends TestCase
         $this->assertSame(
             [],
             $offenders,
-            'Bare `{<digits>}` in a Smarty template is parsed as a tag. '
-                . 'Wrap regex quantifiers in `{literal}…{/literal}` or '
-                . '`{ldelim}`/`{rdelim}`.',
+            'Bare `{<digits>}` in a default-delimiter Smarty template is parsed '
+                . 'as a tag. Wrap regex quantifiers in `{ldelim}`/`{rdelim}` '
+                . '(or sit inside `{literal}…{/literal}`). Templates whose View '
+                . 'overrides `View::DELIMITERS` (currently `-{ }-`) are skipped: '
+                . '`{17}` is inert text there and `{ldelim}` would ship verbatim.',
         );
     }
 
