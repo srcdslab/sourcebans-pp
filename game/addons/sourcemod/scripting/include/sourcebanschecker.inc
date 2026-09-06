@@ -55,7 +55,7 @@ public void __pl_sourcebanschecker_SetNTVOptional()
  * Get the number of bans of a client.
  *
  * @param iClient	The client index of who you want to get the number of bans.
- * @return        The number of bans of the client.
+ * @return        The number of bans of the client, or -1 if not yet available.
  *********************************************************/
 native int SBPP_CheckerGetClientsBans(int iClient);
 
@@ -64,7 +64,7 @@ native int SBPP_CheckerGetClientsBans(int iClient);
  * Get the number of comms bans of a client.
  *
  * @param iClient	The client index of who you want to get the number of comms bans.
- * @return        The number of comms bans of the client.
+ * @return        The number of comms bans of the client, or -1 if not yet available.
  *********************************************************/
 native int SBPP_CheckerGetClientsComms(int iClient);
 
@@ -72,7 +72,7 @@ native int SBPP_CheckerGetClientsComms(int iClient);
  * Get the number of mutes of a client.
  *
  * @param iClient	The client index of who you want to get the number of mutes.
- * @return        The number of mutes of the client.
+ * @return        The number of mutes of the client, or -1 if not yet available.
  *********************************************************/
 native int SBPP_CheckerGetClientsMutes(int iClient);
 
@@ -80,6 +80,14 @@ native int SBPP_CheckerGetClientsMutes(int iClient);
  * Get the number of gags of a client.
  *
  * @param iClient	The client index of who you want to get the number of gags.
- * @return        The number of gags of the client.
+ * @return        The number of gags of the client, or -1 if not yet available.
  *********************************************************/
 native int SBPP_CheckerGetClientsGags(int iClient);
+
+/**********************************************************
+ * Called when the ban counts for a client have been checked.
+ * Use the natives above to retrieve the values.
+ *
+ * @param iClient	The client index that was checked.
+ **********************************************************/
+forward void SBPP_CheckerClientBanCheckPost(int iClient);
