@@ -826,8 +826,9 @@ function api_bans_view_community(array $params): array
  *   demo_count: int,
  *   history_count: int,
  *   comments_visible: bool,
+ *   can_comment: bool,
  *   notes_visible: bool,
- *   comments: list<array{cid: int, added: int, added_human: string, author: string|null, text: string, edited_at: int|null, edited_by: string|null}>
+ *   comments: list<array{cid: int, added: int, added_human: string, author: string|null, author_hidden: bool, text: string, edited_at: int|null, edited_by: string|null, can_edit: bool, can_delete: bool}>
  * }
  */
 function api_bans_detail(array $params): array
@@ -947,8 +948,14 @@ function api_bans_detail(array $params): array
     $comments = [];
     $commentsVisible = Config::getBool('config.enablepubliccomments') || $isAdmin;
     if ($commentsVisible) {
+        // #1544: per-comment edit/delete gating for the drawer, mirroring
+        // page.banlist.php's `$commentres` loop — edit is own-comment OR
+        // Owner, delete is Owner only. Never true for a non-admin caller
+        // (only admins author comments, and Owner is an admin flag).
+        $viewerAid = $userbank->GetAid();
+        $isOwner   = $isAdmin && $userbank->HasAccess(WebPermission::Owner);
         $commentRows = $GLOBALS['PDO']->query(
-            "SELECT C.cid, C.commenttxt, C.added, C.edittime,
+            "SELECT C.cid, C.aid, C.commenttxt, C.added, C.edittime,
                     (SELECT user FROM `:prefix_admins` WHERE aid = C.aid)     AS author,
                     (SELECT user FROM `:prefix_admins` WHERE aid = C.editaid) AS editor
                FROM `:prefix_comments` AS C
@@ -973,6 +980,8 @@ function api_bans_detail(array $params): array
                 'text'       => (string)$crow['commenttxt'],
                 'edited_at'  => $editTime,
                 'edited_by'  => (!$hideAdmin && $crow['editor'] !== null) ? (string)$crow['editor'] : null,
+                'can_edit'   => $isOwner || ($isAdmin && (int)$crow['aid'] === $viewerAid),
+                'can_delete' => $isOwner,
             ];
         }
     }
@@ -1013,6 +1022,9 @@ function api_bans_detail(array $params): array
         'demo_count'       => (int)$row['demo_count'],
         'history_count'    => (int)$row['history_count'],
         'comments_visible' => $commentsVisible,
+        // #1544: gates the drawer's "Add comment" CTA — same login-only
+        // gate page.banlist.php splats as `can_comment` ($userbank->is_admin()).
+        'can_comment'      => $isAdmin,
         // notes_visible is the drawer's signal for whether to render the
         // Notes tab at all (#1165). It mirrors the dispatcher gate on
         // `notes.list` (requireAdmin=true) so a public visitor sees three

@@ -616,8 +616,11 @@ final class CommsTest extends ApiTestCase
         $env = $this->api('comms.detail', ['cid' => $cid]);
         $this->assertTrue($env['ok'], json_encode($env));
         $this->assertTrue($env['data']['comments_visible'], 'public comments are enabled');
+        $this->assertFalse($env['data']['can_comment'], 'public callers cannot add comments from the drawer (#1544)');
         $this->assertCount(1, $env['data']['comments']);
         $this->assertSame('leaky comment', $env['data']['comments'][0]['text']);
+        $this->assertFalse($env['data']['comments'][0]['can_edit'], 'public callers cannot edit comments (#1544)');
+        $this->assertFalse($env['data']['comments'][0]['can_delete'], 'public callers cannot delete comments (#1544)');
         $this->assertNull($env['data']['comments'][0]['author'],
             'comment author must be hidden for public + hideadminname (#1500)');
         $this->assertNull($env['data']['comments'][0]['edited_by'],
@@ -636,6 +639,9 @@ final class CommsTest extends ApiTestCase
             'admins still see the comment editor');
         $this->assertFalse($adminEnv['data']['comments'][0]['author_hidden'],
             'author_hidden must be false for admin viewers (#1500 m1)');
+        $this->assertTrue($adminEnv['data']['can_comment'], 'admin can add comments from the drawer (#1544)');
+        $this->assertTrue($adminEnv['data']['comments'][0]['can_edit'], 'admin (Owner / own comment) can edit (#1544)');
+        $this->assertTrue($adminEnv['data']['comments'][0]['can_delete'], 'admin (Owner) can delete (#1544)');
     }
 
     public function testDetailReportsUnmutedForLiftedBlock(): void

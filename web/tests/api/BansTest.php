@@ -463,6 +463,7 @@ final class BansTest extends ApiTestCase
         $this->assertNull($env['data']['admin']['name'],  'admin should be hidden for public + hideadminname');
         $this->assertFalse($env['data']['comments_visible'], 'comments should be hidden when public + flag off');
         $this->assertSame([], $env['data']['comments']);
+        $this->assertFalse($env['data']['can_comment'], 'public callers cannot add comments from the drawer (#1544)');
         $this->assertFalse($env['data']['notes_visible'], 'notes_visible should be false for public callers (#1165)');
         $this->assertSnapshot('bans/detail_public_hidden', $env, ['data.bid', 'data.ban.banned_at', 'data.ban.banned_at_human', 'data.ban.expires_at', 'data.ban.expires_at_human']);
     }
@@ -498,6 +499,9 @@ final class BansTest extends ApiTestCase
         $this->assertTrue($env['data']['notes_visible'], 'notes_visible should be true for admin callers (#1165)');
         $this->assertCount(1, $env['data']['comments']);
         $this->assertSame('note for the drawer', $env['data']['comments'][0]['text']);
+        $this->assertTrue($env['data']['can_comment'], 'admin can add comments from the drawer (#1544)');
+        $this->assertTrue($env['data']['comments'][0]['can_edit'], 'admin (Owner / own comment) can edit (#1544)');
+        $this->assertTrue($env['data']['comments'][0]['can_delete'], 'admin (Owner) can delete (#1544)');
         $this->assertSnapshot('bans/detail_admin_view', $env, [
             'data.bid',
             'data.ban.banned_at',

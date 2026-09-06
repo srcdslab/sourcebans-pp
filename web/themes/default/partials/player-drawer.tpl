@@ -33,10 +33,14 @@
       - $detail.admin.name                   string|null
       - $detail.server.name                  string|null
       - $detail.comments_visible             bool
+      - $detail.can_comment                  bool   (#1544: gates the "Add comment" CTA)
+      - $detail.comments[].cid               int
       - $detail.comments[].author            string|null
       - $detail.comments[].author_hidden     bool   (#1500: name suppressed by banlist.hideadminname)
       - $detail.comments[].added_human       string
       - $detail.comments[].text              string
+      - $detail.comments[].can_edit          bool   (#1544: own comment or Owner)
+      - $detail.comments[].can_delete        bool   (#1544: Owner only)
 
     Smarty's auto-escape is on globally (init.php), so {$value} renders
     safely without per-line nofilter.
@@ -117,7 +121,7 @@
 </div>
 
 {if $detail.comments_visible}
-    <section style="padding:0 1.25rem 1.25rem">
+    <section data-testid="drawer-comments" style="padding:0 1.25rem 1.25rem">
         <h3 class="text-xs text-faint" style="text-transform:uppercase;letter-spacing:0.06em;margin:0 0 0.5rem">Comments</h3>
         {if $detail.comments}
             <ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:0.625rem">
@@ -128,11 +132,30 @@
                             <span>{$c.added_human}</span>
                         </div>
                         <div class="text-sm" style="white-space:pre-wrap">{$c.text}</div>
+                        {* #1544: per-comment edit / delete — mirrors renderOverviewPane()'s
+                           commentActions(). Delete reuses the global data-action="comment-delete"
+                           dispatcher (web/scripts/comment-actions.js). *}
+                        {if $c.can_edit || $c.can_delete}
+                            <div style="display:flex;gap:0.625rem;margin-top:0.375rem">
+                                {if $c.can_edit}
+                                    <a href="index.php?p=banlist&amp;comment={$detail.bid}&amp;ctype=B&amp;cid={$c.cid}" class="tip" data-tooltip="Edit Comment" aria-label="Edit comment" style="color:var(--text-muted);line-height:1;display:inline-flex"><i data-lucide="pencil" style="width:13px;height:13px"></i></a>
+                                {/if}
+                                {if $c.can_delete}
+                                    <a href="#" class="tip" data-tooltip="Delete Comment" aria-label="Delete comment" data-action="comment-delete" data-cid="{$c.cid}" data-ctype="B" data-page="-1" style="color:var(--text-muted);line-height:1;display:inline-flex"><i data-lucide="trash-2" style="width:13px;height:13px"></i></a>
+                                {/if}
+                            </div>
+                        {/if}
                     </li>
                 {/foreach}
             </ul>
         {else}
             <p class="text-sm text-muted" style="margin:0">No comments.</p>
+        {/if}
+        {* #1544: "Add comment" CTA — gated on $detail.can_comment ($userbank->is_admin()). *}
+        {if $detail.can_comment}
+            <a href="index.php?p=banlist&amp;comment={$detail.bid}&amp;ctype=B" class="btn btn--secondary btn--sm" data-testid="drawer-comment-add" style="margin-top:0.625rem">
+                <i data-lucide="message-square-plus" style="width:13px;height:13px"></i> Add comment
+            </a>
         {/if}
     </section>
 {/if}

@@ -158,7 +158,7 @@
  * page.banlist.php's `$view_comments` switch.
  *
  * @typedef {Object} ApiBansDetailRequest
- * @typedef {{ bid: number, player: {name: string, type: number, steam_id: string, steam_id_3: string, community_id: string, ip: string|null, country: string|null}, ban: {reason: string, banned_at: number, banned_at_human: string, length_seconds: number, length_human: string, expires_at: number|null, expires_at_human: string|null, state: string, unban_reason: string, removed_at: number|null, removed_at_human: string|null, removed_by: string|null}, admin: {name: string|null}, server: {sid: number, name: string|null, mod_icon: string|null}, demo_count: number, history_count: number, comments_visible: boolean, notes_visible: boolean, comments: Array<{cid: number, added: number, added_human: string, author: string|null, text: string, edited_at: number|null, edited_by: string|null}> }} ApiBansDetailResponse
+ * @typedef {{ bid: number, player: {name: string, type: number, steam_id: string, steam_id_3: string, community_id: string, ip: string|null, country: string|null}, ban: {reason: string, banned_at: number, banned_at_human: string, length_seconds: number, length_human: string, expires_at: number|null, expires_at_human: string|null, state: string, unban_reason: string, removed_at: number|null, removed_at_human: string|null, removed_by: string|null}, admin: {name: string|null}, server: {sid: number, name: string|null, mod_icon: string|null}, demo_count: number, history_count: number, comments_visible: boolean, can_comment: boolean, notes_visible: boolean, comments: Array<{cid: number, added: number, added_human: string, author: string|null, author_hidden: boolean, text: string, edited_at: number|null, edited_by: string|null, can_edit: boolean, can_delete: boolean}> }} ApiBansDetailResponse
  */
 /**
  * @typedef {Object} ApiBansEditCommentRequest
@@ -337,7 +337,7 @@
  * template emits).
  *
  * @typedef {Object} ApiCommsDetailRequest
- * @typedef {{ cid: number, player: { name: string, steam_id: string, steam_id_3: string, community_id: string, ip: null, country: string|null }, block: { type: number, type_label: string, reason: string, started_at: number, started_at_human: string, length_seconds: number, length_human: string, expires_at: number|null, expires_at_human: string|null, state: string, unblock_reason: string, removed_at: number|null, removed_at_human: string|null, removed_by: string|null }, admin: {name: string|null}, server: {sid: number, name: string|null, mod_icon: string|null}, comments_visible: boolean, notes_visible: boolean, comments: Array<{cid: number, added: number, added_human: string, author: string|null, text: string, edited_at: number|null, edited_by: string|null}> }} ApiCommsDetailResponse
+ * @typedef {{ cid: number, player: { name: string, steam_id: string, steam_id_3: string, community_id: string, ip: null, country: string|null }, block: { type: number, type_label: string, reason: string, started_at: number, started_at_human: string, length_seconds: number, length_human: string, expires_at: number|null, expires_at_human: string|null, state: string, unblock_reason: string, removed_at: number|null, removed_at_human: string|null, removed_by: string|null }, admin: {name: string|null}, server: {sid: number, name: string|null, mod_icon: string|null}, comments_visible: boolean, can_comment: boolean, notes_visible: boolean, comments: Array<{cid: number, added: number, added_human: string, author: string|null, author_hidden: boolean, text: string, edited_at: number|null, edited_by: string|null, can_edit: boolean, can_delete: boolean}> }} ApiCommsDetailResponse
  */
 /**
  * @typedef {Object} ApiCommsPasteRequest
@@ -567,11 +567,11 @@
  */
 /**
  * Public action: report whether a newer SourceBans++ release is available.
- * Sources from `api.github.com/repos/srcdslab/sourcebans-pp/releases/latest` with
- * a 1-day on-disk cache + stale-while-error fallback (the cached payload is
- * served regardless of TTL when the upstream call fails) so a busy panel can't
- * blow through GitHub's 60 req/hr unauthenticated limit and a transient GitHub
- * blip doesn't paint the panel red.
+ * Sources from `api.github.com/repos/srcdslab/sourcebans-pp/releases/latest`
+ * with a 1-day on-disk cache + stale-while-error fallback (the cached payload
+ * is served regardless of TTL when the upstream call fails) so a busy panel
+ * can't blow through GitHub's 60 req/hr unauthenticated limit and a transient
+ * GitHub blip doesn't paint the panel red.
  *
  * @typedef {Object} ApiSystemCheckVersionRequest
  * @typedef {{release_latest: string, release_url: string, release_msg: string, release_update: boolean}} ApiSystemCheckVersionResponse
