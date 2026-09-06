@@ -81,8 +81,10 @@ import { test, expect } from '../../fixtures/auth.ts';
 import { truncateE2eDb } from '../../fixtures/db.ts';
 
 const VALID_STEAM = 'STEAM_0:1:14202020';
+const VALID_STEAM64 = '76561198179807307';
 const INVALID_STEAM = 'asdf';
 const TARGET_NICK = 'e2e-1420-validation';
+const EXPECTED_STEAM_PATTERN = 'STEAM_[01]:[01]:\\d+|\\[U:1:\\d+\\]|\\d{17}';
 
 // `.serial` because every test in this describe runs `truncateE2eDb()`
 // in `beforeEach`, and a sibling test's API call landing during another
@@ -367,5 +369,42 @@ test.describe.serial('flow: comms-add SteamID validation feedback (#1420)', () =
         const inlineErr = page.locator('#steam\\.msg');
         await expect(inlineErr).toBeVisible();
         await expect(inlineErr).toContainText(/valid Steam ID|Community ID/i);
+    });
+
+    // Lives in this `.serial` group (not a sibling `describe`) so a
+    // local `workers: <cores>` run cannot `page.goto` the form while
+    // another test in this file is inside `truncateE2eDb()`. CI pins
+    // `workers: 1` and would not see that flake.
+    test('17-digit SteamID64 passes native validation on add-block / add-ban / submit', async ({
+        page,
+    }) => {
+        const surfaces: Array<{ url: string; testId: string }> = [
+            { url: '/index.php?p=admin&c=comms', testId: 'addcomm-steam' },
+            { url: '/index.php?p=admin&c=bans&section=add-ban', testId: 'addban-steam' },
+            { url: '/index.php?p=submit', testId: 'submitban-steam' },
+        ];
+
+        for (const surface of surfaces) {
+            await page.goto(surface.url);
+            const steam = page.getByTestId(surface.testId);
+            await expect(steam).toBeVisible();
+            await steam.fill(VALID_STEAM64);
+
+            const validity = await steam.evaluate((el: HTMLInputElement) => ({
+                pattern: el.getAttribute('pattern'),
+                valid: el.validity.valid,
+                patternMismatch: el.validity.patternMismatch,
+            }));
+
+            expect(
+                validity.pattern,
+                `${surface.testId} rendered pattern must keep the {17} quantifier`,
+            ).toBe(EXPECTED_STEAM_PATTERN);
+            expect(
+                validity.patternMismatch,
+                `${surface.testId}: ${VALID_STEAM64} must not patternMismatch`,
+            ).toBe(false);
+            expect(validity.valid, `${surface.testId}: ${VALID_STEAM64} must be valid`).toBe(true);
+        }
     });
 });
