@@ -1357,7 +1357,10 @@ components:
           type: integer
         password:
           type: string
-          description: Optional. Generated when omitted on create.
+          description: >
+            Optional on create. Omitted stores a random hash that is never
+            returned. Steam login still works. Password login needs this
+            field or a panel reset.
     AdminEnvelope:
       type: object
       required: [data]

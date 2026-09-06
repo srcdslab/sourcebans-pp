@@ -99,7 +99,11 @@ roles stay in your bot. SourceBans does not know about Discord.
 2. Mint a PAT on that account.
 3. Store the PAT in the website-next **backend** environment.
 4. `PUT /admins/{steam64}` to create or update. A missing row is created.
-   An inactive row is reactivated.
+   An inactive row is reactivated. Omit `password` to skip password
+   login. Steam login still works. Send `password` if they also need
+   the username/password form. The omitted-password hash is never
+   returned. To add password login later, set it from the panel (or
+   lost-password if they have email).
 5. `POST /admins/{steam64}/deactivate` to demote. That is a soft retire,
    not a hard delete, so ban history still shows the name.
 6. Create/update/deactivate already run `sm_rehash` when
