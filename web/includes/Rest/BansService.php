@@ -114,11 +114,11 @@ final class BansService
         }
 
         $kickMeta = null;
+        $row = $this->get($bid);
         if ($this->wantsKick($body)) {
             $kickit = is_array($out['kickit'] ?? null) ? $out['kickit'] : [];
             $check = (string) ($kickit['check'] ?? '');
             if ($check === '') {
-                $row = $this->get($bid);
                 $check = $banType === BanType::Steam
                     ? (string) ($row['steam'] ?? '')
                     : (string) ($row['ip'] ?? '');
@@ -132,7 +132,7 @@ final class BansService
             }
         }
 
-        return ['ban' => $this->get($bid), 'kick' => $kickMeta];
+        return ['ban' => $row, 'kick' => $kickMeta];
     }
 
     /**
