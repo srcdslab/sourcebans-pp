@@ -345,18 +345,21 @@
                    is icon+count only (GitHub/Linear shape); body lists
                    comments when opened. Drawer Overview still mirrors
                    the same data via api_bans_detail. *}
-                {if $view_comments && $ban.commentdata != "None" && $ban.commentdata|@count > 0}
+                {assign var=_ban_ccount value=0}
+                {if $view_comments && isset($ban.commentdata) && $ban.commentdata != "None" && $ban.commentdata|@count > 0}{assign var=_ban_ccount value=$ban.commentdata|@count}{/if}
+                {if $view_comments && ($_ban_ccount > 0 || $can_comment)}
                 <details class="ban-comments-inline"
                          data-testid="ban-comments-inline"
                          data-bid="{$ban.bid}">
                   <summary class="ban-comments-inline__summary"
                            data-testid="ban-comments-toggle"
-                           title="{$ban.commentdata|@count} comment{if $ban.commentdata|@count != 1}s{/if}"
-                           aria-label="{$ban.commentdata|@count} comment{if $ban.commentdata|@count != 1}s{/if}">
+                           title="{$_ban_ccount} comment{if $_ban_ccount != 1}s{/if}"
+                           aria-label="{$_ban_ccount} comment{if $_ban_ccount != 1}s{/if}">
                     <i data-lucide="message-square-text" style="width:11px;height:11px" aria-hidden="true"></i>
-                    <span class="tabular-nums">{$ban.commentdata|@count}</span>
+                    <span class="tabular-nums">{$_ban_ccount}</span>
                   </summary>
                   <ul class="ban-comments-inline__list" data-testid="ban-comments-list">
+                    {if $_ban_ccount > 0}
                     {foreach from=$ban.commentdata item=com}
                     <li class="ban-comments-inline__item" data-testid="ban-comment-item">
                       <div class="ban-comments-inline__meta">
@@ -376,9 +379,28 @@
                       {if !empty($com.edittime)}
                       <div class="ban-comments-inline__edit text-xs text-faint">last edit {$com.edittime} by {if $hideadminname}<i class="text-faint">Hidden</i>{elseif !empty($com.editname)}{$com.editname|escape}{else}<i>deleted admin</i>{/if}</div>
                       {/if}
+                      {* #1544: per-comment edit / delete CTAs. Both strings are
+                         built (and permission-gated) in page.banlist.php — empty
+                         when the viewer can't act. The trash trigger carries the
+                         `data-action="comment-delete"` hooks consumed by
+                         web/scripts/comment-actions.js. *}
+                      {if $com.editcomlink != '' || $com.delcomlink != ''}
+                      <div class="ban-comments-inline__actions" data-testid="ban-comment-actions">
+                        {if $com.editcomlink != ''}{$com.editcomlink nofilter}{/if}
+                        {if $com.delcomlink != ''}{$com.delcomlink nofilter}{/if}
+                      </div>
+                      {/if}
                     </li>
                     {/foreach}
+                    {/if}
                   </ul>
+                  {* #1544: "Add comment" CTA — restores the per-punishment
+                     comment affordance dropped in the 2.0.0 migration. Gated on
+                     $can_comment ($userbank->is_admin()); the link lands on the
+                     ?comment=N comment-edit branch of this template. *}
+                  {if $can_comment}
+                  <div class="ban-comments-inline__add" data-testid="ban-comment-add">{$ban.addcomment nofilter}</div>
+                  {/if}
                 </details>
                 {/if}
               </div>

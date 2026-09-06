@@ -724,10 +724,19 @@
     const server = (data && data.server) || {};
     const comments = Array.isArray(data && data.comments) ? data.comments : [];
     const commentsVisible = !!(data && data.comments_visible);
+    const canComment = !!(data && data.can_comment);
     const isComm = drawerKind === 'comm';
     const focal  = isComm
       ? ((data && data.block) || {})
       : ((data && data.ban) || {});
+    // #1544: comment CTAs route to the same server-rendered
+    // `?p=…&comment=…` edit surface the inline banlist/commslist
+    // disclosure uses; delete reuses the global `data-action=
+    // "comment-delete"` dispatcher in web/scripts/comment-actions.js.
+    const commentPage  = isComm ? 'commslist' : 'banlist';
+    const commentCtype = isComm ? 'C' : 'B';
+    const focalId      = isComm ? (data && data.cid) : (data && data.bid);
+    const escFocalId   = escapeHtml(String(focalId));
 
     /** @type {Array<[string, string]>} */
     const idRows = [];
@@ -778,6 +787,33 @@
         ).join('')
       + '</dl>';
 
+    /**
+     * Per-comment edit / delete row. Both gates come pre-computed from
+     * the handler (`c.can_edit` / `c.can_delete`, mirroring
+     * page.banlist.php); `data-page="-1"` tells the delete dispatcher to
+     * redirect back to the un-paginated list after the API round-trip.
+     * @param {any} c
+     * @returns {string}
+     */
+    const commentActions = (c) => {
+      if (!c || (!c.can_edit && !c.can_delete)) return '';
+      const cid = escapeHtml(String(c.cid));
+      return '<div style="display:flex;gap:0.625rem;margin-top:0.375rem">'
+        + (c.can_edit
+          ? '<a href="index.php?p=' + commentPage + '&amp;comment=' + escFocalId + '&amp;ctype=' + commentCtype + '&amp;cid=' + cid + '"'
+            + ' class="tip" data-tooltip="Edit Comment" aria-label="Edit comment"'
+            + ' style="color:var(--text-muted);line-height:1;display:inline-flex">'
+            + '<i data-lucide="pencil" style="width:13px;height:13px"></i></a>'
+          : '')
+        + (c.can_delete
+          ? '<a href="#" class="tip" data-tooltip="Delete Comment" aria-label="Delete comment"'
+            + ' data-action="comment-delete" data-cid="' + cid + '" data-ctype="' + commentCtype + '" data-page="-1"'
+            + ' style="color:var(--text-muted);line-height:1;display:inline-flex">'
+            + '<i data-lucide="trash-2" style="width:13px;height:13px"></i></a>'
+          : '')
+        + '</div>';
+    };
+
     // #1554 — surface the demo download affordance the way SB 1.x's
     // sliding ban panel did. `bans.detail` carries `demo_count`; when a
     // ban has an uploaded demo the file is served by `getdemo.php?type=B`
@@ -796,6 +832,12 @@
 
     let commentsHtml = '';
     if (commentsVisible) {
+      const addCta = canComment
+        ? '<a href="index.php?p=' + commentPage + '&amp;comment=' + escFocalId + '&amp;ctype=' + commentCtype + '"'
+          + ' class="btn btn--secondary btn--sm" data-testid="drawer-comment-add" style="margin-top:0.625rem">'
+          + '<i data-lucide="message-square-plus" style="width:13px;height:13px"></i> Add comment'
+          + '</a>'
+        : '';
       commentsHtml = '<section data-testid="drawer-comments" style="margin-top:0.5rem">'
         + '<h3 class="text-xs text-faint" style="text-transform:uppercase;letter-spacing:0.06em;margin:0 0 0.5rem">Comments</h3>'
         + (comments.length === 0
@@ -808,9 +850,11 @@
                 +   '<span>' + escapeHtml(c.added_human || '') + '</span>'
                 + '</div>'
                 + '<div class="text-sm" style="white-space:pre-wrap">' + escapeHtml(c.text || '') + '</div>'
+                + commentActions(c)
                 + '</li>'
               ).join('')
             + '</ul>')
+        + addCta
         + '</section>';
     }
 

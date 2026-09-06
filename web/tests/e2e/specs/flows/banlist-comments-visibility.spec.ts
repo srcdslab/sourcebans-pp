@@ -207,6 +207,10 @@ test.describe('#BANLIST-COMMENTS: per-row comments visibility', () => {
         const commentsBlock = overview.locator('[data-testid="drawer-comments"]');
         await expect(commentsBlock).toBeVisible();
         await expect(commentsBlock).toContainText(FIRST_COMMENT);
+
+        // #1544: the drawer carries the "Add comment" CTA for admins so a
+        // thread can be extended without hunting for the inline disclosure.
+        await expect(commentsBlock.locator('[data-testid="drawer-comment-add"]')).toBeVisible();
     });
 
     test('mobile banlist: non-interactive count indicator renders inside the card', async ({ page }, testInfo) => {

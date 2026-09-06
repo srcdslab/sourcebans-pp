@@ -116,6 +116,14 @@ final class BanListView extends View
         // gets `aria-pressed="true"` on first paint without a JS
         // round-trip.
         public readonly string $chip_base_link,
+        // #1544: gates the per-row "Add comment" CTA in the inline
+        // comments disclosure (and lets the disclosure render on rows
+        // with zero comments so an admin can start a thread). Splatted
+        // as `$userbank->is_admin()` from `web/pages/page.banlist.php` —
+        // matches the `bans.add_comment` API's login-only gate. The
+        // per-comment edit / delete links stay permission-gated inside
+        // the page handler ($com.editcomlink / $com.delcomlink).
+        public readonly bool $can_comment = false,
     ) {
     }
 }
