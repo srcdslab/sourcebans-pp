@@ -74,6 +74,23 @@ final class RestSettingsTest extends RestTestCase
         $this->assertSame('not.a.real.setting', $response->payload['error']['field'] ?? null);
     }
 
+    public function testPatchMixedValidAndUnknownKeyDoesNotWrite(): void
+    {
+        $token = $this->mintToken();
+        $before = $this->rest('GET', '/settings', token: $token);
+        $original = (string) $before->payload['data']['banlist.bansperpage'];
+
+        $response = $this->rest('PATCH', '/settings', [
+            'banlist.bansperpage' => 50,
+            'typo.key' => 1,
+        ], $token);
+        $this->assertRestError($response, 400, 'validation');
+        $this->assertSame('typo.key', $response->payload['error']['field'] ?? null);
+
+        $after = $this->rest('GET', '/settings', token: $token);
+        $this->assertSame($original, (string) $after->payload['data']['banlist.bansperpage']);
+    }
+
     public function testPatchEmptyBodyIs400(): void
     {
         $token = $this->mintToken();

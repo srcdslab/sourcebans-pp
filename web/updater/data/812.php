@@ -3,6 +3,9 @@
 // Personal Access Tokens for the external REST API (`/api/v1`).
 // SHA-256 hashes only. The plaintext secret is shown once at create time.
 //
+// CHARSET is hardcoded utf8mb4 (same as 805.php). Native prepares cannot
+// bind a charset name; `700.php`'s `:charset` placeholder predates that switch.
+//
 // `$this` is supplied by Updater::update(), which loads this file inside
 // the Updater instance scope; PHPStan can't see that, so `$this->dbs`
 // reads below are suppressed inline.
@@ -22,10 +25,8 @@ $this->dbs->query(
     . 'PRIMARY KEY (`id`),'
     . 'UNIQUE KEY `token_hash` (`token_hash`),'
     . 'KEY `aid` (`aid`)'
-    . ') ENGINE=InnoDB DEFAULT CHARSET=:charset'
+    . ') ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
 );
-// @phpstan-ignore variable.undefined
-$this->dbs->bind(':charset', DB_CHARSET);
 // @phpstan-ignore variable.undefined
 $this->dbs->execute();
 

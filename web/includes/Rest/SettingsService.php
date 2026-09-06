@@ -47,7 +47,7 @@ final class SettingsService
             }
         }
 
-        $changed = [];
+        $pending = [];
         foreach ($body as $key => $value) {
             if (!is_string($key) || $key === '') {
                 throw new ApiError('validation', 'Setting keys must be strings.', null, 400);
@@ -58,19 +58,28 @@ final class SettingsService
             if (!isset($known[$key])) {
                 throw new ApiError('validation', 'Unknown setting.', $key, 400);
             }
-            $stored = $this->stringify($value, $key);
-            $pdo->query('UPDATE `:prefix_settings` SET `value` = :value WHERE `setting` = :setting');
-            $pdo->bind(':value', $stored);
-            $pdo->bind(':setting', $key);
-            $pdo->execute();
-            $changed[] = $key;
+            $pending[$key] = $this->stringify($value, $key);
+        }
+
+        $pdo->beginTransaction();
+        try {
+            foreach ($pending as $key => $stored) {
+                $pdo->query('UPDATE `:prefix_settings` SET `value` = :value WHERE `setting` = :setting');
+                $pdo->bind(':value', $stored);
+                $pdo->bind(':setting', $key);
+                $pdo->execute();
+            }
+            $pdo->endTransaction();
+        } catch (\Throwable $e) {
+            $pdo->cancelTransaction();
+            throw $e;
         }
 
         Config::init($pdo);
         Log::add(
             LogType::Message,
             'Settings Updated',
-            'REST updated: ' . implode(', ', $changed),
+            'REST updated: ' . implode(', ', array_keys($pending)),
         );
 
         return $this->allVisible();
