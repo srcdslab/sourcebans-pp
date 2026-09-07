@@ -70,6 +70,17 @@ final class BansTest extends ApiTestCase
         return (int)$pdo->lastInsertId();
     }
 
+    private function seedProtest(): int
+    {
+        $pdo = Fixture::rawPdo();
+        $pdo->prepare(sprintf(
+            'INSERT INTO `%s_protests` (`bid`, `email`, `reason`, `archiv`, `datesubmitted`, `pip`)
+             VALUES (0, ?, ?, "0", ?, "127.0.0.1")',
+            DB_PREFIX,
+        ))->execute(['protest@example.test', 'wrong ban', time()]);
+        return (int) $pdo->lastInsertId();
+    }
+
     public function testAddRejectsAnonymous(): void
     {
         $env = $this->api('bans.add', [
@@ -664,6 +675,116 @@ final class BansTest extends ApiTestCase
         $this->assertSnapshot('bans/add_comment_bad_type', $env);
     }
 
+    public function testAddCommentRejectsEmptyText(): void
+    {
+        $this->loginAsAdmin();
+        $bid = $this->seedBan();
+
+        $env = $this->api('bans.add_comment', [
+            'bid' => $bid, 'ctype' => 'B', 'ctext' => '  ', 'page' => -1,
+        ]);
+
+        $this->assertEnvelopeError($env, 'validation');
+        $this->assertSame('ctext', $env['error']['field']);
+        $this->assertSame([], $this->rows('comments', ['bid' => $bid]));
+    }
+
+    public function testAddCommentRejectsUnknownParent(): void
+    {
+        $this->loginAsAdmin();
+
+        $env = $this->api('bans.add_comment', [
+            'bid' => 999999,
+            'ctype' => 'B',
+            'ctext' => 'orphan comment',
+            'page' => -1,
+        ]);
+
+        $this->assertEnvelopeError($env, 'not_found');
+        $this->assertSame('bid', $env['error']['field']);
+        $this->assertSame([], $this->rows('comments', ['bid' => 999999]));
+    }
+
+    public function testModerationQueueCommentsRequireTheirSpecificPermissions(): void
+    {
+        $submissionId = $this->seedSubmission();
+        $protestId = $this->seedProtest();
+        $aid = $this->createAdminWithFlags(ADMIN_ADD_BAN);
+        $this->loginAs($aid);
+
+        foreach ([['S', $submissionId], ['P', $protestId]] as [$ctype, $parentId]) {
+            $env = $this->api('bans.add_comment', [
+                'bid' => $parentId,
+                'ctype' => $ctype,
+                'ctext' => 'unauthorized moderation note',
+                'page' => -1,
+            ]);
+
+            $this->assertEnvelopeError($env, 'forbidden');
+            $this->assertSame([], $this->rows('comments', [
+                'bid' => $parentId,
+                'type' => $ctype,
+            ]));
+        }
+    }
+
+    public function testModerationQueuePermissionsAllowCommentsAndReturnSectionRedirects(): void
+    {
+        $submissionId = $this->seedSubmission();
+        $protestId = $this->seedProtest();
+        $aid = $this->createAdminWithFlags(ADMIN_BAN_SUBMISSIONS | ADMIN_BAN_PROTESTS);
+        $this->loginAs($aid);
+
+        $submissionEnv = $this->api('bans.add_comment', [
+            'bid' => $submissionId,
+            'ctype' => 'S',
+            'ctext' => 'submission note',
+            'page' => -1,
+        ]);
+        $this->assertTrue($submissionEnv['ok'], json_encode($submissionEnv));
+        $this->assertSame(
+            'index.php?p=admin&c=bans&section=submissions',
+            $submissionEnv['data']['message']['redir'],
+        );
+
+        $protestEnv = $this->api('bans.add_comment', [
+            'bid' => $protestId,
+            'ctype' => 'P',
+            'ctext' => 'protest note',
+            'page' => -1,
+        ]);
+        $this->assertTrue($protestEnv['ok'], json_encode($protestEnv));
+        $this->assertSame(
+            'index.php?p=admin&c=bans&section=protests',
+            $protestEnv['data']['message']['redir'],
+        );
+    }
+
+    public function testEditModerationCommentRequiresCurrentQueuePermissionEvenForAuthor(): void
+    {
+        $submissionId = $this->seedSubmission();
+        $aid = $this->createAdminWithFlags(ADMIN_ADD_BAN);
+        $pdo = Fixture::rawPdo();
+        $pdo->prepare(sprintf(
+            'INSERT INTO `%s_comments` (`bid`, `type`, `aid`, `commenttxt`, `added`)
+             VALUES (?, "S", ?, ?, UNIX_TIMESTAMP())',
+            DB_PREFIX,
+        ))->execute([$submissionId, $aid, 'original note']);
+        $cid = (int) $pdo->lastInsertId();
+        $this->loginAs($aid);
+
+        $env = $this->api('bans.edit_comment', [
+            'bid' => $submissionId,
+            'cid' => $cid,
+            'ctype' => 'S',
+            'ctext' => 'unauthorized edit',
+            'page' => -1,
+        ]);
+
+        $this->assertEnvelopeError($env, 'forbidden');
+        $this->assertSame('original note', $this->row('comments', ['cid' => $cid])['commenttxt']);
+    }
+
     public function testEditCommentUpdatesRow(): void
     {
         $this->loginAsAdmin();
@@ -689,6 +810,57 @@ final class BansTest extends ApiTestCase
             'cid' => 1, 'ctype' => 'Z', 'ctext' => 'x', 'page' => -1,
         ]);
         $this->assertEnvelopeError($env, 'bad_type');
+    }
+
+    public function testEditCommentRejectsValidButMismatchedType(): void
+    {
+        $this->loginAsAdmin();
+        $bid = $this->seedBan();
+        $this->api('bans.add_comment', [
+            'bid' => $bid,
+            'ctype' => 'B',
+            'ctext' => 'ban-only comment',
+            'page' => -1,
+        ]);
+        $cid = (int) $this->row('comments', ['bid' => $bid])['cid'];
+
+        $env = $this->api('bans.edit_comment', [
+            'bid' => $bid,
+            'cid' => $cid,
+            'ctype' => 'C',
+            'ctext' => 'retargeted comment',
+            'page' => -1,
+        ]);
+
+        $this->assertEnvelopeError($env, 'validation');
+        $this->assertSame('ctype', $env['error']['field']);
+        $this->assertSame('ban-only comment', $this->row('comments', ['cid' => $cid])['commenttxt']);
+    }
+
+    public function testEditCommentRejectsMismatchedParentId(): void
+    {
+        $this->loginAsAdmin();
+        $bid = $this->seedBan();
+        $otherBid = $this->seedBan('STEAM_0:1:882211');
+        $this->api('bans.add_comment', [
+            'bid' => $bid,
+            'ctype' => 'B',
+            'ctext' => 'original text',
+            'page' => -1,
+        ]);
+        $cid = (int) $this->row('comments', ['bid' => $bid])['cid'];
+
+        $env = $this->api('bans.edit_comment', [
+            'bid' => $otherBid,
+            'cid' => $cid,
+            'ctype' => 'B',
+            'ctext' => 'wrong-parent edit',
+            'page' => -1,
+        ]);
+
+        $this->assertEnvelopeError($env, 'validation');
+        $this->assertSame('bid', $env['error']['field']);
+        $this->assertSame('original text', $this->row('comments', ['cid' => $cid])['commenttxt']);
     }
 
     public function testEditCommentRejectsNonAuthor(): void
@@ -726,6 +898,29 @@ final class BansTest extends ApiTestCase
         $this->assertTrue($env['ok']);
         $this->assertNull($this->row('comments', ['cid' => $cid]));
         $this->assertSnapshot('bans/remove_comment_success', $env);
+    }
+
+    public function testRemoveCommentRejectsValidButMismatchedType(): void
+    {
+        $this->loginAsAdmin();
+        $bid = $this->seedBan();
+        $this->api('bans.add_comment', [
+            'bid' => $bid,
+            'ctype' => 'B',
+            'ctext' => 'keep this comment',
+            'page' => -1,
+        ]);
+        $cid = (int) $this->row('comments', ['bid' => $bid])['cid'];
+
+        $env = $this->api('bans.remove_comment', [
+            'cid' => $cid,
+            'ctype' => 'C',
+            'page' => -1,
+        ]);
+
+        $this->assertEnvelopeError($env, 'validation');
+        $this->assertSame('ctype', $env['error']['field']);
+        $this->assertNotNull($this->row('comments', ['cid' => $cid]));
     }
 
     public function testPasteRequiresKnownServer(): void
