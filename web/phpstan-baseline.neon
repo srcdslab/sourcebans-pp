@@ -199,12 +199,6 @@ parameters:
 			path: pages/page.banlist.php
 
 		-
-			message: '#^Variable \$ctext in isset\(\) always exists and is not nullable\.$#'
-			identifier: isset.variable
-			count: 1
-			path: pages/page.banlist.php
-
-		-
 			message: '#^Variable \$res might not be defined\.$#'
 			identifier: variable.undefined
 			count: 1
