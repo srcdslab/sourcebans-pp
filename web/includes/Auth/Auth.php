@@ -56,6 +56,10 @@ final class Auth
 
     public static function verify(): ?Token
     {
+        if (defined('SBPP_REST')) {
+            return null;
+        }
+
         $cookie = self::getJWTFromCookie();
         if (empty($cookie) || preg_match('/.*\..*\..*\./', $cookie)) {
             return null;

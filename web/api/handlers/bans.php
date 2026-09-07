@@ -317,6 +317,7 @@ function api_bans_add_comment(array $params): array
     $GLOBALS['PDO']->query(
         "INSERT INTO `:prefix_comments`(bid,type,aid,commenttxt,added) VALUES (?,?,?,?,UNIX_TIMESTAMP())"
     )->execute([$bid, $ctype, $userbank->GetAid(), $ctext]);
+    $cid = (int) $GLOBALS['PDO']->lastInsertId();
 
     Log::add(LogType::Message, 'Comment Added', "$username added a comment for ban #$bid");
 
@@ -328,6 +329,7 @@ function api_bans_add_comment(array $params): array
             'kind'  => 'green',
             'redir' => 'index.php' . $redir,
         ],
+        'cid' => $cid,
     ];
 }
 
@@ -351,6 +353,19 @@ function api_bans_edit_comment(array $params): array
     };
     if ($redir === null) {
         throw new ApiError('bad_type', 'Bad comment type.');
+    }
+
+    $row = $GLOBALS['PDO']->query(
+        "SELECT cid, aid FROM `:prefix_comments` WHERE cid = ?"
+    )->single([$cid]);
+    if (!$row) {
+        throw new ApiError('not_found', 'Comment not found.', null, 404);
+    }
+
+    $authorAid = (int) $row['aid'];
+    $canEdit = $authorAid === $userbank->GetAid() || $userbank->HasAccess(WebPermission::Owner);
+    if (!$canEdit) {
+        throw new ApiError('forbidden', 'You can only edit your own comments.', null, 403);
     }
 
     $GLOBALS['PDO']->query(

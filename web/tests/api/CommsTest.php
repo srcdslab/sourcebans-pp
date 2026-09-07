@@ -37,7 +37,8 @@ final class CommsTest extends ApiTestCase
         $this->assertSame(1, (int)$rows[0]['type'], 'gag is type 1');
         $this->assertSame(30 * 60, (int)$rows[0]['length']);
         $this->assertSame(Fixture::adminAid(), (int)$rows[0]['aid']);
-        $this->assertSnapshot('comms/add_gag_success', $env);
+        $this->assertSame([(int) $rows[0]['bid']], $env['data']['bids']);
+        $this->assertSnapshot('comms/add_gag_success', $env, ['data.bids']);
     }
 
     public function testAddBothBlockTypeCreatesTwoRows(): void
@@ -57,6 +58,12 @@ final class CommsTest extends ApiTestCase
         $types = array_map(fn($r) => (int)$r['type'], $rows);
         sort($types);
         $this->assertSame([1, 2], $types, 'type=3 must insert both gag (1) and mute (2)');
+        $this->assertCount(2, $env['data']['bids']);
+        $expectedBids = array_map(static fn(array $r): int => (int) $r['bid'], $rows);
+        sort($expectedBids);
+        $actualBids = $env['data']['bids'];
+        sort($actualBids);
+        $this->assertSame($expectedBids, $actualBids);
     }
 
     public function testAddRefusesDuplicateActiveBlock(): void

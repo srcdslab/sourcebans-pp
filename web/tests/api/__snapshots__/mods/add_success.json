@@ -1,6 +1,7 @@
 {
     "ok": true,
     "data": {
+        "mid": "<*>",
         "reload": true,
         "message": {
             "title": "Mod Added",

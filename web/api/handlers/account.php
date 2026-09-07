@@ -70,6 +70,8 @@ function api_account_change_password(array $params): array
     $GLOBALS['PDO']->bind(':aid', $aid);
     $GLOBALS['PDO']->execute();
 
+    \Sbpp\Rest\PatAuthenticator::revokeAllForAid($aid);
+
     $GLOBALS['PDO']->query("SELECT user FROM `:prefix_admins` WHERE aid = :aid");
     $GLOBALS['PDO']->bind(':aid', $aid);
     $admin = $GLOBALS['PDO']->single();
@@ -151,4 +153,68 @@ function api_account_change_email(array $params): array
             'redir' => 'index.php?p=account',
         ],
     ];
+}
+
+/**
+ * @return array{tokens: list<array{id: int, name: string, token_prefix: string, created: int, last_used: int|null, expires_at: int|null}>}
+ */
+function api_account_tokens_list(array $params): array
+{
+    global $userbank;
+    return ['tokens' => \Sbpp\Rest\PatAuthenticator::listForAid($userbank->GetAid())];
+}
+
+/**
+ * @param array{name?: string, expires_days?: int|string|null, password?: string} $params
+ * @return array{id: int, name: string, token: string, token_prefix: string, created: int, expires_at: int|null}
+ */
+function api_account_tokens_create(array $params): array
+{
+    global $userbank;
+    $name = trim((string) ($params['name'] ?? ''));
+    if ($name === '' || strlen($name) > 64) {
+        throw new ApiError('validation', 'Give this token a name (1 to 64 characters).', 'name');
+    }
+
+    $daysRaw = $params['expires_days'] ?? 0;
+    $days = is_numeric($daysRaw) ? (int) $daysRaw : -1;
+    if (!in_array($days, [0, 30, 90, 365], true)) {
+        throw new ApiError('validation', 'Expiry must be never, 30, 90, or 365 days.', 'expires_days');
+    }
+    $expiresAt = $days === 0 ? null : time() + ($days * 86400);
+
+    $password = (string) ($params['password'] ?? '');
+    if (!$userbank->isCurrentPasswordValid($userbank->GetAid(), $password)) {
+        throw new ApiError('bad_password', 'Current password doesn\'t match.', 'current');
+    }
+
+    $minted = \Sbpp\Rest\PatAuthenticator::mint($userbank->GetAid(), $name, $expiresAt);
+    Log::add(LogType::Message, 'API token created', 'API token "' . $name . '" created.');
+
+    return [
+        'id' => $minted['id'],
+        'name' => $minted['name'],
+        'token' => $minted['secret'],
+        'token_prefix' => $minted['prefix'],
+        'created' => $minted['created'],
+        'expires_at' => $minted['expires_at'],
+    ];
+}
+
+/**
+ * @param array{id?: int|string} $params
+ * @return array{revoked: int}
+ */
+function api_account_tokens_revoke(array $params): array
+{
+    global $userbank;
+    $id = (int) ($params['id'] ?? 0);
+    if ($id <= 0) {
+        throw new ApiError('validation', 'Token id is required.', 'id');
+    }
+    if (!\Sbpp\Rest\PatAuthenticator::revoke($userbank->GetAid(), $id)) {
+        throw new ApiError('not_found', 'Token not found.');
+    }
+    Log::add(LogType::Message, 'API token revoked', 'API token #' . $id . ' revoked.');
+    return ['revoked' => $id];
 }

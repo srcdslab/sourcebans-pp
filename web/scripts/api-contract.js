@@ -36,6 +36,18 @@
  * @typedef {Object} ApiAccountCheckSrvPasswordResponse
  */
 /**
+ * @typedef {Object} ApiAccountTokensCreateRequest
+ * @typedef {{id: number, name: string, token: string, token_prefix: string, created: number, expires_at: number|null}} ApiAccountTokensCreateResponse
+ */
+/**
+ * @typedef {Object} ApiAccountTokensListRequest
+ * @typedef {{tokens: Array<{id: number, name: string, token_prefix: string, created: number, last_used: number|null, expires_at: number|null}>}} ApiAccountTokensListResponse
+ */
+/**
+ * @typedef {Object} ApiAccountTokensRevokeRequest
+ * @typedef {{revoked: number}} ApiAccountTokensRevokeResponse
+ */
+/**
  * @typedef {Object} ApiAdminsAddRequest
  * @typedef {Object} ApiAdminsAddResponse
  */
@@ -678,6 +690,9 @@ var Actions = Object.freeze({
     AccountChangeSrvPassword: 'account.change_srv_password',
     AccountCheckPassword: 'account.check_password',
     AccountCheckSrvPassword: 'account.check_srv_password',
+    AccountTokensCreate: 'account.tokens_create',
+    AccountTokensList: 'account.tokens_list',
+    AccountTokensRevoke: 'account.tokens_revoke',
     AdminsAdd: 'admins.add',
     AdminsBulk: 'admins.bulk',
     AdminsDeactivate: 'admins.deactivate',

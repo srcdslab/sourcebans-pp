@@ -98,17 +98,20 @@ function api_comms_add(array $params): array
     }
 
     $adminName = (string) $userbank->GetProperty('user');
+    $bids = [];
     if ($type === 1 || $type === 3) {
         $GLOBALS['PDO']->query(
             "INSERT INTO `:prefix_comms`(created,type,authid,name,ends,length,reason,aid,adminIp,admin_name) VALUES
             (UNIX_TIMESTAMP(),1,?,?,(UNIX_TIMESTAMP() + ?),?,?,?,?,?)"
         )->execute([$steam, $nickname, $length * 60, $len, $reason, $userbank->GetAid(), $_SERVER['REMOTE_ADDR'] ?? '', $adminName]);
+        $bids[] = (int) $GLOBALS['PDO']->lastInsertId();
     }
     if ($type === 2 || $type === 3) {
         $GLOBALS['PDO']->query(
             "INSERT INTO `:prefix_comms`(created,type,authid,name,ends,length,reason,aid,adminIp,admin_name) VALUES
             (UNIX_TIMESTAMP(),2,?,?,(UNIX_TIMESTAMP() + ?),?,?,?,?,?)"
         )->execute([$steam, $nickname, $length * 60, $len, $reason, $userbank->GetAid(), $_SERVER['REMOTE_ADDR'] ?? '', $adminName]);
+        $bids[] = (int) $GLOBALS['PDO']->lastInsertId();
     }
 
     Log::add(LogType::Message, 'Block Added', "Block against ($steam) has been added. Reason: $reason; Length: $length");
@@ -116,6 +119,7 @@ function api_comms_add(array $params): array
     return [
         'reload' => true,
         'block'  => ['steam' => $steam, 'type' => $type, 'length' => $len],
+        'bids'   => $bids,
     ];
 }
 
