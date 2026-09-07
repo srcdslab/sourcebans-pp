@@ -3,64 +3,16 @@
    Vars: $ban_list, $total_bans, $hidetext, $searchlink, $view_bans,
          $hideadminname, $hideplayerips, $groupban, $friendsban,
          $general_unban, $can_delete, $can_export, $admin_postkey,
-         $view_comments, plus the comment-edit scratch pad
-         ($comment, $commenttype, $commenttext, $ctype, $cid, $page,
-         $canedit, $othercomments).
+         $view_comments.
    Per-row $ban.* keys: bid, name, steam, state, length, length_human,
          banned_human, banned_iso, sname, reason, aname, ban_ip_raw,
          can_edit_ban, can_unban, mod_icon, country, demo_available,
          view_delete, type, commentdata.
    Permission gates that aren't pre-precomputable on the View use
    the {has_access flag=...} block plugin (A3 helper).
+   Add / Edit comments open the player drawer (data-comment-compose);
+   there is no `?comment=` editor on this page.
    ============================================================ *}
-
-{* -- Comment edit mode -- replaces the body when ?comment=N is set.
-   The legacy default theme renders this at the top of the file; we
-   keep the same surface but drop the page chrome around it so the
-   action sits in a focused card. CSRF + submit go through the JSON
-   API (sb.api.call(Actions.BansAddComment / BansEditComment)) —
-   wired in the inline form handler below. *}
-{if $comment}
-<div class="card" style="max-width:42rem;margin:1.5rem auto">
-  <div class="card__header">
-    <div>
-      <h3>{$commenttype} comment</h3>
-      <p>Visible to admins; commented threads also surface to the public when public comments are enabled.</p>
-    </div>
-  </div>
-  <div class="card__body">
-    <form id="banlist-comment-form" data-bid="{$comment}" data-ctype="{$ctype}" data-cid="{$cid}" data-page="{$page}">
-      <label class="label" for="banlist-comment-text">Comment</label>
-      <textarea class="textarea" id="banlist-comment-text" name="commenttext" rows="6" {if !$canedit}disabled{/if}>{$commenttext}</textarea>
-      <div class="flex gap-2 mt-4">
-        {if $canedit}
-        <button class="btn btn--primary" type="submit">{$commenttype} comment</button>
-        {/if}
-        <button class="btn btn--secondary" type="button" onclick="history.back()">Back</button>
-      </div>
-    </form>
-
-    <div class="mt-6">
-      {foreach from=$othercomments item=com name=othercomments}
-        {if $smarty.foreach.othercomments.first}<h3 style="font-size:var(--fs-base);font-weight:600;margin:0 0 0.5rem">Other comments</h3>{/if}
-        <div class="mt-4" style="border-top:1px solid var(--border);padding-top:0.75rem">
-          <div class="flex items-center justify-between">
-            {* #1500: comment author is an admin username; hide it for public viewers when banlist.hideadminname is on (parity with the inline disclosure block below). *}
-            {if $hideadminname}<i class="text-faint">Hidden</i>{elseif !empty($com.comname)}<strong>{$com.comname|escape}</strong>{else}<i class="text-faint">deleted admin</i>{/if}
-            <span class="text-xs text-muted">{$com.added}</span>
-          </div>
-          {* nofilter: $com.commenttxt is server-built HTML produced by encodePreservingBr (htmlspecialchars per text segment, only `<br/>` survives) plus a URL-wrap regex that wraps already-escaped URLs in `<a>` tags — see page.banlist.php $cotherdata loop *}
-          <div class="text-sm mt-2">{$com.commenttxt nofilter}</div>
-          {* gate on edittime not editname: #1500 nulls editname for hidden viewers, edittime survives so the "last edit" indicator still shows. *}
-          {if !empty($com.edittime)}
-          <div class="text-xs text-faint mt-2">last edit {$com.edittime} by {if $hideadminname}<i class="text-faint">Hidden</i>{elseif !empty($com.editname)}{$com.editname|escape}{else}<i>deleted admin</i>{/if}</div>
-          {/if}
-        </div>
-      {/foreach}
-    </div>
-  </div>
-</div>
-{else}
 
 <div id="banlist-root" class="p-6 space-y-4" style="max-width:1700px;margin:0 auto" data-loading="false">
   <div class="flex items-center justify-between gap-3" style="flex-wrap:wrap">
@@ -374,7 +326,7 @@
                         <span class="text-faint">&middot;</span>
                         <span class="text-xs text-faint tabular-nums">{$com.added}</span>
                       </div>
-                      {* nofilter: $com.commenttxt is server-built HTML produced by encodePreservingBr (htmlspecialchars per text segment, only `<br/>` survives) plus a URL-wrap regex that wraps already-escaped URLs in `<a>` tags — see page.banlist.php $commentres loop. Same provenance + safety as the existing comment-edit-mode block at the top of this template. *}
+                      {* nofilter: $com.commenttxt is server-built HTML produced by encodePreservingBr (htmlspecialchars per text segment, only `<br/>` survives) plus a URL-wrap regex that wraps already-escaped URLs in `<a>` tags — see page.banlist.php $commentres loop. *}
                       <div class="ban-comments-inline__text" data-testid="ban-comment-text">{$com.commenttxt nofilter}</div>
                       {if !empty($com.edittime)}
                       <div class="ban-comments-inline__edit text-xs text-faint">last edit {$com.edittime} by {if $hideadminname}<i class="text-faint">Hidden</i>{elseif !empty($com.editname)}{$com.editname|escape}{else}<i>deleted admin</i>{/if}</div>
@@ -394,12 +346,18 @@
                     {/foreach}
                     {/if}
                   </ul>
-                  {* #1544: "Add comment" CTA — restores the per-punishment
-                     comment affordance dropped in the 2.0.0 migration. Gated on
-                     $can_comment ($userbank->is_admin()); the link lands on the
-                     ?comment=N comment-edit branch of this template. *}
+                  {* #1544: "Add comment" opens the player drawer and
+                     activates the Overview composer (data-comment-compose). *}
                   {if $can_comment}
-                  <div class="ban-comments-inline__add" data-testid="ban-comment-add">{$ban.addcomment nofilter}</div>
+                  <div class="ban-comments-inline__add">
+                    <button type="button" class="btn btn--ghost btn--sm"
+                            data-drawer-bid="{$ban.bid}"
+                            data-comment-compose="add"
+                            data-testid="ban-comment-add">
+                      <i data-lucide="message-square-plus" style="width:13px;height:13px" aria-hidden="true"></i>
+                      Add Comment
+                    </button>
+                  </div>
                   {/if}
                 </details>
                 {/if}
@@ -852,7 +810,6 @@
   <div class="skel" style="height:2.5rem;margin-bottom:0.5rem"></div>
   <div class="skel" style="height:2.5rem"></div>
 </div>
-{/if}
 
 {* ============================================================
    #1301 — unban confirm + reason modal scaffold.
@@ -925,19 +882,13 @@
   </form>
 </dialog>
 
-{* banlist.js wires both branches: the chip filter / copy buttons /
-   skeleton hook on the listing branch, and the `#banlist-comment-form`
-   submit -> sb.api.call(BansAddComment / BansEditComment) on the
-   comment-edit branch. The IIFE feature-detects every element it
-   touches, so loading it unconditionally is safe; loading it only on
-   the listing branch silently broke comment save (no submit handler
-   attached, native form submission to action-less URL no-ops). *}
+{* banlist.js only owns the listing skeleton hook. Comment add/edit
+   lives in the player drawer (theme.js) and on queue cards
+   (comment-actions.js). *}
 <script src="./scripts/banlist.js" defer></script>
 {* #1402: trash-can-on-a-comment triggers (`data-action="comment-delete"`)
-   on the comment-edit branch are handled by the global comment-actions.js
-   dispatcher loaded from core/footer.tpl — single mount point shared
-   with the admin moderation queues (protests / submissions) and the
-   commslist comment-edit branch. *}
+   are handled by the global comment-actions.js dispatcher loaded from
+   core/footer.tpl. *}
 
 {* ============================================================
    #1301 — banlist row-action wiring (inline page-tail JS).
@@ -1293,4 +1244,4 @@
    these props, this manifest stops being necessary, and the View
    drops them. Until then, keep this block at EOF.
    ============================================================ *}
-{if false}{$ban_nav}{$ctype}{$cid}{$page}{$canedit}{$othercomments}{$commenttype}{$commenttext}{$comment}{$friendsban}{$groupban}{$can_delete}{$general_unban}{$hidetext}{$searchlink}{$can_export}{$admin_postkey}{$view_comments}{$view_bans}{$hideadminname}{$total_bans}{/if}
+{if false}{$ban_nav}{$friendsban}{$groupban}{$can_delete}{$general_unban}{$hidetext}{$searchlink}{$can_export}{$admin_postkey}{$view_comments}{$view_bans}{$hideadminname}{$total_bans}{/if}

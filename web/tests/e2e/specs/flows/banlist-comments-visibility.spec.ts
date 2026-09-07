@@ -23,6 +23,15 @@
  *     comments, defaults closed, opens to reveal the comment text.
  *   - Same drawer surface still renders the comment under
  *     `[data-testid="drawer-comments"]` when the row's drawer is opened.
+ *     Add comment reveals `[data-testid="drawer-comment-form"]` and
+ *     does not navigate to `?comment=`.
+ *   - Saving a comment in the drawer patches the matching table
+ *     disclosure (count + body) without a page reload.
+ *   - Deleting a comment from the table disclosure or the drawer
+ *     leaves scroll, pagination, and open disclosures intact.
+ *   - Commslist Add Comment opens the same drawer composer.
+ *   - Protest-queue Add Comment reveals the inline card composer and
+ *     stays on `?p=admin&c=bans`.
  *   - Mobile banlist: the non-interactive count indicator
  *     (`[data-testid="ban-comments-count-mobile"]`) renders inside the
  *     `.ban-cards` wrapper. The drawer is the canonical mobile
@@ -30,13 +39,14 @@
  */
 
 import { expect, test } from '../../fixtures/auth.ts';
-import { seedBanViaApi } from '../../fixtures/seeds.ts';
+import { seedBanViaApi, seedCommViaApi } from '../../fixtures/seeds.ts';
 import { seedCommentsRawE2e } from '../../fixtures/db.ts';
 
 const SEED_NICK_PREFIX = 'e2e-comments-target';
 const SEED_REASON      = 'e2e comments seed reason';
 const FIRST_COMMENT    = 'first comment from e2e';
 const SECOND_COMMENT   = 'second comment from e2e';
+const LIVE_COMMENT     = 'live-sync comment from e2e';
 
 /**
  * Per-subtest authid offset. See player-drawer.spec.ts's matching
@@ -49,6 +59,10 @@ const SUBTEST_OFFSETS = {
     'inline-disclosure': 0,
     'drawer-mirror':     1,
     'mobile-count':      2,
+    'comms-compose':     3,
+    'list-sync':         4,
+    'list-delete':       5,
+    'drawer-delete':     6,
 } as const;
 
 function uniqueSeed(
@@ -208,9 +222,234 @@ test.describe('#BANLIST-COMMENTS: per-row comments visibility', () => {
         await expect(commentsBlock).toBeVisible();
         await expect(commentsBlock).toContainText(FIRST_COMMENT);
 
-        // #1544: the drawer carries the "Add comment" CTA for admins so a
-        // thread can be extended without hunting for the inline disclosure.
-        await expect(commentsBlock.locator('[data-testid="drawer-comment-add"]')).toBeVisible();
+        // Add comment opens the collapsed composer in place. The list
+        // URL must not change to `?comment=` (that page editor is gone).
+        const addBtn = commentsBlock.locator('[data-testid="drawer-comment-add"]');
+        await expect(addBtn).toBeVisible();
+        await addBtn.click();
+        const composer = drawer.locator('[data-testid="drawer-comment-form"]');
+        await expect(composer).toBeVisible();
+        await expect(page).toHaveURL(/[?&]p=banlist\b/);
+        await expect(page).not.toHaveURL(/[?&]comment=/);
+    });
+
+    test('drawer comment save patches the table disclosure without a reload', async ({ page }, testInfo) => {
+        // The list row is SSR. Closing the drawer used to leave the
+        // chip/count at the pre-save value until the operator refreshed.
+        // `loadDrawer` now patches the matching `<details>` from the
+        // detail envelope, so the new comment is visible in the table
+        // immediately. Desktop-only: the mobile card has no disclosure.
+        test.skip(Boolean(testInfo.project.name === 'mobile-chromium'), 'desktop-only — mobile cards use the drawer as the comment surface');
+
+        const seed = uniqueSeed(testInfo, 'list-sync');
+        const bid  = await seedOrLookup(page, seed);
+        await seedCommentsRawE2e([
+            { type: 'B', bid, text: FIRST_COMMENT },
+        ]);
+
+        await page.goto('/index.php?p=banlist');
+
+        const disclosure = page.locator(
+            `[data-testid="ban-comments-inline"][data-bid="${bid}"]`,
+        );
+        await expect(disclosure).toBeVisible();
+        await expect(disclosure.locator('[data-testid="ban-comments-toggle"] .tabular-nums')).toHaveText('1');
+
+        await page
+            .locator(
+                `[data-testid="drawer-trigger"][data-drawer-href*="id=${bid}"]`,
+            )
+            .first()
+            .click();
+
+        const drawer = page.locator('#drawer-root');
+        await expect(drawer).toHaveAttribute('data-drawer-open', 'true');
+        await expect(drawer).not.toHaveAttribute('data-loading', /.+/);
+
+        await drawer.locator('[data-testid="drawer-comment-add"]').click();
+        const composer = drawer.locator('[data-testid="drawer-comment-form"]');
+        await expect(composer).toBeVisible();
+        await composer.locator('textarea[name="ctext"]').fill(LIVE_COMMENT);
+        await composer.locator('button[type="submit"]').click();
+
+        await expect(drawer).not.toHaveAttribute('data-loading', /.+/);
+        await expect(drawer.locator('[data-testid="drawer-comments"]')).toContainText(LIVE_COMMENT);
+
+        await drawer.locator('[data-drawer-close][aria-label="Close"]').click();
+        await expect(drawer).toHaveAttribute('data-drawer-open', 'false');
+
+        await expect(disclosure.locator('[data-testid="ban-comments-toggle"] .tabular-nums')).toHaveText('2');
+        await expect(disclosure.locator('[data-testid="ban-comments-toggle"]')).toHaveAttribute('aria-label', '2 comments');
+
+        const toggle = disclosure.locator('[data-testid="ban-comments-toggle"]');
+        await toggle.click();
+        await expect
+            .poll(async () => await disclosure.evaluate((el) => (el as HTMLDetailsElement).open))
+            .toBe(true);
+        const items = disclosure.locator('[data-testid="ban-comment-item"]');
+        await expect(items).toHaveCount(2);
+        await expect(disclosure.locator('[data-testid="ban-comment-text"]', {
+            hasText: FIRST_COMMENT,
+        })).toBeVisible();
+        await expect(disclosure.locator('[data-testid="ban-comment-text"]', {
+            hasText: LIVE_COMMENT,
+        })).toBeVisible();
+        await expect(page).not.toHaveURL(/[?&]comment=/);
+    });
+
+    test('table comment delete keeps the disclosure open and does not reload', async ({ page }, testInfo) => {
+        test.skip(Boolean(testInfo.project.name === 'mobile-chromium'), 'desktop-only — mobile cards have no inline disclosure');
+
+        const seed = uniqueSeed(testInfo, 'list-delete');
+        const bid  = await seedOrLookup(page, seed);
+        await seedCommentsRawE2e([
+            { type: 'B', bid, text: FIRST_COMMENT },
+            { type: 'B', bid, text: SECOND_COMMENT },
+        ]);
+
+        await page.goto('/index.php?p=banlist');
+
+        const disclosure = page.locator(
+            `[data-testid="ban-comments-inline"][data-bid="${bid}"]`,
+        );
+        await expect(disclosure).toBeVisible();
+        await disclosure.locator('[data-testid="ban-comments-toggle"]').click();
+        await expect
+            .poll(async () => await disclosure.evaluate((el) => (el as HTMLDetailsElement).open))
+            .toBe(true);
+
+        await page.evaluate(() => { (window as Window & { __sbppKeepAlive?: boolean }).__sbppKeepAlive = true; });
+
+        const doomed = disclosure.locator('[data-testid="ban-comment-item"]', {
+            hasText: FIRST_COMMENT,
+        });
+        await doomed.locator('[data-action="comment-delete"]').click();
+        await page.locator('[data-testid="comment-delete-submit"]').click();
+
+        await expect(doomed).toHaveCount(0);
+        await expect(disclosure.locator('[data-testid="ban-comment-item"]')).toHaveCount(1);
+        await expect(disclosure.locator('[data-testid="ban-comment-text"]', {
+            hasText: SECOND_COMMENT,
+        })).toBeVisible();
+        await expect(disclosure.locator('[data-testid="ban-comments-toggle"] .tabular-nums')).toHaveText('1');
+        await expect
+            .poll(async () => await disclosure.evaluate((el) => (el as HTMLDetailsElement).open))
+            .toBe(true);
+        await expect(page).toHaveURL(/[?&]p=banlist\b/);
+        expect(
+            await page.evaluate(() => (window as Window & { __sbppKeepAlive?: boolean }).__sbppKeepAlive),
+            'B/C comment delete must not reload the page',
+        ).toBe(true);
+    });
+
+    test('drawer comment delete keeps the drawer open and does not reload', async ({ page }, testInfo) => {
+        test.skip(Boolean(testInfo.project.name === 'mobile-chromium'), 'desktop-only — drawer chrome covered by responsive/drawer.spec.ts on mobile');
+
+        const seed = uniqueSeed(testInfo, 'drawer-delete');
+        const bid  = await seedOrLookup(page, seed);
+        await seedCommentsRawE2e([
+            { type: 'B', bid, text: FIRST_COMMENT },
+            { type: 'B', bid, text: SECOND_COMMENT },
+        ]);
+
+        await page.goto('/index.php?p=banlist');
+
+        await page
+            .locator(
+                `[data-testid="drawer-trigger"][data-drawer-href*="id=${bid}"]`,
+            )
+            .first()
+            .click();
+
+        const drawer = page.locator('#drawer-root');
+        await expect(drawer).toHaveAttribute('data-drawer-open', 'true');
+        await expect(drawer).not.toHaveAttribute('data-loading', /.+/);
+
+        const commentsBlock = drawer.locator('[data-testid="drawer-comments"]');
+        await expect(commentsBlock).toContainText(FIRST_COMMENT);
+        await expect(commentsBlock).toContainText(SECOND_COMMENT);
+
+        await page.evaluate(() => { (window as Window & { __sbppKeepAlive?: boolean }).__sbppKeepAlive = true; });
+
+        const doomed = commentsBlock.locator('li', { hasText: FIRST_COMMENT });
+        await doomed.locator('[data-action="comment-delete"]').click();
+        await page.locator('[data-testid="comment-delete-submit"]').click();
+
+        await expect(commentsBlock).not.toContainText(FIRST_COMMENT);
+        await expect(commentsBlock).toContainText(SECOND_COMMENT);
+        await expect(drawer).toHaveAttribute('data-drawer-open', 'true');
+        await expect(drawer).not.toHaveAttribute('data-loading', /.+/);
+
+        const disclosure = page.locator(
+            `[data-testid="ban-comments-inline"][data-bid="${bid}"]`,
+        );
+        await expect(disclosure.locator('[data-testid="ban-comments-toggle"] .tabular-nums')).toHaveText('1');
+        await expect(page).toHaveURL(/[?&]p=banlist\b/);
+        expect(
+            await page.evaluate(() => (window as Window & { __sbppKeepAlive?: boolean }).__sbppKeepAlive),
+            'drawer comment delete must not reload the page',
+        ).toBe(true);
+    });
+
+    test('commslist Add Comment opens the drawer composer without navigating', async ({ page }, testInfo) => {
+        test.skip(Boolean(testInfo.project.name === 'mobile-chromium'), 'desktop-only — comms drawer chrome is covered by responsive/drawer.spec.ts on mobile');
+
+        const seed = uniqueSeed(testInfo, 'comms-compose');
+        try {
+            await seedCommViaApi(page, {
+                nickname: seed.nick,
+                steam:    seed.steam,
+                reason:   SEED_REASON,
+                type:     1,
+                length:   60,
+            });
+        } catch (err) {
+            if (!String(err).includes('already_blocked')) throw err;
+        }
+
+        await page.goto('/index.php?p=commslist');
+
+        const row = page.locator('[data-testid="comm-row"]', { hasText: seed.nick }).first();
+        await expect(row).toBeVisible();
+        await row.locator('[data-testid="comm-comments-toggle"]').click();
+        await row.locator('[data-testid="comm-comment-add"]').click();
+
+        const drawer = page.locator('#drawer-root');
+        await expect(drawer).toHaveAttribute('data-drawer-open', 'true');
+        await expect(drawer).not.toHaveAttribute('data-loading', /.+/);
+        await expect(drawer.locator('[data-testid="drawer-comment-form"]')).toBeVisible();
+        await expect(page).toHaveURL(/[?&]p=commslist\b/);
+        await expect(page).not.toHaveURL(/[?&]comment=/);
+    });
+
+    test('protest queue Add Comment shows the card composer without leaving the queue', async ({ page }, testInfo) => {
+        test.skip(Boolean(testInfo.project.name === 'mobile-chromium'), 'desktop-only — queue cards share the same dispatcher on mobile');
+
+        await page.goto('/index.php?p=admin&c=bans&section=protests');
+        await expect(page).toHaveURL(/section=protests/);
+
+        await page.evaluate(() => {
+            const card = document.createElement('details');
+            card.setAttribute('open', '');
+            card.setAttribute('data-testid', 'synth-queue-card');
+            card.innerHTML =
+                '<button type="button" data-action="comment-compose" data-bid="1" data-ctype="P" data-testid="queue-comment-add">Add Comment</button>'
+                + '<form hidden data-comment-composer data-bid="1" data-ctype="P" data-testid="queue-comment-form">'
+                +   '<input type="hidden" name="cid" value="">'
+                +   '<textarea name="ctext" aria-required="true"></textarea>'
+                +   '<p hidden data-comment-error>Please leave a comment.</p>'
+                +   '<button type="submit">Save comment</button>'
+                +   '<button type="button" data-comment-cancel>Cancel</button>'
+                + '</form>';
+            document.body.appendChild(card);
+        });
+
+        await page.locator('[data-testid="synth-queue-card"] [data-testid="queue-comment-add"]').click();
+        await expect(page.locator('[data-testid="synth-queue-card"] [data-testid="queue-comment-form"]')).toBeVisible();
+        await expect(page).toHaveURL(/[?&]p=admin\b/);
+        await expect(page).toHaveURL(/c=bans/);
+        await expect(page).toHaveURL(/section=protests/);
+        await expect(page).not.toHaveURL(/[?&]comment=/);
     });
 
     test('mobile banlist: non-interactive count indicator renders inside the card', async ({ page }, testInfo) => {

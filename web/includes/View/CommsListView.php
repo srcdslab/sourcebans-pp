@@ -5,8 +5,9 @@ namespace Sbpp\View;
 
 /**
  * Public communications-blocklist (mute/gag) page — binds to
- * `page_comms.tpl`. The template renders the public block list; the
- * inline comment-edit drawer is a deferred-scope follow-up.
+ * `page_comms.tpl`. The template always renders the public block
+ * list. Add / Edit comments open the player drawer; there is no
+ * `?comment=` editor on this page.
  *
  * Per-row shape (each entry of `$ban_list`) — the redesign's slim
  * keys layered on top of every legacy key already present
@@ -31,10 +32,8 @@ namespace Sbpp\View;
  *   - delete_url    string admin delete URL
  *
  * `$ban_nav`, `$hidetext`, `$hideadminname`, `$view_bans`,
- * `$view_comments` and the comment-drawer set (`$comment`,
- * `$commenttype`, `$commenttext`, `$ctype`, `$cid`, `$page`,
- * `$othercomments`, `$canedit`) are preserved on this View for the
- * same compatibility reason.
+ * `$view_comments` are preserved on this View for the same
+ * compatibility reason.
  */
 final class CommsListView extends View
 {
@@ -62,8 +61,6 @@ final class CommsListView extends View
      * } $pagination Page navigation data. `prev_url` / `next_url`
      *     are `null` at the page boundaries so the template can
      *     `disabled` them.
-     * @param list<array<string,mixed>> $othercomments Sibling comments
-     *     in the comment-edit drawer (legacy theme contract).
      */
     public function __construct(
         public readonly int $total_bans,
@@ -102,14 +99,6 @@ final class CommsListView extends View
         // SmartyTemplateRule can verify any third-party theme that
         // forked the pre-v2.0.0 default keeps its variable references
         // typed.
-        public readonly bool|int|string $comment,
-        public readonly string $commenttype,
-        public readonly bool $canedit,
-        public readonly string $commenttext,
-        public readonly string $ctype,
-        public readonly int|string $cid,
-        public readonly int $page,
-        public readonly array $othercomments,
         public readonly string $ban_nav,
         public readonly string $hidetext,
         public readonly bool $hideadminname,

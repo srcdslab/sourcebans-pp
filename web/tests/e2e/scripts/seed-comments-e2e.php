@@ -4,20 +4,17 @@
  *
  * Why this exists alongside `seed-comms-e2e.php`:
  *
- *   - There is no JSON API action for adding admin-authored
- *     per-row comments (the legacy `?p=banlist&comment=N` POST
- *     handler is the production write path; it owns CSRF + the
- *     `:prefix_comments.commenttxt` substitution that turns a few
- *     literal sequences into `<br/>` etc., and isn't worth
- *     re-implementing as a JSON action just for tests).
+ *   - The production write path is `bans.add_comment`, but driving
+ *     that JSON action through Playwright would couple this seeder
+ *     to CSRF + the drawer / queue composer chrome. Tests that only
+ *     need rows present (disclosure + drawer mirror) insert SQL
+ *     directly.
  *   - `Sbpp\Tests\Synthesizer` has a comments-seeding path but it
  *     refuses any DB other than `sourcebans` (dev DB only); same
  *     refusal guard as `seed-comms-e2e.php`.
  *   - The banlist-comments-visibility e2e spec needs both a row
- *     AND comments on it. Driving an HTML POST through Playwright
- *     would couple the spec to the comment-edit page's chrome and
- *     CSRF handshake — unnecessary for what we're verifying (the
- *     disclosure renders, the drawer paints the same data).
+ *     AND comments on it. SQL insert keeps that independent of the
+ *     composer chrome.
  *
  * This shim is e2e-only: refuses any DB other than the e2e schema
  * (default `sourcebans_e2e`). Same shape and guardrails as the
