@@ -19,6 +19,48 @@ function _api_bans_steam_api_key(): string
     return $key;
 }
 
+/**
+ * Validate the upload callback pair before linking a demo to a new ban.
+ *
+ * @return bool True when a complete, valid attachment should be inserted.
+ */
+function _api_bans_validate_demo_attachment(string $filename, string $originalName): bool
+{
+    // The add-ban form has historically sent numeric `0` when no upload
+    // was selected. Preserve that wire sentinel as the empty state.
+    $hasFilename = $filename !== '' && $filename !== '0';
+    $hasOriginalName = $originalName !== '';
+    if (!$hasFilename && !$hasOriginalName) {
+        return false;
+    }
+    if (!$hasFilename || !$hasOriginalName) {
+        throw new ApiError('validation', 'The demo upload is incomplete.', 'dfile');
+    }
+    if (!preg_match('/^[a-f0-9]{32}$/D', $filename)) {
+        throw new ApiError('validation', 'The demo upload reference is invalid.', 'dfile');
+    }
+    // `:prefix_demos.origname` is VARCHAR(128); reject over-width input
+    // before MariaDB strict mode turns the INSERT into a generic 500.
+    if (!mb_check_encoding($originalName, 'UTF-8') || mb_strlen($originalName, 'UTF-8') > 128) {
+        throw new ApiError('validation', 'The demo filename is invalid.', 'dname');
+    }
+
+    // SECURITY-REVIEW: `$filename` is API input. Require the exact
+    // uploader-generated hash shape, reject links, and contain the resolved
+    // regular file inside SB_DEMOS before persisting a public download row.
+    $demoRoot = realpath(SB_DEMOS);
+    $path = rtrim(SB_DEMOS, '/\\') . DIRECTORY_SEPARATOR . $filename;
+    $resolvedPath = realpath($path);
+    $insideDemoRoot = $demoRoot !== false
+        && $resolvedPath !== false
+        && str_starts_with($resolvedPath, $demoRoot . DIRECTORY_SEPARATOR);
+    if ($resolvedPath === false || !$insideDemoRoot || is_link($path) || !is_file($resolvedPath)) {
+        throw new ApiError('validation', 'The uploaded demo is no longer available.', 'dfile');
+    }
+
+    return true;
+}
+
 function api_bans_add(array $params): array
 {
     global $userbank;
@@ -158,6 +200,8 @@ function api_bans_add(array $params): array
         }
     }
 
+    $attachDemo = _api_bans_validate_demo_attachment($dfile, $dname);
+
     $GLOBALS['PDO']->query(
         "INSERT INTO `:prefix_bans`(created,type,ip,authid,name,ends,length,reason,aid,adminIp,admin_name) VALUES
         (UNIX_TIMESTAMP(),?,?,?,?,(UNIX_TIMESTAMP() + ?),?,?,?,?,?)"
@@ -175,7 +219,7 @@ function api_bans_add(array $params): array
     ]);
     $newId = (int)$GLOBALS['PDO']->lastInsertId();
 
-    if ($dname && $dfile && preg_match('/^[a-z0-9]*$/i', $dfile)) {
+    if ($attachDemo) {
         $GLOBALS['PDO']->query("INSERT INTO `:prefix_demos`(demid,demtype,filename,origname) VALUES(?,'B',?,?)")
             ->execute([$newId, $dfile, $dname]);
     }

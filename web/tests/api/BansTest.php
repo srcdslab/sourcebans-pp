@@ -110,6 +110,129 @@ final class BansTest extends ApiTestCase
         $this->assertSnapshot('bans/add_success', $env, ['data.bid']);
     }
 
+    public function testAddRejectsMalformedDemoMetadataBeforeWritingBan(): void
+    {
+        $this->loginAsAdmin();
+        $cases = [
+            ['STEAM_0:1:1554011', str_repeat('0', 32), '', 'dfile'],
+            ['STEAM_0:1:1554012', '', 'evidence.dem', 'dfile'],
+            ['STEAM_0:1:1554013', str_repeat('g', 32), 'evidence.dem', 'dfile'],
+            ['STEAM_0:1:1554014', str_repeat('0', 32), str_repeat('a', 129), 'dname'],
+        ];
+
+        foreach ($cases as [$steam, $filename, $originalName, $field]) {
+            $env = $this->api('bans.add', [
+                'nickname' => 'Malformed demo',
+                'type'     => 0,
+                'steam'    => $steam,
+                'ip'       => '',
+                'length'   => 0,
+                'dfile'    => $filename,
+                'dname'    => $originalName,
+                'reason'   => 'demo validation',
+                'fromsub'  => 0,
+            ]);
+
+            $this->assertEnvelopeError($env, 'validation');
+            $this->assertSame($field, $env['error']['field']);
+            $this->assertNull($this->row('bans', ['authid' => $steam]));
+        }
+    }
+
+    public function testAddLinksOnlyARealUploaderShapedDemo(): void
+    {
+        $this->loginAsAdmin();
+        $filename = '15540000000000000000000000000001';
+        $path = SB_DEMOS . '/' . $filename;
+        if (!is_dir(SB_DEMOS)) {
+            mkdir(SB_DEMOS, 0775, true);
+        }
+        file_put_contents($path, 'demo-bytes');
+
+        try {
+            $env = $this->api('bans.add', [
+                'nickname' => 'Demo',
+                'type'     => 0,
+                'steam'    => 'STEAM_0:1:1554001',
+                'ip'       => '',
+                'length'   => 0,
+                'dfile'    => $filename,
+                'dname'    => 'evidence.dem',
+                'reason'   => 'demo validation',
+                'fromsub'  => 0,
+            ]);
+
+            $this->assertTrue($env['ok'], json_encode($env));
+            $demo = $this->row('demos', [
+                'demid'   => (int) $env['data']['bid'],
+                'demtype' => 'B',
+            ]);
+            $this->assertSame($filename, $demo['filename']);
+            $this->assertSame('evidence.dem', $demo['origname']);
+        } finally {
+            @unlink($path);
+        }
+    }
+
+    public function testAddRejectsMissingDemoFileBeforeWritingBan(): void
+    {
+        $this->loginAsAdmin();
+        $filename = '15540000000000000000000000000002';
+        @unlink(SB_DEMOS . '/' . $filename);
+
+        $env = $this->api('bans.add', [
+            'nickname' => 'Missing demo',
+            'type'     => 0,
+            'steam'    => 'STEAM_0:1:1554002',
+            'ip'       => '',
+            'length'   => 0,
+            'dfile'    => $filename,
+            'dname'    => 'missing.dem',
+            'reason'   => 'demo validation',
+            'fromsub'  => 0,
+        ]);
+
+        $this->assertEnvelopeError($env, 'validation');
+        $this->assertSame('dfile', $env['error']['field']);
+        $this->assertNull($this->row('bans', ['authid' => 'STEAM_0:1:1554002']));
+    }
+
+    public function testAddRejectsDemoSymlinkBeforeWritingBan(): void
+    {
+        $this->loginAsAdmin();
+        $filename = '15540000000000000000000000000003';
+        $link = SB_DEMOS . '/' . $filename;
+        if (!is_dir(SB_DEMOS)) {
+            mkdir(SB_DEMOS, 0775, true);
+        }
+        @unlink($link);
+        $target = tempnam(sys_get_temp_dir(), 'sbpp-demo-');
+        $this->assertIsString($target);
+        file_put_contents($target, 'outside-demo-root');
+        $this->assertTrue(symlink($target, $link));
+
+        try {
+            $env = $this->api('bans.add', [
+                'nickname' => 'Linked demo',
+                'type'     => 0,
+                'steam'    => 'STEAM_0:1:1554003',
+                'ip'       => '',
+                'length'   => 0,
+                'dfile'    => $filename,
+                'dname'    => 'linked.dem',
+                'reason'   => 'demo validation',
+                'fromsub'  => 0,
+            ]);
+
+            $this->assertEnvelopeError($env, 'validation');
+            $this->assertSame('dfile', $env['error']['field']);
+            $this->assertNull($this->row('bans', ['authid' => 'STEAM_0:1:1554003']));
+        } finally {
+            @unlink($link);
+            @unlink($target);
+        }
+    }
+
     public function testAddValidationMissingSteamForType0(): void
     {
         $this->loginAsAdmin();
