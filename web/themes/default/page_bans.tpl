@@ -531,6 +531,15 @@
                 </a>
                 {/if}
               {/if}
+              {if $ban.demo_available}
+              <a class="btn btn--ghost btn--icon btn--sm"
+                 href="getdemo.php?type=B&amp;id={$ban.bid}"
+                 data-testid="row-action-demo-download"
+                 data-tooltip="Download demo"
+                 aria-label="Download demo for {$ban.name|escape}">
+                <i data-lucide="download" style="width:14px;height:14px"></i>
+              </a>
+              {/if}
               {if !empty($ban.steam)}
               {* #1308: NO `onclick="event.stopPropagation()"` here. The
                  document-level [data-copy] click delegate in theme.js
@@ -681,7 +690,7 @@
           </div>
           <span class="text-faint" aria-hidden="true">&rsaquo;</span>
         </a>
-        {if $view_bans || !empty($ban.steam) || $ban.can_delete_ban}
+        {if $view_bans || $ban.demo_available || !empty($ban.steam) || $ban.can_delete_ban}
         <div class="row-actions row-actions--icons ban-card__actions">
           {if $view_bans}
             {if $ban.can_edit_ban && $ban.state != 'unbanned'}
@@ -715,6 +724,15 @@
                 <i data-lucide="rotate-ccw" style="width:14px;height:14px"></i>
             </a>
             {/if}
+          {/if}
+          {if $ban.demo_available}
+          <a class="btn btn--ghost btn--icon btn--sm"
+             href="getdemo.php?type=B&amp;id={$ban.bid}"
+             data-testid="row-action-demo-download-mobile"
+             data-tooltip="Download demo"
+             aria-label="Download demo for {$ban.name|escape}">
+            <i data-lucide="download" style="width:14px;height:14px"></i>
+          </a>
           {/if}
           {if !empty($ban.steam)}
           <button class="btn btn--ghost btn--icon btn--sm" type="button"

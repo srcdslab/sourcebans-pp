@@ -34,4 +34,14 @@ final class AdminEditBanDemoTest extends TestCase
         $this->assertStringContainsString('data-testid="editban-demo-remove"', $contents);
         $this->assertStringContainsString('data-ban-id="{$ban_id}"', $contents);
     }
+
+    public function testBanlistShipsResponsiveDemoDownloadActions(): void
+    {
+        $contents = file_get_contents(self::webRoot() . '/themes/default/page_bans.tpl');
+        $this->assertIsString($contents);
+        $this->assertStringContainsString('{if $ban.demo_available}', $contents);
+        $this->assertStringContainsString('data-testid="row-action-demo-download"', $contents);
+        $this->assertStringContainsString('data-testid="row-action-demo-download-mobile"', $contents);
+        $this->assertStringContainsString('href="getdemo.php?type=B&amp;id={$ban.bid}"', $contents);
+    }
 }
