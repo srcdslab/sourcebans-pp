@@ -1094,25 +1094,50 @@ $ceditCtype        = '';
 $ceditCid          = '';
 $ceditPage         = -1;
 $ceditOthers = [];
-if (isset($_GET["comment"])) {
+$ceditdata    = false;
+$ceditParentId = isset($_GET["comment"]) ? (int) $_GET["comment"] : 0;
+$ceditParentExists = $ceditParentId > 0
+    && $viewCommentsEnabled
+    && (string) ($_GET["ctype"] ?? '') === 'C'
+    && $GLOBALS['PDO']->query(
+        'SELECT bid FROM `:prefix_comms` WHERE bid = ?'
+    )->single([$ceditParentId]) !== false;
+if (
+    isset($_GET["comment"])
+    && $ceditParentExists
+) {
     $ceditType = isset($_GET["cid"]) ? "Edit" : "Add";
     if (isset($_GET["cid"])) {
-        $GLOBALS['PDO']->query("SELECT * FROM `:prefix_comments` WHERE cid = :cid");
+        $GLOBALS['PDO']->query(
+            "SELECT * FROM `:prefix_comments`
+             WHERE cid = :cid AND bid = :bid AND type = 'C'"
+        );
         $GLOBALS['PDO']->bind(':cid', (int) $_GET["cid"]);
+        $GLOBALS['PDO']->bind(':bid', $ceditParentId);
         $ceditdata      = $GLOBALS['PDO']->single();
-        $ceditText = html_entity_decode($ceditdata['commenttxt'], ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $cotherdataedit = " AND cid != '" . (int) $_GET["cid"] . "'";
-    } else {
-        $cotherdataedit = "";
+        $ceditText = $ceditdata
+            ? html_entity_decode((string) $ceditdata['commenttxt'], ENT_QUOTES | ENT_HTML5, 'UTF-8')
+            : '';
     }
-    $cotherdata = $GLOBALS['PDO']->query("SELECT cid, aid, commenttxt, added, edittime,
-											(SELECT user FROM `:prefix_admins` WHERE aid = C.aid) AS comname,
-											(SELECT user FROM `:prefix_admins` WHERE aid = C.editaid) AS editname
-											FROM `:prefix_comments` AS C
-											WHERE type = ? AND bid = ?" . $cotherdataedit . " ORDER BY added desc")->resultset([
-        $_GET["ctype"],
-        $_GET["comment"],
-    ]);
+    if (isset($_GET["cid"])) {
+        $cotherdata = $GLOBALS['PDO']->query(
+            "SELECT cid, aid, commenttxt, added, edittime,
+                    (SELECT user FROM `:prefix_admins` WHERE aid = C.aid) AS comname,
+                    (SELECT user FROM `:prefix_admins` WHERE aid = C.editaid) AS editname
+               FROM `:prefix_comments` AS C
+              WHERE type = ? AND bid = ? AND cid != ?
+           ORDER BY added DESC"
+        )->resultset([(string) $_GET["ctype"], $ceditParentId, (int) $_GET["cid"]]);
+    } else {
+        $cotherdata = $GLOBALS['PDO']->query(
+            "SELECT cid, aid, commenttxt, added, edittime,
+                    (SELECT user FROM `:prefix_admins` WHERE aid = C.aid) AS comname,
+                    (SELECT user FROM `:prefix_admins` WHERE aid = C.editaid) AS editname
+               FROM `:prefix_comments` AS C
+              WHERE type = ? AND bid = ?
+           ORDER BY added DESC"
+        )->resultset([(string) $_GET["ctype"], $ceditParentId]);
+    }
 
     // #1500: same gate as the per-comm comment thread above — null admin
     // usernames for public viewers so this comment-edit surface (reachable
@@ -1141,7 +1166,12 @@ if (isset($_GET["comment"])) {
     $ceditCtype = (string) $_GET["ctype"];
     $ceditCid   = isset($_GET["cid"]) ? (int) $_GET["cid"] : '';
 }
-$ceditBid = (isset($_GET["comment"]) && $view_comments) ? (int) $_GET["comment"] : false;
+$ceditBid = (
+    isset($_GET["comment"])
+    && (string) ($_GET["ctype"] ?? '') === 'C'
+    && $ceditParentExists
+    && (!isset($_GET["cid"]) || $ceditdata !== false)
+) ? $ceditParentId : false;
 //----------------------------------------
 
 unset($_SESSION['CountryFetchHndl']);

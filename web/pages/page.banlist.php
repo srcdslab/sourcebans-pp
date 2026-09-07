@@ -1349,32 +1349,90 @@ $commentCid     = '';
 $commentCanedit = false;
 /** @var array<int, array<string, mixed>>|string $commentOthers */
 $commentOthers  = '';
-if (isset($_GET["comment"])) {
-    $_GET["comment"] = (int) $_GET["comment"];
-    $commentMode  = $_GET["comment"];
+$ceditdata      = false;
+$canComment       = $userbank->is_admin();
+$canDeleteComment = $userbank->HasAccess(WebPermission::Owner);
+$requestedCtype = (string) ($_GET["ctype"] ?? '');
+// SECURITY-REVIEW: S/P comments belong to restricted moderation queues.
+// Do not let the public-comments toggle grant access to those record types.
+$commentRouteCanEdit = match ($requestedCtype) {
+    'B' => $canComment,
+    'S' => $userbank->HasAccess(WebPermission::mask(
+        WebPermission::Owner,
+        WebPermission::BanSubmissions,
+    )),
+    'P' => $userbank->HasAccess(WebPermission::mask(
+        WebPermission::Owner,
+        WebPermission::BanProtests,
+    )),
+    default => false,
+};
+$commentRouteVisible = $requestedCtype === 'B'
+    ? $viewCommentsEnabled
+    : $commentRouteCanEdit;
+$requestedCommentId = isset($_GET["comment"]) ? (int) $_GET["comment"] : 0;
+$commentParentExists = false;
+if ($commentRouteVisible && $requestedCommentId > 0) {
+    $commentParentExists = match ($requestedCtype) {
+        'B' => $GLOBALS['PDO']->query(
+            'SELECT bid FROM `:prefix_bans` WHERE bid = ?'
+        )->single([$requestedCommentId]) !== false,
+        'S' => $GLOBALS['PDO']->query(
+            'SELECT subid FROM `:prefix_submissions` WHERE subid = ?'
+        )->single([$requestedCommentId]) !== false,
+        'P' => $GLOBALS['PDO']->query(
+            'SELECT pid FROM `:prefix_protests` WHERE pid = ?'
+        )->single([$requestedCommentId]) !== false,
+        default => false,
+    };
+}
+if (
+    isset($_GET["comment"])
+    && $commentRouteVisible
+    && $commentParentExists
+) {
+    $_GET["comment"] = $requestedCommentId;
+    $commentMode  = $requestedCommentId;
     $commentType  = isset($_GET["cid"]) ? "Edit" : "Add";
     if (isset($_GET["cid"])) {
         $_GET["cid"]    = (int) $_GET["cid"];
-        $GLOBALS['PDO']->query("SELECT * FROM `:prefix_comments` WHERE cid = :cid");
+        $GLOBALS['PDO']->query(
+            "SELECT * FROM `:prefix_comments`
+             WHERE cid = :cid AND bid = :bid AND type = :ctype"
+        );
         $GLOBALS['PDO']->bind(':cid', $_GET["cid"]);
+        $GLOBALS['PDO']->bind(':bid', $_GET["comment"]);
+        $GLOBALS['PDO']->bind(':ctype', $requestedCtype);
         $ceditdata      = $GLOBALS['PDO']->single();
-        $ctext          = html_entity_decode($ceditdata['commenttxt'], ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $cotherdataedit = " AND cid != '" . $_GET["cid"] . "'";
+        $ctext          = $ceditdata
+            ? html_entity_decode((string) $ceditdata['commenttxt'], ENT_QUOTES | ENT_HTML5, 'UTF-8')
+            : '';
+        if (!$ceditdata) {
+            $commentMode = false;
+        }
     } else {
-        $cotherdataedit = "";
-        $ctext          = "";
+        $ctext = "";
     }
 
-    $_GET["ctype"] = substr((string) ($_GET["ctype"] ?? ''), 0, 1);
-
-    $cotherdata = $GLOBALS['PDO']->query("SELECT cid, aid, commenttxt, added, edittime,
-											(SELECT user FROM `:prefix_admins` WHERE aid = C.aid) AS comname,
-											(SELECT user FROM `:prefix_admins` WHERE aid = C.editaid) AS editname
-											FROM `:prefix_comments` AS C
-											WHERE type = ? AND bid = ?" . $cotherdataedit . " ORDER BY added desc")->resultset([
-        $_GET["ctype"],
-        $_GET["comment"],
-    ]);
+    if (isset($_GET["cid"])) {
+        $cotherdata = $GLOBALS['PDO']->query(
+            "SELECT cid, aid, commenttxt, added, edittime,
+                    (SELECT user FROM `:prefix_admins` WHERE aid = C.aid) AS comname,
+                    (SELECT user FROM `:prefix_admins` WHERE aid = C.editaid) AS editname
+               FROM `:prefix_comments` AS C
+              WHERE type = ? AND bid = ? AND cid != ?
+           ORDER BY added DESC"
+        )->resultset([$requestedCtype, $_GET["comment"], $_GET["cid"]]);
+    } else {
+        $cotherdata = $GLOBALS['PDO']->query(
+            "SELECT cid, aid, commenttxt, added, edittime,
+                    (SELECT user FROM `:prefix_admins` WHERE aid = C.aid) AS comname,
+                    (SELECT user FROM `:prefix_admins` WHERE aid = C.editaid) AS editname
+               FROM `:prefix_comments` AS C
+              WHERE type = ? AND bid = ?
+           ORDER BY added DESC"
+        )->resultset([$requestedCtype, $_GET["comment"]]);
+    }
 
     // #1500: same gate as the per-ban comment thread above — null admin
     // usernames for public viewers so this comment-edit surface (reachable
@@ -1403,9 +1461,13 @@ if (isset($_GET["comment"])) {
     }
 
     $commentText    = (string) (isset($ctext) ? $ctext : '');
-    $commentCtype   = (string) $_GET["ctype"];
+    $commentCtype   = $requestedCtype;
     $commentCid     = isset($_GET["cid"]) ? (string) $_GET["cid"] : '';
-    $commentCanedit = $userbank->is_admin();
+    $commentCanedit = $commentRouteCanEdit && (
+        !isset($_GET["cid"])
+        || ($ceditdata
+            && ((int) $ceditdata['aid'] === $userbank->GetAid() || $canDeleteComment))
+    );
     $commentOthers  = $ocomments;
 }
 
