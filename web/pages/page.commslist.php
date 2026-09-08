@@ -877,9 +877,12 @@ foreach ($res as $row) {
                     // the 2.0 theme no longer loads — the old `<i class="fas …">` rendered
                     // an empty `<a>`); `aria-label` gives the icon-only control an
                     // accessible name the way the row-action buttons do.
-                    $cdata['editcomlink'] = '<a href="index.php?p=commslist&comment=' . $data['ban_id'] . '&ctype=C&cid=' . (int) $crow['cid'] . $pagelink . '"'
-                        . ' class="tip" target="_self" data-tooltip="Edit Comment" aria-label="Edit comment"'
-                        . '><i data-lucide="pencil" style="width:13px;height:13px" aria-hidden="true"></i></a>';
+                    $cdata['editcomlink'] = '<button type="button" class="tip"'
+                        . ' data-drawer-cid="' . (int) $data['ban_id'] . '"'
+                        . ' data-comment-compose="edit"'
+                        . ' data-comment-cid="' . (int) $crow['cid'] . '"'
+                        . ' data-tooltip="Edit Comment" aria-label="Edit comment"'
+                        . '><i data-lucide="pencil" style="width:13px;height:13px" aria-hidden="true"></i></button>';
                     if ($userbank->HasAccess(WebPermission::Owner)) {
                         // #1402: see web/scripts/comment-actions.js for the dispatcher.
                         $cdata['delcomlink'] = '<a href="#" class="tip" title="Delete Comment" aria-label="Delete comment" target="_self"'
@@ -920,9 +923,8 @@ foreach ($res as $row) {
         $data['commentdata'] = $comment;
     }
 
-    // #1544: Lucide icon (the 2.0 theme dropped Font Awesome); keeps the
-    // visible "Add Comment" label so it degrades gracefully anyway.
-    $data['addcomment'] = CreateLinkR('<i data-lucide="message-square-plus" style="width:13px;height:13px" aria-hidden="true"></i> Add Comment', 'index.php?p=commslist&comment=' . $data['ban_id'] . '&ctype=C' . $pagelink);
+    // #1544: Add Comment markup lives in page_comms.tpl (drawer trigger
+    // with data-comment-compose="add"). Do not emit a ?comment= link.
     //-----------------------------------
     $data['counts']     = $delimiter . $mutes . $gags;
 
@@ -1080,69 +1082,8 @@ if ($BanCount === 0) {
     }
 }
 
-//COMMENT STUFF
-//----------------------------------------
-// Comment-drawer locals. Computed into PHP locals here (instead of
-// the older `$theme->assign(...)` calls) so they can be threaded
-// into the View constructor below — Renderer copies every public
-// property onto $theme. The shipped v2.0.0 default theme defers the
-// editor UI to a follow-up; any third-party theme that forked the
-// pre-v2.0.0 default still renders it when `{if $comment}` is truthy.
-$ceditType  = '';
-$ceditText  = '';
-$ceditCtype        = '';
-$ceditCid          = '';
-$ceditPage         = -1;
-$ceditOthers = [];
-if (isset($_GET["comment"])) {
-    $ceditType = isset($_GET["cid"]) ? "Edit" : "Add";
-    if (isset($_GET["cid"])) {
-        $GLOBALS['PDO']->query("SELECT * FROM `:prefix_comments` WHERE cid = :cid");
-        $GLOBALS['PDO']->bind(':cid', (int) $_GET["cid"]);
-        $ceditdata      = $GLOBALS['PDO']->single();
-        $ceditText = html_entity_decode($ceditdata['commenttxt'], ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $cotherdataedit = " AND cid != '" . (int) $_GET["cid"] . "'";
-    } else {
-        $cotherdataedit = "";
-    }
-    $cotherdata = $GLOBALS['PDO']->query("SELECT cid, aid, commenttxt, added, edittime,
-											(SELECT user FROM `:prefix_admins` WHERE aid = C.aid) AS comname,
-											(SELECT user FROM `:prefix_admins` WHERE aid = C.editaid) AS editname
-											FROM `:prefix_comments` AS C
-											WHERE type = ? AND bid = ?" . $cotherdataedit . " ORDER BY added desc")->resultset([
-        $_GET["ctype"],
-        $_GET["comment"],
-    ]);
-
-    // #1500: same gate as the per-comm comment thread above — null admin
-    // usernames for public viewers so this comment-edit surface (reachable
-    // by anyone via ?comment=N) doesn't leak them regardless of theme.
-    $commentsHideAdmin = Config::getBool('banlist.hideadminname') && !$userbank->is_admin();
-
-    foreach ($cotherdata as $cdrow) {
-        $coment               = [];
-        $coment['comname']    = $commentsHideAdmin ? '' : $cdrow['comname'];
-        $coment['added']      = Config::time($cdrow['added']);
-        $commentText          = html_entity_decode($cdrow['commenttxt'], ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $commentText          = encodePreservingBr($commentText);
-        $commentText          = preg_replace('@(https?://([-\w\.]+)+(:\d+)?(/([\w/_\.]*(\?\S+)?)?)?)@', '<a href="$1" target="_blank">$1</a>', $commentText);
-        $coment['commenttxt'] = $commentText;
-        if ($cdrow['editname'] != "") {
-            $coment['edittime'] = Config::time($cdrow['edittime']);
-            $coment['editname'] = $commentsHideAdmin ? '' : $cdrow['editname'];
-        } else {
-            $coment['editname'] = "";
-            $coment['edittime'] = "";
-        }
-        array_push($ceditOthers, $coment);
-    }
-
-    $ceditPage = isset($_GET["page"]) ? (int) $_GET["page"] : -1;
-    $ceditCtype = (string) $_GET["ctype"];
-    $ceditCid   = isset($_GET["cid"]) ? (int) $_GET["cid"] : '';
-}
-$ceditBid = (isset($_GET["comment"]) && $view_comments) ? (int) $_GET["comment"] : false;
-//----------------------------------------
+// Add / Edit comments live in the player drawer (`theme.js`).
+// `?p=commslist&comment=` is not an editor surface.
 
 unset($_SESSION['CountryFetchHndl']);
 
@@ -1269,14 +1210,6 @@ $can_delete_comm  = $perms['can_owner'] || $perms['can_delete_ban'];
     can_unmute_gag:           $can_unmute_gag,
     can_delete_comm:          $can_delete_comm,
     is_filtered:              $commsIsFiltered,
-    comment:                  $ceditBid,
-    commenttype:              $ceditType,
-    canedit:                  $userbank->is_admin(),
-    commenttext:              $ceditText,
-    ctype:                    $ceditCtype,
-    cid:                      $ceditCid,
-    page:                     $ceditPage,
-    othercomments:            $ceditOthers,
     ban_nav:                  $ban_nav,
     hidetext:                 $hidetext,
     hideadminname:            $hideAdminName,

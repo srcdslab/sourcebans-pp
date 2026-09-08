@@ -500,6 +500,7 @@
     drawerRoot.innerHTML = '';
     drawerDetail = null;
     drawerKind = null;
+    drawerKey = null;
   }
 
   /**
@@ -587,6 +588,13 @@
    * @type {'ban' | 'comm' | null}
    */
   let drawerKind = null;
+  /**
+   * Last successful (or in-flight) drawer key. Used to reopen the same
+   * record after an in-drawer comment save / delete. Cleared on
+   * `closeDrawer()`.
+   * @type {DrawerKey | null}
+   */
+  let drawerKey = null;
 
   /**
    * Build the rendered drawer HTML for a successful bans.detail OR
@@ -729,14 +737,11 @@
     const focal  = isComm
       ? ((data && data.block) || {})
       : ((data && data.ban) || {});
-    // #1544: comment CTAs route to the same server-rendered
-    // `?p=…&comment=…` edit surface the inline banlist/commslist
-    // disclosure uses; delete reuses the global `data-action=
-    // "comment-delete"` dispatcher in web/scripts/comment-actions.js.
-    const commentPage  = isComm ? 'commslist' : 'banlist';
+    // Add / Edit live in this pane (collapsed composer). Delete
+    // reuses the global `data-action="comment-delete"` dispatcher in
+    // web/scripts/comment-actions.js, which emits `sbpp:comment-deleted`
+    // so we patch the drawer + table in place (no page reload).
     const commentCtype = isComm ? 'C' : 'B';
-    const focalId      = isComm ? (data && data.cid) : (data && data.bid);
-    const escFocalId   = escapeHtml(String(focalId));
 
     /** @type {Array<[string, string]>} */
     const idRows = [];
@@ -790,8 +795,9 @@
     /**
      * Per-comment edit / delete row. Both gates come pre-computed from
      * the handler (`c.can_edit` / `c.can_delete`, mirroring
-     * page.banlist.php); `data-page="-1"` tells the delete dispatcher to
-     * redirect back to the un-paginated list after the API round-trip.
+     * page.banlist.php). Edit opens the collapsed composer in this pane
+     * (`data-comment-edit`); delete reuses comment-actions.js
+     * (`data-page="-1"` is ignored when the trigger is in the drawer).
      * @param {any} c
      * @returns {string}
      */
@@ -800,10 +806,10 @@
       const cid = escapeHtml(String(c.cid));
       return '<div style="display:flex;gap:0.625rem;margin-top:0.375rem">'
         + (c.can_edit
-          ? '<a href="index.php?p=' + commentPage + '&amp;comment=' + escFocalId + '&amp;ctype=' + commentCtype + '&amp;cid=' + cid + '"'
-            + ' class="tip" data-tooltip="Edit Comment" aria-label="Edit comment"'
-            + ' style="color:var(--text-muted);line-height:1;display:inline-flex">'
-            + '<i data-lucide="pencil" style="width:13px;height:13px"></i></a>'
+          ? '<button type="button" class="tip" data-tooltip="Edit Comment" aria-label="Edit comment"'
+            + ' data-comment-edit="' + cid + '"'
+            + ' style="appearance:none;background:none;border:0;padding:0;color:var(--text-muted);line-height:1;display:inline-flex;cursor:pointer">'
+            + '<i data-lucide="pencil" style="width:13px;height:13px"></i></button>'
           : '')
         + (c.can_delete
           ? '<a href="#" class="tip" data-tooltip="Delete Comment" aria-label="Delete comment"'
@@ -833,10 +839,21 @@
     let commentsHtml = '';
     if (commentsVisible) {
       const addCta = canComment
-        ? '<a href="index.php?p=' + commentPage + '&amp;comment=' + escFocalId + '&amp;ctype=' + commentCtype + '"'
-          + ' class="btn btn--secondary btn--sm" data-testid="drawer-comment-add" style="margin-top:0.625rem">'
+        ? '<button type="button" class="btn btn--secondary btn--sm" data-testid="drawer-comment-add" style="margin-top:0.625rem">'
           + '<i data-lucide="message-square-plus" style="width:13px;height:13px"></i> Add comment'
-          + '</a>'
+          + '</button>'
+        : '';
+      const composer = canComment
+        ? '<form hidden data-testid="drawer-comment-form" style="margin-top:0.625rem">'
+          + '<label class="label" for="drawer-comment-text">Comment</label>'
+          + '<textarea class="textarea" id="drawer-comment-text" name="ctext" rows="4" aria-required="true"></textarea>'
+          + '<p class="text-xs" data-comment-error hidden role="alert" style="color:var(--danger);margin:0.25rem 0 0">Please leave a comment.</p>'
+          + '<input type="hidden" name="cid" value="">'
+          + '<div class="flex gap-2 mt-2">'
+          +   '<button type="submit" class="btn btn--primary btn--sm">Save comment</button>'
+          +   '<button type="button" class="btn btn--secondary btn--sm" data-comment-cancel>Cancel</button>'
+          + '</div>'
+          + '</form>'
         : '';
       commentsHtml = '<section data-testid="drawer-comments" style="margin-top:0.5rem">'
         + '<h3 class="text-xs text-faint" style="text-transform:uppercase;letter-spacing:0.06em;margin:0 0 0.5rem">Comments</h3>'
@@ -844,7 +861,7 @@
           ? '<p class="text-sm text-muted" style="margin:0">No comments.</p>'
           : '<ul style="list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:0.625rem">'
             + comments.map((c) =>
-                '<li style="border:1px solid var(--border);border-radius:var(--radius-md);padding:0.625rem 0.75rem;background:var(--bg-surface)">'
+                '<li data-comment-cid="' + escapeHtml(String(c.cid)) + '" style="border:1px solid var(--border);border-radius:var(--radius-md);padding:0.625rem 0.75rem;background:var(--bg-surface)">'
                 + '<div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--text-muted);margin-bottom:0.25rem">'
                 +   '<span class="font-medium">' + escapeHtml(c.author_hidden ? 'Hidden' : (c.author || 'unknown')) + '</span>'
                 +   '<span>' + escapeHtml(c.added_human || '') + '</span>'
@@ -855,6 +872,7 @@
               ).join('')
             + '</ul>')
         + addCta
+        + composer
         + '</section>';
     }
 
@@ -1201,12 +1219,18 @@
    * `player` / `admin` / `server` / `comments` shape, so the
    * downstream renderers branch only on `drawerKind` (set here before
    * `renderDrawerBody` runs).
+   *
+   * `compose` opens the collapsed comment composer after the Overview
+   * pane paints (table Add / Edit buttons pass this so the operator
+   * lands in the textarea without a second click).
    * @param {DrawerKey} key
+   * @param {{mode: 'add'|'edit', cid?: number}} [compose]
    * @returns {Promise<void>}
    */
-  async function loadDrawer(key) {
+  async function loadDrawer(key, compose) {
     if (!drawerRoot) return;
     drawerKind = key.kind;
+    drawerKey = key;
     showDrawer(renderDrawerLoading());
     drawerRoot.dataset.loading = 'true';
 
@@ -1222,12 +1246,369 @@
     if (env && env.ok && env.data) {
       drawerDetail = env.data;
       showDrawer(renderDrawerBody(env.data));
+      syncListComments(key, env.data);
+      if (compose) {
+        activateDrawerTab('overview', false);
+        openCommentComposer(compose);
+      }
     } else {
       drawerDetail = null;
       const msg = (env && env.error && env.error.message) || 'Unknown error.';
       showDrawer(renderDrawerError(msg, key.kind));
     }
   }
+
+  /**
+   * Page number the list-row delete trigger should carry (same
+   * `isset($_GET['page']) ? (int) $page : -1` the PHP builders emit).
+   * @returns {number}
+   */
+  function listCommentPage() {
+    const raw = new URLSearchParams(window.location.search).get('page');
+    if (raw == null || raw === '') return -1;
+    const n = parseInt(raw, 10);
+    return Number.isFinite(n) && n > 0 ? n : -1;
+  }
+
+  /**
+   * Escape comment body and restore line breaks + URL wraps the way
+   * `encodePreservingBr` + the page-handler regex do for SSR HTML.
+   * @param {string} raw
+   * @returns {string}
+   */
+  function formatListCommentText(raw) {
+    const html = escapeHtml(raw || '').replace(/\r\n|\r|\n/g, '<br/>');
+    return html.replace(/https?:\/\/[^\s<]+/g, (url) =>
+      '<a href="' + url + '" target="_blank">' + url + '</a>');
+  }
+
+  /**
+   * Author / editor label for the list disclosure (Hidden / name /
+   * deleted admin). Matches `page_bans.tpl` / `page_comms.tpl`, not
+   * the drawer's "unknown" wording.
+   * @param {boolean} hidden
+   * @param {string | null | undefined} name
+   * @returns {string}
+   */
+  function listCommentPersonHtml(hidden, name) {
+    if (hidden) return '<i class="text-faint">Hidden</i>';
+    if (name) return '<strong>' + escapeHtml(name) + '</strong>';
+    return '<i class="text-faint">deleted admin</i>';
+  }
+
+  /**
+   * Format a unix-seconds stamp close to Config::time's default
+   * `Y-m-d H:i:s`. The operator dateformat is server-side; a refresh
+   * still paints the configured form.
+   * @param {number} unix
+   * @returns {string}
+   */
+  function formatListCommentTime(unix) {
+    const d = new Date(unix * 1000);
+    if (Number.isNaN(d.getTime())) return '';
+    const p = (/** @type {number} */ n) => String(n).padStart(2, '0');
+    return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate())
+      + ' ' + p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+  }
+
+  /**
+   * One `<li>` for the inline disclosure, mirroring the Smarty item
+   * (meta, body, last-edit, edit/delete). Edit reopens the drawer
+   * composer; delete stays on `comment-actions.js`.
+   * @param {any} c
+   * @param {DrawerKey} key
+   * @returns {string}
+   */
+  function renderListCommentItem(c, key) {
+    const isComm = key.kind === 'comm';
+    const itemTest = isComm ? 'comm-comment-item' : 'ban-comment-item';
+    const textTest = isComm ? 'comm-comment-text' : 'ban-comment-text';
+    const actTest = isComm ? 'comm-comment-actions' : 'ban-comment-actions';
+    const cid = String(Number(c && c.cid) || 0);
+    const cidAttr = escapeHtml(cid);
+    const idAttr = escapeHtml(String(key.id));
+    const drawerAttr = isComm
+      ? ' data-drawer-cid="' + idAttr + '"'
+      : ' data-drawer-bid="' + idAttr + '"';
+    const added = escapeHtml((c && c.added_human) || '');
+    let editLine = '';
+    const editedAt = c && c.edited_at != null ? Number(c.edited_at) : 0;
+    if (editedAt > 0) {
+      const when = formatListCommentTime(editedAt);
+      const editor = c && c.author_hidden
+        ? '<i class="text-faint">Hidden</i>'
+        : (c && c.edited_by
+          ? escapeHtml(String(c.edited_by))
+          : '<i>deleted admin</i>');
+      editLine = '<div class="ban-comments-inline__edit text-xs text-faint">last edit '
+        + escapeHtml(when) + ' by ' + editor + '</div>';
+    }
+    let actions = '';
+    if (c && (c.can_edit || c.can_delete)) {
+      actions = '<div class="ban-comments-inline__actions" data-testid="' + actTest + '">'
+        + (c.can_edit
+          ? '<button type="button" class="tip"' + drawerAttr
+            + ' data-comment-compose="edit" data-comment-cid="' + cidAttr + '"'
+            + ' data-tooltip="Edit Comment" aria-label="Edit comment">'
+            + '<i data-lucide="pencil" style="width:13px;height:13px" aria-hidden="true"></i></button>'
+          : '')
+        + (c.can_delete
+          ? '<a href="#" class="tip" title="Delete Comment" aria-label="Delete comment" target="_self"'
+            + ' data-action="comment-delete" data-cid="' + cidAttr + '"'
+            + ' data-ctype="' + (isComm ? 'C' : 'B') + '"'
+            + ' data-page="' + listCommentPage() + '">'
+            + '<i data-lucide="trash-2" style="width:13px;height:13px" aria-hidden="true"></i></a>'
+          : '')
+        + '</div>';
+    }
+    return '<li class="ban-comments-inline__item" data-testid="' + itemTest + '">'
+      + '<div class="ban-comments-inline__meta">'
+      + listCommentPersonHtml(!!(c && c.author_hidden), c && c.author)
+      + '<span class="text-faint">&middot;</span>'
+      + '<span class="text-xs text-faint tabular-nums">' + added + '</span>'
+      + '</div>'
+      + '<div class="ban-comments-inline__text" data-testid="' + textTest + '">'
+      + formatListCommentText((c && c.text) || '') + '</div>'
+      + editLine
+      + actions
+      + '</li>';
+  }
+
+  /**
+   * Keep the mobile ban-card count chip in lockstep with the desktop
+   * disclosure. Inserts the indicator when the first comment lands on
+   * a previously empty row; removes it when the last comment goes.
+   * @param {number} bid
+   * @param {number} count
+   * @returns {void}
+   */
+  function syncMobileBanCommentCount(bid, count) {
+    const card = document.querySelector('[data-testid="ban-card"][data-id="' + String(bid) + '"]');
+    if (!(card instanceof HTMLElement)) return;
+    let el = card.querySelector('[data-testid="ban-comments-count-mobile"]');
+    if (count <= 0) {
+      if (el) el.remove();
+      return;
+    }
+    const word = count === 1 ? 'comment' : 'comments';
+    if (!(el instanceof HTMLElement)) {
+      const actions = card.querySelector('.ban-card__actions');
+      if (!(actions instanceof HTMLElement)) return;
+      el = document.createElement('div');
+      el.className = 'text-xs text-faint truncate';
+      el.setAttribute('style', 'margin-top:0.125rem;display:flex;align-items:center;gap:0.25rem');
+      el.setAttribute('data-testid', 'ban-comments-count-mobile');
+      actions.appendChild(el);
+    }
+    el.innerHTML = '<i data-lucide="message-square-text" style="width:11px;height:11px" aria-hidden="true"></i>'
+      + '<span class="tabular-nums">' + count + '</span>'
+      + '<span>' + word + '</span>';
+  }
+
+  /**
+   * Patch the matching list-row comment disclosure from a fresh
+   * `bans.detail` / `comms.detail` envelope. Add / edit re-run
+   * `loadDrawer` and call this; delete patches in place via
+   * `removeCommentLocally` instead (no remount, no navigation).
+   * @param {DrawerKey} key
+   * @param {any} data
+   * @returns {void}
+   */
+  function syncListComments(key, data) {
+    if (!data || data.comments_visible === false) return;
+    const comments = Array.isArray(data.comments) ? data.comments : [];
+    const isComm = key.kind === 'comm';
+    const id = String(key.id);
+    const details = document.querySelector(
+      isComm
+        ? '[data-testid="comm-comments-inline"][data-cid="' + id + '"]'
+        : '[data-testid="ban-comments-inline"][data-bid="' + id + '"]',
+    );
+    if (details instanceof HTMLElement) {
+      const count = comments.length;
+      const label = count === 1 ? '1 comment' : count + ' comments';
+      const summary = details.querySelector(
+        isComm ? '[data-testid="comm-comments-toggle"]' : '[data-testid="ban-comments-toggle"]',
+      );
+      if (summary instanceof HTMLElement) {
+        summary.setAttribute('title', label);
+        summary.setAttribute('aria-label', label);
+        const num = summary.querySelector('.tabular-nums');
+        if (num) num.textContent = String(count);
+      }
+      const list = details.querySelector(
+        isComm ? '[data-testid="comm-comments-list"]' : '[data-testid="ban-comments-list"]',
+      );
+      if (list instanceof HTMLElement) {
+        list.innerHTML = comments.map((/** @type {any} */ c) => renderListCommentItem(c, key)).join('');
+      }
+      initIcons();
+    }
+    if (!isComm) syncMobileBanCommentCount(key.id, comments.length);
+  }
+
+  /**
+   * After a list/drawer comment delete, drop the matching `<li>` and
+   * retarget the chip. Does not navigate or remount the drawer, so
+   * scroll, pagination, and open `<details>` survive.
+   * @param {HTMLElement} details
+   * @returns {void}
+   */
+  function updateDisclosureAfterDelete(details) {
+    const count = details.querySelectorAll(
+      '[data-testid="ban-comment-item"], [data-testid="comm-comment-item"]',
+    ).length;
+    const label = count === 1 ? '1 comment' : count + ' comments';
+    const summary = details.querySelector(
+      '[data-testid="ban-comments-toggle"], [data-testid="comm-comments-toggle"]',
+    );
+    if (summary instanceof HTMLElement) {
+      summary.setAttribute('title', label);
+      summary.setAttribute('aria-label', label);
+      const num = summary.querySelector('.tabular-nums');
+      if (num) num.textContent = String(count);
+    }
+    const bid = details.getAttribute('data-bid');
+    if (bid) syncMobileBanCommentCount(Number(bid), count);
+  }
+
+  /**
+   * @param {number} cid
+   * @returns {void}
+   */
+  function removeCommentLocally(cid) {
+    const cidStr = String(cid);
+    const links = document.querySelectorAll(
+      '[data-action="comment-delete"][data-cid="' + cidStr + '"]',
+    );
+    /** @type {HTMLElement[]} */
+    const detailsToUpdate = [];
+    links.forEach((el) => {
+      const details = el.closest('details.ban-comments-inline');
+      if (details instanceof HTMLElement && detailsToUpdate.indexOf(details) === -1) {
+        detailsToUpdate.push(details);
+      }
+      const li = el.closest('li');
+      if (li) li.remove();
+    });
+    detailsToUpdate.forEach(updateDisclosureAfterDelete);
+
+    if (drawerRoot) {
+      const section = drawerRoot.querySelector('[data-testid="drawer-comments"]');
+      if (section) {
+        const ul = section.querySelector('ul');
+        if (ul && ul.querySelectorAll('li').length === 0) {
+          const empty = document.createElement('p');
+          empty.className = 'text-sm text-muted';
+          empty.setAttribute('style', 'margin:0');
+          empty.textContent = 'No comments.';
+          ul.replaceWith(empty);
+        }
+      }
+    }
+
+    if (drawerDetail && Array.isArray(drawerDetail.comments)) {
+      drawerDetail.comments = drawerDetail.comments.filter(
+        (/** @type {any} */ c) => Number(c.cid) !== cid,
+      );
+    }
+  }
+
+  /**
+   * Reveal the Overview comment composer. Edit prefills from the
+   * already-fetched `bans.detail` / `comms.detail` envelope.
+   * @param {{mode: 'add'|'edit', cid?: number}} opts
+   * @returns {void}
+   */
+  function openCommentComposer(opts) {
+    if (!drawerRoot) return;
+    const form = drawerRoot.querySelector('[data-testid="drawer-comment-form"]');
+    if (!(form instanceof HTMLFormElement)) return;
+    const textarea = /** @type {HTMLTextAreaElement | null} */ (form.querySelector('textarea[name="ctext"]'));
+    const cidInput = /** @type {HTMLInputElement | null} */ (form.querySelector('input[name="cid"]'));
+    const err = form.querySelector('[data-comment-error]');
+    const addBtn = drawerRoot.querySelector('[data-testid="drawer-comment-add"]');
+    if (err instanceof HTMLElement) err.hidden = true;
+    form.hidden = false;
+    if (addBtn instanceof HTMLElement) addBtn.hidden = true;
+    let text = '';
+    let cid = 0;
+    if (opts.mode === 'edit' && opts.cid) {
+      cid = opts.cid;
+      const comments = Array.isArray(drawerDetail && drawerDetail.comments) ? drawerDetail.comments : [];
+      const match = comments.find((/** @type {any} */ c) => Number(c.cid) === cid);
+      if (match && typeof match.text === 'string') text = match.text;
+    }
+    if (cidInput) cidInput.value = cid > 0 ? String(cid) : '';
+    if (textarea) {
+      textarea.value = text;
+      try { textarea.focus(); } catch (_e) { /* focus may throw */ }
+    }
+  }
+
+  /** @returns {void} */
+  function hideCommentComposer() {
+    if (!drawerRoot) return;
+    const form = drawerRoot.querySelector('[data-testid="drawer-comment-form"]');
+    if (form instanceof HTMLFormElement) {
+      form.hidden = true;
+      const textarea = form.querySelector('textarea[name="ctext"]');
+      const cidInput = form.querySelector('input[name="cid"]');
+      const err = form.querySelector('[data-comment-error]');
+      if (textarea instanceof HTMLTextAreaElement) textarea.value = '';
+      if (cidInput instanceof HTMLInputElement) cidInput.value = '';
+      if (err instanceof HTMLElement) err.hidden = true;
+    }
+    const addBtn = drawerRoot.querySelector('[data-testid="drawer-comment-add"]');
+    if (addBtn instanceof HTMLElement) addBtn.hidden = false;
+  }
+
+  /**
+   * POST `bans.add_comment` / `bans.edit_comment` and refresh the drawer.
+   * @param {HTMLFormElement} form
+   * @returns {Promise<void>}
+   */
+  async function submitCommentForm(form) {
+    if (!drawerDetail || !drawerKey) return;
+    const textarea = /** @type {HTMLTextAreaElement | null} */ (form.querySelector('textarea[name="ctext"]'));
+    const cidInput = /** @type {HTMLInputElement | null} */ (form.querySelector('input[name="cid"]'));
+    const err = form.querySelector('[data-comment-error]');
+    const text = textarea ? textarea.value.trim() : '';
+    if (!text) {
+      if (err instanceof HTMLElement) err.hidden = false;
+      return;
+    }
+    if (err instanceof HTMLElement) err.hidden = true;
+    const cid = cidInput ? parseInt(cidInput.value || '0', 10) : 0;
+    const isComm = drawerKey.kind === 'comm';
+    const bid = isComm ? Number(drawerDetail.cid) : Number(drawerDetail.bid);
+    const ctype = isComm ? 'C' : 'B';
+    const submitBtn = /** @type {HTMLButtonElement | null} */ (form.querySelector('button[type="submit"]'));
+    setBusy(submitBtn, true);
+    try {
+      const action = cid > 0 ? Actions.BansEditComment : Actions.BansAddComment;
+      const env = await sb.api.call(action, { bid: bid, cid: cid, ctype: ctype, ctext: text, page: -1 });
+      if (env && env.ok) {
+        showToast({
+          kind: 'success',
+          title: cid > 0 ? 'Comment updated' : 'Comment added',
+        });
+        await loadDrawer(drawerKey);
+      } else {
+        const msg = (env && env.error && env.error.message) || 'Could not save comment.';
+        showToast({ kind: 'error', title: 'Comment not saved', body: msg });
+      }
+    } finally {
+      setBusy(submitBtn, false);
+    }
+  }
+
+  document.addEventListener('sbpp:comment-deleted', (/** @type {Event} */ e) => {
+    const detail = /** @type {CustomEvent} */ (e).detail;
+    const cid = Number(detail && detail.cid);
+    if (!cid) return;
+    removeCommentLocally(cid);
+  });
 
   document.addEventListener('click', (/** @type {MouseEvent} */ e) => {
     const target = /** @type {Element | null} */ (e.target);
@@ -1266,7 +1647,40 @@
         // behaviour — the palette is only closed when it was the source
         // of the navigation.
         if (target && target.closest('.palette')) closePalette();
-        loadDrawer(key);
+        const htmlEl = /** @type {HTMLElement} */ (trigger);
+        const composeMode = htmlEl.dataset.commentCompose;
+        /** @type {{mode: 'add'|'edit', cid?: number} | undefined} */
+        let compose;
+        if (composeMode === 'add' || composeMode === 'edit') {
+          const cidRaw = htmlEl.dataset.commentCid;
+          compose = {
+            mode: composeMode,
+            cid: cidRaw && /^\d+$/.test(cidRaw) ? parseInt(cidRaw, 10) : undefined,
+          };
+        }
+        void loadDrawer(key, compose);
+        return;
+      }
+    }
+
+    if (drawerRoot && target && drawerRoot.contains(target)) {
+      const addCommentBtn = target.closest('[data-testid="drawer-comment-add"]');
+      if (addCommentBtn) {
+        e.preventDefault();
+        openCommentComposer({ mode: 'add' });
+        return;
+      }
+      const editCommentBtn = target.closest('[data-comment-edit]');
+      if (editCommentBtn instanceof HTMLElement) {
+        e.preventDefault();
+        const cid = parseInt(editCommentBtn.dataset.commentEdit || '0', 10);
+        openCommentComposer({ mode: 'edit', cid: cid });
+        return;
+      }
+      const cancelCommentBtn = target.closest('[data-testid="drawer-comment-form"] [data-comment-cancel]');
+      if (cancelCommentBtn) {
+        e.preventDefault();
+        hideCommentComposer();
         return;
       }
     }
@@ -1336,6 +1750,12 @@
   // (re-)rendered by the lazy loader keeps working.
   document.addEventListener('submit', (/** @type {SubmitEvent} */ e) => {
     const target = /** @type {Element | null} */ (e.target);
+    const commentForm = target && target.closest('[data-testid="drawer-comment-form"]');
+    if (commentForm instanceof HTMLFormElement) {
+      e.preventDefault();
+      void submitCommentForm(commentForm);
+      return;
+    }
     const form = target && target.closest('[data-notes-add]');
     if (!(form instanceof HTMLFormElement)) return;
     e.preventDefault();

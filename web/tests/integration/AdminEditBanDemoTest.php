@@ -34,4 +34,32 @@ final class AdminEditBanDemoTest extends TestCase
         $this->assertStringContainsString('data-testid="editban-demo-remove"', $contents);
         $this->assertStringContainsString('data-ban-id="{$ban_id}"', $contents);
     }
+
+    public function testBanlistShipsResponsiveDemoDownloadActions(): void
+    {
+        $contents = file_get_contents(self::webRoot() . '/themes/default/page_bans.tpl');
+        $this->assertIsString($contents);
+        $this->assertStringContainsString('{if $ban.demo_available}', $contents);
+        $this->assertStringContainsString('data-testid="row-action-demo-download"', $contents);
+        $this->assertStringContainsString('data-testid="row-action-demo-download-mobile"', $contents);
+        $this->assertStringContainsString('href="getdemo.php?type=B&amp;id={$ban.bid}"', $contents);
+    }
+
+    public function testDemoDownloadRejectsLinksAndRequiresCanonicalRootContainment(): void
+    {
+        $contents = file_get_contents(self::webRoot() . '/getdemo.php');
+        $this->assertIsString($contents);
+
+        $this->assertStringContainsString('is_link($path)', $contents);
+        $this->assertStringContainsString('str_contains($onDisk, "\0")', $contents);
+        $this->assertStringContainsString('$demoRoot = realpath(SB_DEMOS)', $contents);
+        $this->assertStringContainsString('$resolvedPath = realpath($path)', $contents);
+        $this->assertStringContainsString('str_starts_with(', $contents);
+        $this->assertStringContainsString('$path = $resolvedPath;', $contents);
+        $this->assertLessThan(
+            strpos($contents, 'readfile($path)'),
+            strpos($contents, 'is_link($path)'),
+            'the symlink and root-containment gates must run before any demo bytes are read',
+        );
+    }
 }

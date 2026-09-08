@@ -174,9 +174,18 @@
                                 </dl>
 
                                 <ul class="text-sm" style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.375rem">
-                                    {* nofilter: sub.demo is server-built `<a href="getdemo.php?id={URLENCODED INT}…">` HTML, sub.subaddcomment is CreateLinkR-built; no user input. *}
+                                    {* nofilter: sub.demo is server-built `<a href="getdemo.php?id={URLENCODED INT}…">` HTML; no user input flows in. *}
                                     <li>{$sub.demo nofilter}</li>
-                                    <li>{$sub.subaddcomment nofilter}</li>
+                                    <li>
+                                      <button type="button" class="btn btn--ghost btn--sm"
+                                              data-action="comment-compose"
+                                              data-bid="{$sub.subid}"
+                                              data-ctype="S"
+                                              data-testid="queue-comment-add">
+                                        <i data-lucide="message-square-plus" style="width:13px;height:13px" aria-hidden="true"></i>
+                                        Add Comment
+                                      </button>
+                                    </li>
                                 </ul>
                             </div>
 
@@ -193,7 +202,7 @@
                                                     <span class="flex items-center gap-2">
                                                         <span>{$commenta.added|escape}</span>
                                                         {if $commenta.editcomlink != ""}
-                                                            {* nofilter: editcomlink/delcomlink are CreateLinkR-built `<a … onclick="…">` HTML from admin.bans.php with integer cid + literal subid; no user input. *}
+                                                            {* nofilter: editcomlink/delcomlink are server-built buttons/anchors with integer cid + subid; comment text on edit is htmlspecialchars'd into data-comment-text. *}
                                                             <span>{$commenta.editcomlink nofilter} {$commenta.delcomlink nofilter}</span>
                                                         {/if}
                                                     </span>
@@ -215,6 +224,16 @@
                             {else}
                                 <div class="text-xs text-faint mt-3">{$sub.commentdata|escape}</div>
                             {/if}
+                            <form hidden class="mt-4" data-comment-composer data-bid="{$sub.subid}" data-ctype="S" data-testid="queue-comment-form">
+                              <input type="hidden" name="cid" value="">
+                              <label class="label" for="queue-comment-text-sa{$sub.subid}">Comment</label>
+                              <textarea class="textarea" name="ctext" id="queue-comment-text-sa{$sub.subid}" rows="4" aria-required="true"></textarea>
+                              <p hidden class="text-sm" data-comment-error style="color:var(--danger);margin:0.5rem 0 0">Please leave a comment.</p>
+                              <div class="flex gap-2 mt-3">
+                                <button type="submit" class="btn btn--primary btn--sm">Save comment</button>
+                                <button type="button" class="btn btn--secondary btn--sm" data-comment-cancel>Cancel</button>
+                              </div>
+                            </form>
                         </div>
                     </details>
                 {/foreach}

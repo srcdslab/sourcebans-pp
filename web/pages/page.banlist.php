@@ -1089,9 +1089,12 @@ foreach ($res as $row) {
                     // the 2.0 theme no longer loads — the old `<i class="fas …">` rendered
                     // an empty `<a>`); `aria-label` gives the icon-only control an
                     // accessible name the way the row-action buttons do.
-                    $cdata['editcomlink'] = '<a href="index.php?p=banlist&comment=' . $data['ban_id'] . '&ctype=B&cid=' . (int) $crow['cid'] . $pagelink . '"'
-                        . ' class="tip" target="_self" data-tooltip="Edit Comment" aria-label="Edit comment"'
-                        . '><i data-lucide="pencil" style="width:13px;height:13px" aria-hidden="true"></i></a>';
+                    $cdata['editcomlink'] = '<button type="button" class="tip"'
+                        . ' data-drawer-bid="' . (int) $data['ban_id'] . '"'
+                        . ' data-comment-compose="edit"'
+                        . ' data-comment-cid="' . (int) $crow['cid'] . '"'
+                        . ' data-tooltip="Edit Comment" aria-label="Edit comment"'
+                        . '><i data-lucide="pencil" style="width:13px;height:13px" aria-hidden="true"></i></button>';
                     if ($userbank->HasAccess(WebPermission::Owner)) {
                         // #1402: `onclick="RemoveComment(...)"` was the v1.x bridge into
                         // the deleted sourcebans.js helper — every click threw
@@ -1100,8 +1103,9 @@ foreach ($res as $row) {
                         // the document-level dispatcher in web/scripts/comment-actions.js
                         // handles the confirm + JSON API round-trip uniformly across all
                         // four comment-thread surfaces (banlist / commslist / protests
-                        // / submissions). data-page lets the handler land the operator
-                        // back on the same paginated banlist view post-delete.
+                        // / submissions). Banlist / commslist delete stays in place
+                        // (no navigation); data-page is still sent so queue cards
+                        // (S / P) can honour the handler's redir envelope.
                         $cdata['delcomlink'] = '<a href="#" class="tip" title="Delete Comment" aria-label="Delete comment" target="_self"'
                             . ' data-action="comment-delete"'
                             . ' data-cid="' . (int) $crow['cid'] . '"'
@@ -1141,9 +1145,8 @@ foreach ($res as $row) {
     }
 
 
-    // #1544: Lucide icon (the 2.0 theme dropped Font Awesome); keeps the
-    // visible "Add Comment" label so it degrades gracefully anyway.
-    $data['addcomment'] = CreateLinkR('<i data-lucide="message-square-plus" style="width:13px;height:13px" aria-hidden="true"></i> Add Comment', 'index.php?p=banlist&comment=' . $data['ban_id'] . '&ctype=B' . $pagelink);
+    // #1544: Add Comment markup lives in page_bans.tpl (drawer trigger
+    // with data-comment-compose="add"). Do not emit a ?comment= link.
     //-----------------------------------
 
     $data['ub_reason']   = (isset($data['ub_reason']) ? $data['ub_reason'] : "");
@@ -1339,75 +1342,8 @@ if ($BanCount === 0) {
     }
 }
 
-//COMMENT STUFF
-//----------------------------------------
-$commentMode    = false;
-$commentType    = '';
-$commentText    = '';
-$commentCtype   = '';
-$commentCid     = '';
-$commentCanedit = false;
-/** @var array<int, array<string, mixed>>|string $commentOthers */
-$commentOthers  = '';
-if (isset($_GET["comment"])) {
-    $_GET["comment"] = (int) $_GET["comment"];
-    $commentMode  = $_GET["comment"];
-    $commentType  = isset($_GET["cid"]) ? "Edit" : "Add";
-    if (isset($_GET["cid"])) {
-        $_GET["cid"]    = (int) $_GET["cid"];
-        $GLOBALS['PDO']->query("SELECT * FROM `:prefix_comments` WHERE cid = :cid");
-        $GLOBALS['PDO']->bind(':cid', $_GET["cid"]);
-        $ceditdata      = $GLOBALS['PDO']->single();
-        $ctext          = html_entity_decode($ceditdata['commenttxt'], ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $cotherdataedit = " AND cid != '" . $_GET["cid"] . "'";
-    } else {
-        $cotherdataedit = "";
-        $ctext          = "";
-    }
-
-    $_GET["ctype"] = substr((string) ($_GET["ctype"] ?? ''), 0, 1);
-
-    $cotherdata = $GLOBALS['PDO']->query("SELECT cid, aid, commenttxt, added, edittime,
-											(SELECT user FROM `:prefix_admins` WHERE aid = C.aid) AS comname,
-											(SELECT user FROM `:prefix_admins` WHERE aid = C.editaid) AS editname
-											FROM `:prefix_comments` AS C
-											WHERE type = ? AND bid = ?" . $cotherdataedit . " ORDER BY added desc")->resultset([
-        $_GET["ctype"],
-        $_GET["comment"],
-    ]);
-
-    // #1500: same gate as the per-ban comment thread above — null admin
-    // usernames for public viewers so this comment-edit surface (reachable
-    // by anyone via ?comment=N) doesn't leak them regardless of theme.
-    $commentsHideAdmin = Config::getBool('banlist.hideadminname') && !$userbank->is_admin();
-
-    $ocomments = [];
-    foreach ($cotherdata as $cdrow) {
-        $coment               = [];
-        $coment['comname']    = $commentsHideAdmin ? '' : $cdrow['comname'];
-        $coment['added']      = Config::time($cdrow['added']);
-        $commentTextRow       = html_entity_decode($cdrow['commenttxt'], ENT_QUOTES | ENT_HTML5, 'UTF-8');
-        $commentTextRow       = encodePreservingBr($commentTextRow);
-        // Parse links and wrap them in a <a href=""></a> tag to be easily clickable
-        $commentTextRow       = preg_replace('@(https?://([-\w\.]+)+(:\d+)?(/([\w/_\.]*(\?\S+)?)?)?)@', '<a href="$1" target="_blank">$1</a>', $commentTextRow);
-        $coment['commenttxt'] = $commentTextRow;
-
-        if ($cdrow['editname'] != "") {
-            $coment['edittime'] = Config::time($cdrow['edittime']);
-            $coment['editname'] = $commentsHideAdmin ? '' : $cdrow['editname'];
-        } else {
-            $coment['editname'] = "";
-            $coment['edittime'] = "";
-        }
-        array_push($ocomments, $coment);
-    }
-
-    $commentText    = (string) (isset($ctext) ? $ctext : '');
-    $commentCtype   = (string) $_GET["ctype"];
-    $commentCid     = isset($_GET["cid"]) ? (string) $_GET["cid"] : '';
-    $commentCanedit = $userbank->is_admin();
-    $commentOthers  = $ocomments;
-}
+// Add / Edit comments live in the player drawer (`theme.js`).
+// `?p=banlist&comment=` is not an editor surface.
 
 unset($_SESSION['CountryFetchHndl']);
 
@@ -1487,14 +1423,6 @@ Renderer::render($theme, new BanListView(
     total_bans:      $BanCount,
     view_bans:       (bool) $userbank->HasAccess(WebPermission::mask(WebPermission::Owner, WebPermission::EditAllBans, WebPermission::EditOwnBans, WebPermission::EditGroupBans, WebPermission::Unban, WebPermission::UnbanOwnBans, WebPermission::UnbanGroupBans, WebPermission::DeleteBan)),
     view_comments:   $view_comments,
-    comment:         $commentMode === false ? false : (int) $commentMode,
-    commenttype:     $commentType,
-    commenttext:     $commentText,
-    ctype:           $commentCtype,
-    cid:             $commentCid,
-    page:            isset($_GET["page"]) ? $page : -1,
-    canedit:         $commentCanedit,
-    othercomments:   $commentOthers,
     searchlink:      $searchlink,
     hidetext:        $hidetext,
     hideadminname:   Config::getBool('banlist.hideadminname') && !$userbank->is_admin(),

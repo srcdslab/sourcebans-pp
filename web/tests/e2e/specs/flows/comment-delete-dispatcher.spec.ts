@@ -2,8 +2,8 @@
  * Flow spec — issue #1402: the `comment-actions.js` dispatcher
  * (loaded from core/footer.tpl globally) wires a single
  * document-level click handler for `[data-action="comment-delete"]`
- * triggers across the panel (banlist comment editor, commslist
- * comment editor, admin moderation queues).
+ * triggers across the panel (player drawer comments, inline
+ * banlist / commslist threads, admin moderation queues).
  *
  * What this locks in (pre-fix breakage)
  * -------------------------------------

@@ -361,7 +361,8 @@ honours `config.enablepubliccomments` and `banlist.hideadminname`;
 anonymous GET of comm comments is 404 when `config.enablecomms` is off,
 matching `/comms`; POST /
 PATCH reuse `bans.add_comment` / `bans.edit_comment`, and PATCH is author
-or Owner on both REST and the RPC handler; DELETE is Owner via
+or Owner on both REST and the RPC handler; RPC add/edit of `ctype` S/P
+also requires BanSubmissions / BanProtests; DELETE is Owner via
 `bans.remove_comment`), `/settings` GET+PATCH (dedicated; never
 `smtp.pass` or `telemetry.instance_id`).
 

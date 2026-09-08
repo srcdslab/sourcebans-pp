@@ -9,10 +9,9 @@ namespace Sbpp\View;
  * `$ban_list` items expose `bid|name|steam|state|length_human|
  * banned_human|sname|can_edit_ban|can_unban` plus avatar metadata; the
  * page chrome reads `$total_bans`, `$can_export`, `$hidetext`,
- * `$searchlink`, `$ban_nav`, the comment-edit scratch pad
- * (`$comment`, `$commenttype`, `$commenttext`, `$ctype`, `$cid`,
- * `$page`, `$canedit`, `$othercomments`), and the testid hooks reach
- * the per-row `state`.
+ * `$searchlink`, `$ban_nav`, and the testid hooks reach the per-row
+ * `state`. Add / Edit comments open the player drawer; there is no
+ * `?comment=` editor on this page.
  *
  * Each row also carries the legacy keys (`ban_id|player|class|
  * reban_link|edit_link|…`) so any third-party theme that forked the
@@ -32,9 +31,6 @@ final class BanListView extends View
 
     /**
      * @param list<array<string,mixed>>           $ban_list
-     * @param int|false                           $comment        Bid being commented on, or false when not in comment-edit mode.
-     * @param int                                 $page           Active pagination page (or -1 when not paginated).
-     * @param array<int, array<string,mixed>>|string $othercomments  Sibling comments shown beneath the editor; "None" string when the ban has no other comments.
      * @param list<array{sid: int, name: string}> $server_list    Enabled servers for the public filter bar's `<select name="server">` (#1226).
      * @param array{search: string, server: string, time: string, state: string} $filters Current filter state — drives the sticky filter bar's pre-fill + active selected `<option>` (#1226 + #1352).
      */
@@ -44,14 +40,6 @@ final class BanListView extends View
         public readonly int $total_bans,
         public readonly bool $view_bans,
         public readonly bool $view_comments,
-        public readonly int|false $comment,
-        public readonly string $commenttype,
-        public readonly string $commenttext,
-        public readonly string $ctype,
-        public readonly string $cid,
-        public readonly int $page,
-        public readonly bool $canedit,
-        public readonly array|string $othercomments,
         public readonly string $searchlink,
         public readonly string $hidetext,
         public readonly bool $hideadminname,

@@ -620,7 +620,6 @@ if ($section === 'protests') {
 
             $commentres = $protestCommentsByPid[(int) $prot['pid']] ?? [];
             $prot['commentdata'] = bansBuildComments($commentres, $userbank, (int) $prot['pid'], 'P');
-            $prot['protaddcomment'] = CreateLinkR('<i class="fas fa-comment-dots fa-lg"></i> Add Comment', 'index.php?p=banlist&comment=' . (int) $prot['pid'] . '&ctype=P');
 
             array_push($protest_list, $prot);
         }
@@ -748,7 +747,6 @@ if ($section === 'protests') {
 
             $commentres = $protestArchivCommentsByPid[(int) $prot['pid']] ?? [];
             $prot['commentdata'] = bansBuildComments($commentres, $userbank, (int) $prot['pid'], 'P');
-            $prot['protaddcomment'] = CreateLinkR('<i class="fas fa-comment-dots fa-lg"></i> Add Comment', 'index.php?p=banlist&comment=' . (int) $prot['pid'] . '&ctype=P');
 
             array_push($protest_list_archiv, $prot);
         }
@@ -892,7 +890,6 @@ if ($section === 'submissions') {
 
             $commentres = $submissionCommentsBySubid[(int) $sub['subid']] ?? [];
             $sub['commentdata'] = bansBuildComments($commentres, $userbank, (int) $sub['subid'], 'S');
-            $sub['subaddcomment'] = CreateLinkR('<i class="fas fa-comment-dots fa-lg"></i> Add Comment', 'index.php?p=banlist&comment=' . (int) $sub['subid'] . '&ctype=S');
 
             array_push($submission_list, $sub);
         }
@@ -1011,7 +1008,6 @@ if ($section === 'submissions') {
 
             $commentres = $submissionArchivCommentsBySubid[(int) $sub['subid']] ?? [];
             $sub['commentdata'] = bansBuildComments($commentres, $userbank, (int) $sub['subid'], 'S');
-            $sub['subaddcomment'] = CreateLinkR('<i class="fas fa-comment-dots fa-lg"></i> Add Comment', 'index.php?p=banlist&comment=' . (int) $sub['subid'] . '&ctype=S');
 
             array_push($submission_list_archiv, $sub);
         }
@@ -1317,18 +1313,29 @@ function bansBuildComments(array $commentres, $userbank, int $rowId, string $typ
         $cdata            = [];
         $cdata['morecom'] = ($morecom == 1 ? true : false);
         if ($crow['aid'] == $userbank->GetAid() || $userbank->HasAccess(WebPermission::Owner)) {
-            $cdata['editcomlink'] = CreateLinkR('<i class="fas fa-edit fa-lg"></i>', 'index.php?p=banlist&comment=' . $rowId . '&ctype=' . $type . '&cid=' . $crow['cid'], 'Edit Comment');
+            // Raw text for the inline composer prefill. The card body is
+            // encodePreservingBr HTML (with `<br>` / URL wraps) and cannot
+            // round-trip into a textarea.
+            $rawCommentText = html_entity_decode((string) $crow['commenttxt'], ENT_QUOTES | ENT_HTML5, 'UTF-8');
+            $cdata['editcomlink'] = '<button type="button" class="tip"'
+                . ' data-action="comment-compose"'
+                . ' data-bid="' . $rowId . '"'
+                . ' data-ctype="' . htmlspecialchars($type, ENT_QUOTES, 'UTF-8') . '"'
+                . ' data-cid="' . (int) $crow['cid'] . '"'
+                . ' data-comment-text="' . htmlspecialchars($rawCommentText, ENT_QUOTES, 'UTF-8') . '"'
+                . ' data-tooltip="Edit Comment" aria-label="Edit comment"'
+                . '><i data-lucide="pencil" style="width:13px;height:13px" aria-hidden="true"></i></button>';
             if ($userbank->HasAccess(WebPermission::Owner)) {
                 // #1402: see web/scripts/comment-actions.js for the dispatcher.
             // $type is the literal letter 'P' (protests) or 'S' (submissions);
             // the api handler's `ctype` arm consumes both. No paginator on the
             // moderation queues, so data-page is the sentinel -1.
-            $cdata['delcomlink'] = '<a href="#" class="tip" title="Delete Comment" target="_self"'
+            $cdata['delcomlink'] = '<a href="#" class="tip" title="Delete Comment" aria-label="Delete comment" target="_self"'
                 . ' data-action="comment-delete"'
                 . ' data-cid="' . (int) $crow['cid'] . '"'
                 . ' data-ctype="' . htmlspecialchars($type, ENT_QUOTES, 'UTF-8') . '"'
                 . ' data-page="-1"'
-                . '><i class="fas fa-trash fa-lg"></i></a>';
+                . '><i data-lucide="trash-2" style="width:13px;height:13px" aria-hidden="true"></i></a>';
             }
         } else {
             $cdata['editcomlink'] = "";

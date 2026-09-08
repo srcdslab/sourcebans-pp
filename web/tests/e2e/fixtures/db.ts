@@ -174,13 +174,12 @@ export async function seedCommsRawE2e(rows: CommsSeedRow[]): Promise<void> {
  * `type='C'` attaches to a comm-block row (the bid here is the
  * comms table cid — the column was reused from v1.x without a rename).
  *
- * Used by the banlist-comments-visibility spec because there is no
- * JSON action for adding admin-authored per-row comments — the
- * production write path is the legacy `?p=banlist&comment=N` POST
- * handler. Driving an HTML POST through Playwright would couple the
- * spec to the comment-edit chrome and CSRF handshake, which is
- * unrelated to what we're verifying (the disclosure renders, the
- * drawer paints the same data).
+ * Used by the banlist-comments-visibility spec to attach comments
+ * without going through `bans.add_comment` (that path would couple
+ * the spec to CSRF + the drawer / queue composer chrome). Driving
+ * the JSON action through Playwright is unrelated to what we're
+ * verifying (the disclosure renders, the drawer paints the same
+ * data).
  */
 export interface CommentSeedRow {
     type: 'B' | 'C';

@@ -8,9 +8,6 @@
     `unmuted` instead of `unbanned`. View: Sbpp\View\CommsListView.
 
     Skipped from the design / handoff for B4 (each open for follow-up):
-      * Comment edit drawer — the `?comment=` flow stays on the legacy
-        theme; the new theme list-only page just exposes the row's edit
-        URL. Wiring the new comment editor needs its own template.
       * Live-server hostname resolution — the schema has no hostname
         column; sname renders ip:port (or "Web Block" for sid=0) until
         a future ticket re-implements the LoadServerHost equivalent
@@ -19,6 +16,10 @@
     Testability hooks (`data-testid`) match the B4 spec: comm-row /
     filter-chip-* / row-action-* / page-prev / page-next / comms-search.
 *}
+
+{* Add / Edit comments open the player drawer (data-comment-compose);
+   there is no `?comment=` editor on this page. *}
+
 <div class="p-6 space-y-4" style="max-width:1700px;margin:0 auto;width:100%">
 
     {* -- Page header --------------------------------------------------- *}
@@ -287,9 +288,17 @@
                                             {/foreach}
                                             {/if}
                                           </ul>
-                                          {* #1544: "Add comment" CTA — restores the per-punishment comment affordance dropped in the 2.0.0 migration. Gated on $can_comment ($userbank->is_admin()); the link lands on the ?comment=N comment-edit branch of this template. *}
+                                          {* #1544: "Add comment" opens the player drawer and activates the Overview composer (data-comment-compose). *}
                                           {if $can_comment}
-                                          <div class="ban-comments-inline__add" data-testid="comm-comment-add">{$comm.addcomment nofilter}</div>
+                                          <div class="ban-comments-inline__add">
+                                            <button type="button" class="btn btn--ghost btn--sm"
+                                                    data-drawer-cid="{$comm.cid}"
+                                                    data-comment-compose="add"
+                                                    data-testid="comm-comment-add">
+                                              <i data-lucide="message-square-plus" style="width:13px;height:13px" aria-hidden="true"></i>
+                                              Add Comment
+                                            </button>
+                                          </div>
                                           {/if}
                                         </details>
                                         {/if}
@@ -696,6 +705,8 @@
     <input type="hidden" form="comms-filters" name="_searchlink" value="{$searchlink|escape}" data-testid="comms-searchlink-shadow">
 
 </div>
+
+<script src="./scripts/banlist.js" defer></script>
 
 {* ============================================================
    #1301 — comms unblock confirm + reason modal scaffold.
@@ -1205,4 +1216,4 @@
    these props, this manifest stops being necessary, and the View
    drops them. Until then, keep this block at EOF.
    ============================================================ *}
-{if false}{$ban_nav}{$canedit}{$cid}{$comment}{$commenttext}{$commenttype}{$ctype}{$hide_inactive}{$hideadminname}{$hidetext}{$othercomments}{$page}{$view_bans}{$view_comments}{/if}
+{if false}{$ban_nav}{$hide_inactive}{$hidetext}{$view_bans}{/if}

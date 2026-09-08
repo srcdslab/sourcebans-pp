@@ -2,43 +2,32 @@
 /* ============================================================
    comment-actions.js — shared comment-action dispatcher
 
-   Single document-level click delegate handling
-   `data-action="comment-delete"` triggers across the three
-   surfaces that render comment threads:
+   Document-level delegates for:
 
-     1. Public banlist  (`web/pages/page.banlist.php`)
-     2. Public commslist (`web/pages/page.commslist.php`)
-     3. Admin moderation queues — protests + submissions
-        (`web/pages/admin.bans.php`)
+     1. `data-action="comment-delete"` — confirm dialog +
+        Actions.BansRemoveComment. Surfaces: public banlist /
+        commslist inline threads, player-drawer comments, admin
+        moderation queues (protests + submissions).
+     2. `data-action="comment-compose"` — inline composer on the
+        four queue cards (protests / submissions, current +
+        archive). Banlist / commslist Add and Edit open the
+        player drawer instead (`theme.js`).
 
-   All three previously emitted inline
-   `onclick="RemoveComment(<cid>, '<ctype>', <page>);"` blobs
-   pointing at a helper in the deleted `web/scripts/sourcebans.js`
-   (#1123 D1). Without the helper, every trash-can click was a
-   silent `ReferenceError: RemoveComment is not defined` — no
-   toast, no API call, no row removal; the operator perceived the
-   button as broken.
+   Delete: banlist / commslist (ctype B / C), including the player
+   drawer, stay on the current page. theme.js removes the comment
+   in place so scroll, pagination, and open disclosures survive.
+   Protest / submission queue cards (S / P) still honour
+   `message.redir` / reload after the toast settle.
 
-   The replacement uses `Actions.BansRemoveComment` (already
-   registered in `_register.php` with `ADMIN_OWNER`; `ctype` arm
-   handles 'B'/'C'/'S'/'P' in `api_bans_remove_comment`). On a
-   successful response we honour the handler's `message.redir`
-   envelope so the operator lands back on the same paginated view
-   they were on; on error we surface a toast and leave the row
-   intact.
-
-   Each trigger carries:
+   Each delete trigger carries:
      - `data-cid="<int>"`   — required (the comments row id)
      - `data-ctype="<B|C|S|P>"` — required
      - `data-page="<int>"`  — optional, defaults to -1
 
-   Confirm chrome is a single shared `<dialog>` (injected once)
-   matching the banlist / commslist delete modals — not
-   `window.confirm()`.
-
-   This file lives at panel scope so any future page that needs
-   comment-delete just adds the `data-action="comment-delete"`
-   attribute + the three data hooks and includes this script.
+   Queue compose triggers carry `data-bid` + `data-ctype` and,
+   for Edit, `data-cid` + `data-comment-text` (raw text, not the
+   HTML body). Confirm chrome is a single shared `<dialog>`
+   (injected once) — not `window.confirm()`.
    ============================================================ */
 (function () {
     'use strict';
@@ -127,6 +116,108 @@
     }
 
     /**
+     * @param {HTMLFormElement} form
+     * @param {boolean} show
+     */
+    function showComposer(form, show) {
+        form.hidden = !show;
+        var card = form.closest('details');
+        var addBtn = card && card.querySelector('[data-testid="queue-comment-add"]');
+        if (addBtn instanceof HTMLElement) addBtn.hidden = show;
+        if (!show) {
+            var cidInput = /** @type {HTMLInputElement|null} */ (form.querySelector('input[name="cid"]'));
+            var textarea = /** @type {HTMLTextAreaElement|null} */ (form.querySelector('textarea[name="ctext"]'));
+            var err = /** @type {HTMLElement|null} */ (form.querySelector('[data-comment-error]'));
+            if (cidInput) cidInput.value = '';
+            if (textarea) textarea.value = '';
+            if (err) err.hidden = true;
+        }
+    }
+
+    /**
+     * @param {HTMLElement} trigger
+     */
+    function openQueueComposer(trigger) {
+        var card = trigger.closest('details');
+        var form = card && /** @type {HTMLFormElement|null} */ (card.querySelector('[data-comment-composer]'));
+        if (!form) {
+            toast('error', 'Comment failed', 'Missing comment composer on this card.');
+            return;
+        }
+        var cid = parseInt(trigger.getAttribute('data-cid') || '0', 10);
+        var raw = trigger.getAttribute('data-comment-text') || '';
+        var cidInput = /** @type {HTMLInputElement|null} */ (form.querySelector('input[name="cid"]'));
+        var textarea = /** @type {HTMLTextAreaElement|null} */ (form.querySelector('textarea[name="ctext"]'));
+        var err = /** @type {HTMLElement|null} */ (form.querySelector('[data-comment-error]'));
+        showComposer(form, true);
+        if (cidInput) cidInput.value = cid > 0 ? String(cid) : '';
+        if (textarea) {
+            textarea.value = cid > 0 ? raw : '';
+            try { textarea.focus(); } catch (_e) { /* focus may throw */ }
+        }
+        if (err) err.hidden = true;
+    }
+
+    /**
+     * @param {HTMLFormElement} form
+     */
+    function submitQueueComposer(form) {
+        var a = api(), A = actions();
+        var textarea = /** @type {HTMLTextAreaElement|null} */ (form.querySelector('textarea[name="ctext"]'));
+        var cidInput = /** @type {HTMLInputElement|null} */ (form.querySelector('input[name="cid"]'));
+        var err = /** @type {HTMLElement|null} */ (form.querySelector('[data-comment-error]'));
+        var value = textarea ? textarea.value.trim() : '';
+        if (value === '') {
+            if (err) err.hidden = false;
+            if (textarea) {
+                try { textarea.focus(); } catch (_e) { /* focus may throw */ }
+            }
+            return;
+        }
+        if (err) err.hidden = true;
+        if (!a || !A) {
+            toast('error', 'Comment failed', 'The API client is unavailable. Reload the page and try again.');
+            return;
+        }
+        var bid = parseInt(form.getAttribute('data-bid') || '0', 10);
+        var ctype = form.getAttribute('data-ctype') || '';
+        var cid = parseInt((cidInput && cidInput.value) || '0', 10);
+        if (!bid || !ctype) {
+            toast('error', 'Comment failed', 'Missing comment context.');
+            return;
+        }
+        var submitBtn = /** @type {HTMLButtonElement|null} */ (form.querySelector('button[type="submit"]'));
+        setBusy(submitBtn, true);
+        var action = cid > 0 ? A.BansEditComment : A.BansAddComment;
+        a.call(action, {
+            bid: bid,
+            cid: cid,
+            ctype: ctype,
+            ctext: value,
+            page: -1,
+        }).then(function (r) {
+            if (!r) {
+                setBusy(submitBtn, false);
+                return;
+            }
+            if (r.redirect) return;
+            if (r.ok === false) {
+                setBusy(submitBtn, false);
+                var em = (r.error && r.error.message) || 'Failed to save comment.';
+                toast('error', 'Comment failed', em);
+                return;
+            }
+            var data = r.data || {};
+            var msg = data.message || {};
+            toast('success', msg.title || 'Comment saved', msg.body || 'The comment was saved.');
+            window.location.reload();
+        }).catch(function (e) {
+            setBusy(submitBtn, false);
+            toast('error', 'Comment failed', String(e && e.message ? e.message : e));
+        });
+    }
+
+    /**
      * @param {{cid: number, ctype: string, page: number, trigger: HTMLElement}} ctx
      */
     function runDelete(ctx) {
@@ -165,12 +256,19 @@
             }
             var data = r.data || {};
             var msg = data.message || {};
+            var inList = ctx.ctype === 'B' || ctx.ctype === 'C';
             closeDeleteDialog();
             toast('success', msg.title || 'Comment Deleted', msg.body || 'The comment was deleted.');
-            // Honour the handler's redir envelope (sb.api.call only
-            // auto-redirects on r.redirect, NOT on data.message.redir).
-            // Match SbppGroupsAdd's 1.2-1.5s pause so the toast is
-            // visible before the navigation.
+            if (inList) {
+                document.dispatchEvent(new CustomEvent('sbpp:comment-deleted', {
+                    detail: { cid: ctx.cid, ctype: ctx.ctype },
+                }));
+                setBusy(submitBtn, false);
+                return;
+            }
+            // Queue cards (S / P): honour the handler's redir envelope
+            // (sb.api.call only auto-redirects on r.redirect, NOT on
+            // data.message.redir). Pause so the toast is visible first.
             setTimeout(function () {
                 if (msg.redir) window.location.href = msg.redir;
                 else window.location.reload();
@@ -189,6 +287,21 @@
         if (t.closest && t.closest('[data-testid="comment-delete-cancel"]')) {
             e.preventDefault();
             closeDeleteDialog();
+            return;
+        }
+
+        var composeTrigger = /** @type {HTMLElement|null} */ (t.closest && t.closest('[data-action="comment-compose"]'));
+        if (composeTrigger) {
+            e.preventDefault();
+            openQueueComposer(composeTrigger);
+            return;
+        }
+
+        var cancelComposer = /** @type {HTMLElement|null} */ (t.closest && t.closest('[data-comment-composer] [data-comment-cancel]'));
+        if (cancelComposer) {
+            e.preventDefault();
+            var form = /** @type {HTMLFormElement|null} */ (cancelComposer.closest('[data-comment-composer]'));
+            if (form) showComposer(form, false);
             return;
         }
 
@@ -211,10 +324,16 @@
     document.addEventListener('submit', function (e) {
         var form = /** @type {Element|null} */ (e.target);
         if (!form || !(/** @type {Element} */ (form)).closest) return;
-        if (!form.matches('[data-testid="comment-delete-form"]')) return;
-        e.preventDefault();
-        if (!pending) return;
-        runDelete(pending);
+        if (form.matches('[data-testid="comment-delete-form"]')) {
+            e.preventDefault();
+            if (!pending) return;
+            runDelete(pending);
+            return;
+        }
+        if (form.matches('[data-comment-composer]')) {
+            e.preventDefault();
+            submitQueueComposer(/** @type {HTMLFormElement} */ (form));
+        }
     });
 
     document.addEventListener('cancel', function (e) {
