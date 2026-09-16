@@ -1346,7 +1346,7 @@ function bansBuildComments(array $commentres, $userbank, int $rowId, string $typ
         $cdata['added']      = Config::time($crow['added']);
         $commentText         = html_entity_decode($crow['commenttxt'], ENT_QUOTES | ENT_HTML5, 'UTF-8');
         $commentText         = encodePreservingBr($commentText);
-        $commentText         = preg_replace('@(https?://([-\w\.]+)+(:\d+)?(/([\w/_\.]*(\?\S+)?)?)?)@', '<a href="$1" target="_blank">$1</a>', $commentText);
+        $commentText         = preg_replace('@(https?://([-\w\.]+)+(:\d+)?(/([\w/_\.-]*(\?\S+)?)?)?)@', '<a href="$1" target="_blank">$1</a>', $commentText);
         $cdata['commenttxt'] = $commentText;
 
         if (!empty($crow['edittime'])) {

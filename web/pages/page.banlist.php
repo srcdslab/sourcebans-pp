@@ -1123,7 +1123,7 @@ foreach ($res as $row) {
                 $commentText         = html_entity_decode($crow['commenttxt'], ENT_QUOTES | ENT_HTML5, 'UTF-8');
                 $commentText         = encodePreservingBr($commentText);
                 // Parse links and wrap them in a <a href=""></a> tag to be easily clickable
-                $commentText         = preg_replace('@(https?://([-\w\.]+)+(:\d+)?(/([\w/_\.]*(\?\S+)?)?)?)@', '<a href="$1" target="_blank">$1</a>', $commentText);
+                $commentText         = preg_replace('@(https?://([-\w\.]+)+(:\d+)?(/([\w/_\.-]*(\?\S+)?)?)?)@', '<a href="$1" target="_blank">$1</a>', $commentText);
                 $cdata['commenttxt'] = $commentText;
 
                 if (!empty($crow['edittime'])) {
