@@ -305,6 +305,7 @@ public void OnClientDisconnect(int client)
 	if (PlayerRecheck[client] != INVALID_HANDLE)
 	{
 		delete PlayerRecheck[client];
+		PlayerRecheck[client] = INVALID_HANDLE;
 	}
 
 	FormatEx(g_sSteamIDs[client], sizeof(g_sSteamIDs[]), "\0");
@@ -1204,6 +1205,10 @@ public void VerifyInsert(Database db, DBResultSet results, const char[] error, D
 		dataPack.Reset();
 		reasonPack.Reset();
 
+		if (PlayerDataPack[admin] != null)
+		{
+			CleanupBanDataPack(PlayerDataPack[admin]);
+		}
 		PlayerDataPack[admin] = null;
 		UTIL_InsertTempBan(time, name, auth, ip, reason, adminAuth, adminIp, dataPack);
 		return;
@@ -1454,6 +1459,10 @@ public void SelectUnbanCallback(Database db, DBResultSet results, const char[] e
 		}
 
 		db.Query(InsertUnbanCallback, query, dataPack);
+	}
+	else
+	{
+		delete dataPack;
 	}
 	return;
 }
@@ -2858,6 +2867,10 @@ public bool CreateBan(int client, int target, int time, const char[] reason)
 		}
 	} else {
 		// We need a reason so offer the administrator a menu of reasons
+		if (PlayerDataPack[admin] != null)
+		{
+			CleanupBanDataPack(PlayerDataPack[admin]);
+		}
 		PlayerDataPack[admin] = dataPack;
 		DisplayMenu(ReasonMenuHandle, admin, MENU_TIME_FOREVER);
 		ReplyToCommand(admin, "%s%t", Prefix, "Check Menu");
@@ -3177,10 +3190,16 @@ stock void ParseBackupConfig_Overrides()
 	KeyValues hKV = new KeyValues("SB_Overrides");
 
 	if (!hKV.ImportFromFile(overridesLoc))
+	{
+		delete hKV;
 		return;
+	}
 
 	if (!hKV.GotoFirstSubKey())
+	{
+		delete hKV;
 		return;
+	}
 
 	char sSection[16], sFlags[32], sName[MAX_NAME_LENGTH];
 	OverrideType type;

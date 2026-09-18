@@ -3138,6 +3138,8 @@ stock void CreateMuteExpireTimer(int target, int remainingTime = 0)
 {
 	if (g_iMuteLength[target] > 0)
 	{
+		CloseMuteExpireTimer(target);
+
 		DataPack dataPack;
 
 		if (remainingTime)
@@ -3154,6 +3156,8 @@ stock void CreateGagExpireTimer(int target, int remainingTime = 0)
 {
 	if (g_iGagLength[target] > 0)
 	{
+		CloseGagExpireTimer(target);
+
 		DataPack dataPack;
 
 		if (remainingTime)
