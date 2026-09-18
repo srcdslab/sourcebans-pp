@@ -1627,12 +1627,14 @@ public void Query_UnBlockSelect(Database db, DBResultSet results, const char[] e
 				if (g_MuteType[target] > bNot)
 				{
 					dataPack.WriteCell(TYPE_UNMUTE);
-					TempUnBlock(dataPack);
+					TempUnBlock(dataPack); // Datapack closed inside.
+					return;
 				}
 				else if (g_GagType[target] > bNot)
 				{
 					dataPack.WriteCell(TYPE_UNGAG);
-					TempUnBlock(dataPack);
+					TempUnBlock(dataPack); // Datapack closed inside.
+					return;
 				}
 			}
 		}
@@ -3136,6 +3138,8 @@ stock void CreateMuteExpireTimer(int target, int remainingTime = 0)
 {
 	if (g_iMuteLength[target] > 0)
 	{
+		CloseMuteExpireTimer(target);
+
 		DataPack dataPack;
 
 		if (remainingTime)
@@ -3152,6 +3156,8 @@ stock void CreateGagExpireTimer(int target, int remainingTime = 0)
 {
 	if (g_iGagLength[target] > 0)
 	{
+		CloseGagExpireTimer(target);
+
 		DataPack dataPack;
 
 		if (remainingTime)

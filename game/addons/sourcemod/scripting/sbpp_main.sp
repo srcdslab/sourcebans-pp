@@ -284,8 +284,8 @@ public void OnMapEnd()
 	{
 		if (PlayerDataPack[i] != null)
 		{
-			/* Need to close reason pack */
-			delete PlayerDataPack[i];
+			CleanupBanDataPack(PlayerDataPack[i]);
+			PlayerDataPack[i] = null;
 		}
 	}
 }
@@ -305,6 +305,7 @@ public void OnClientDisconnect(int client)
 	if (PlayerRecheck[client] != INVALID_HANDLE)
 	{
 		delete PlayerRecheck[client];
+		PlayerRecheck[client] = INVALID_HANDLE;
 	}
 
 	FormatEx(g_sSteamIDs[client], sizeof(g_sSteamIDs[]), "\0");
@@ -871,7 +872,8 @@ public int ReasonSelected(Menu menu, MenuAction action, int param1, int param2)
 			{
 				if (PlayerDataPack[param1] != null)
 				{
-					delete PlayerDataPack[param1];
+					CleanupBanDataPack(PlayerDataPack[param1]);
+					PlayerDataPack[param1] = null;
 				}
 			}
 
@@ -1203,6 +1205,10 @@ public void VerifyInsert(Database db, DBResultSet results, const char[] error, D
 		dataPack.Reset();
 		reasonPack.Reset();
 
+		if (PlayerDataPack[admin] != null)
+		{
+			CleanupBanDataPack(PlayerDataPack[admin]);
+		}
 		PlayerDataPack[admin] = null;
 		UTIL_InsertTempBan(time, name, auth, ip, reason, adminAuth, adminIp, dataPack);
 		return;
@@ -1212,7 +1218,10 @@ public void VerifyInsert(Database db, DBResultSet results, const char[] error, D
 	int client = dataPack.ReadCell();
 
 	if (!IsClientConnected(client) || IsFakeClient(client))
+	{
+		CleanupBanDataPack(dataPack);
 		return;
+	}
 
 	dataPack.ReadCell(); // admin userid
 
@@ -1247,10 +1256,12 @@ public void VerifyInsert(Database db, DBResultSet results, const char[] error, D
 
 	LogAction(admin, client, "%t", "Ban Log", admin, client, time, Reason);
 
+	delete ReasonPack;
+
 	if (PlayerDataPack[admin] != INVALID_HANDLE)
 	{
-		delete PlayerDataPack[admin];
-		delete ReasonPack;
+		CleanupBanDataPack(PlayerDataPack[admin]);
+		PlayerDataPack[admin] = null;
 	}
 
 	// Kick player
@@ -1448,6 +1459,10 @@ public void SelectUnbanCallback(Database db, DBResultSet results, const char[] e
 		}
 
 		db.Query(InsertUnbanCallback, query, dataPack);
+	}
+	else
+	{
+		delete dataPack;
 	}
 	return;
 }
@@ -2852,6 +2867,10 @@ public bool CreateBan(int client, int target, int time, const char[] reason)
 		}
 	} else {
 		// We need a reason so offer the administrator a menu of reasons
+		if (PlayerDataPack[admin] != null)
+		{
+			CleanupBanDataPack(PlayerDataPack[admin]);
+		}
 		PlayerDataPack[admin] = dataPack;
 		DisplayMenu(ReasonMenuHandle, admin, MENU_TIME_FOREVER);
 		ReplyToCommand(admin, "%s%t", Prefix, "Check Menu");
@@ -3171,10 +3190,16 @@ stock void ParseBackupConfig_Overrides()
 	KeyValues hKV = new KeyValues("SB_Overrides");
 
 	if (!hKV.ImportFromFile(overridesLoc))
+	{
+		delete hKV;
 		return;
+	}
 
 	if (!hKV.GotoFirstSubKey())
+	{
+		delete hKV;
 		return;
+	}
 
 	char sSection[16], sFlags[32], sName[MAX_NAME_LENGTH];
 	OverrideType type;
