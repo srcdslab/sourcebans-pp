@@ -1627,12 +1627,14 @@ public void Query_UnBlockSelect(Database db, DBResultSet results, const char[] e
 				if (g_MuteType[target] > bNot)
 				{
 					dataPack.WriteCell(TYPE_UNMUTE);
-					TempUnBlock(dataPack);
+					TempUnBlock(dataPack); // Datapack closed inside.
+					return;
 				}
 				else if (g_GagType[target] > bNot)
 				{
 					dataPack.WriteCell(TYPE_UNGAG);
-					TempUnBlock(dataPack);
+					TempUnBlock(dataPack); // Datapack closed inside.
+					return;
 				}
 			}
 		}
