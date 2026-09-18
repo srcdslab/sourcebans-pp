@@ -284,8 +284,8 @@ public void OnMapEnd()
 	{
 		if (PlayerDataPack[i] != null)
 		{
-			/* Need to close reason pack */
-			delete PlayerDataPack[i];
+			CleanupBanDataPack(PlayerDataPack[i]);
+			PlayerDataPack[i] = null;
 		}
 	}
 }
@@ -871,7 +871,8 @@ public int ReasonSelected(Menu menu, MenuAction action, int param1, int param2)
 			{
 				if (PlayerDataPack[param1] != null)
 				{
-					delete PlayerDataPack[param1];
+					CleanupBanDataPack(PlayerDataPack[param1]);
+					PlayerDataPack[param1] = null;
 				}
 			}
 
@@ -1212,7 +1213,10 @@ public void VerifyInsert(Database db, DBResultSet results, const char[] error, D
 	int client = dataPack.ReadCell();
 
 	if (!IsClientConnected(client) || IsFakeClient(client))
+	{
+		CleanupBanDataPack(dataPack);
 		return;
+	}
 
 	dataPack.ReadCell(); // admin userid
 
@@ -1247,10 +1251,12 @@ public void VerifyInsert(Database db, DBResultSet results, const char[] error, D
 
 	LogAction(admin, client, "%t", "Ban Log", admin, client, time, Reason);
 
+	delete ReasonPack;
+
 	if (PlayerDataPack[admin] != INVALID_HANDLE)
 	{
-		delete PlayerDataPack[admin];
-		delete ReasonPack;
+		CleanupBanDataPack(PlayerDataPack[admin]);
+		PlayerDataPack[admin] = null;
 	}
 
 	// Kick player
