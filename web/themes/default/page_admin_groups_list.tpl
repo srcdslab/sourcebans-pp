@@ -616,6 +616,58 @@ function SbppGroupsToggleAllFlags(checked) {
 }
 
 /**
+ * Port of upstream sbpp/sourcebans-pp#1573's tri-state "select all"
+ * checkbox, adapted to this fork's two-button shape instead of a
+ * single `<input type="checkbox">`: a checkbox here would have lost
+ * the explicit Select-all/Select-none affordance the #1436 spec
+ * (admin-groups-select-all-flags.spec.ts) already locks in — including
+ * the unsigned bit-31 OR-fold guard (#1272) and the dirty-tracker-arming
+ * contract, both of which are exercised through `SbppGroupsToggleAllFlags`
+ * and would need re-proving from scratch against a checkbox's native
+ * `indeterminate` handling. Reflecting the grid's current state via each
+ * button's `aria-disabled` + dimmed style gives the same "you can see
+ * there's nothing left to do" feedback without touching that logic.
+ *
+ * Deliberately uses `aria-disabled` + a visual dim, NOT the native
+ * `disabled` attribute: `SbppGroupsToggleAllFlags` is already a safe
+ * no-op when everything is already on/off (it bails before dispatching
+ * `change`, per the comment above it), and the #1436 spec exercises a
+ * redundant "Select all" press on a fully-selected grid as a deliberate
+ * idempotency check. A `disabled` button can't receive a click at all
+ * (Playwright's actionability check would hang waiting for it), which
+ * would turn that intentional no-op assertion into a broken test.
+ * `aria-disabled` communicates the same "nothing left to do" state to
+ * assistive tech and sighted users alike while staying clickable.
+ *
+ * Call after anything that can change the grid's checked state without
+ * going through a user click on an individual checkbox: the master-detail
+ * `paintGroup()` repaint and the bootstrap call below (`change` events —
+ * manual clicks and the bulk toggle's own dispatch — are covered by the
+ * listener wired further down this file).
+ */
+function SbppGroupsRefreshSelectAllButtons() {
+    var grid = document.querySelector('[data-testid="flag-grid"]');
+    var selectAll = document.querySelector('[data-testid="flag-select-all"]');
+    var selectNone = document.querySelector('[data-testid="flag-select-none"]');
+    if (!grid || !(selectAll || selectNone)) return;
+
+    var checks = grid.querySelectorAll('input[name="flags[]"]:not([disabled])');
+    var total = checks.length;
+    var checked = grid.querySelectorAll('input[name="flags[]"]:not([disabled]):checked').length;
+
+    /** @param {Element|null} btn @param {boolean} exhausted */
+    function reflect(btn, exhausted) {
+        if (!btn) return;
+        btn.setAttribute('aria-disabled', exhausted ? 'true' : 'false');
+        /** @type {HTMLElement} */ (btn).style.opacity = exhausted ? '0.5' : '';
+        /** @type {HTMLElement} */ (btn).style.cursor = exhausted ? 'default' : '';
+    }
+
+    reflect(selectAll, total === 0 || checked === total);
+    reflect(selectNone, checked === 0);
+}
+
+/**
  * Inline replacement for the legacy `applyApiResponse` global from
  * `web/scripts/sourcebans.js` (deleted at #1123 D1, see AGENTS.md
  * "Anti-patterns"). Mirrors the shape from `page_admin_groups_add.tpl`'s
@@ -769,7 +821,12 @@ function SbppServerGroupsDelete(gid, name, type, btn) {
         if (!target || !target.matches || !target.matches('input[name="flags[]"]')) return;
 
         preview.textContent = SbppFoldFlags(grid) + ' bitmask';
+        SbppGroupsRefreshSelectAllButtons();
     });
+
+    // Reflect the SSR-rendered initial state (e.g. a group whose flags
+    // already cover every checkbox loads with "Select all" disabled).
+    SbppGroupsRefreshSelectAllButtons();
 })();
 
 // --- Client-side master-detail selection ---
@@ -852,6 +909,10 @@ function SbppServerGroupsDelete(gid, name, type, btn) {
         if (bitmaskEl) {
             bitmaskEl.textContent = flags + ' bitmask';
         }
+        // paintGroup() sets .checked directly (no change event), so the
+        // Select all/Select none disabled state needs an explicit refresh
+        // here too — the grid's `change` listener alone won't catch it.
+        SbppGroupsRefreshSelectAllButtons();
 
         var rows = list.querySelectorAll('[data-testid="group-row"]');
         for (var r = 0; r < rows.length; r++) {

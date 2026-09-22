@@ -128,6 +128,13 @@ test.describe('flow: admin groups select-all permission flags (upstream #1436)',
         await expect(selectAll).toHaveAttribute('type', 'button');
         await expect(selectNone).toHaveAttribute('type', 'button');
         await expect(bitmaskBadge).toHaveText(/^0 bitmask$/);
+        // Nothing checked yet: "Select none" starts out reflecting that
+        // there's nothing left to clear (upstream #1573 parity — see the
+        // SbppGroupsRefreshSelectAllButtons docblock for why this fork
+        // uses aria-disabled + a dimmed style instead of a real indeterminate
+        // checkbox or the native `disabled` attribute).
+        await expect(selectNone).toHaveAttribute('aria-disabled', 'true');
+        await expect(selectAll).toHaveAttribute('aria-disabled', 'false');
 
         const total = await checkboxes.count();
         expect(total).toBeGreaterThan(0);
@@ -146,9 +153,14 @@ test.describe('flow: admin groups select-all permission flags (upstream #1436)',
         }
         await expect(bitmaskBadge).toHaveText(`${expected} bitmask`);
         await expect(bitmaskBadge).not.toContainText('-');
+        // Everything is now checked: "Select all" reflects there's nothing
+        // left to add, "Select none" flips back to actionable.
+        await expect(selectAll).toHaveAttribute('aria-disabled', 'true');
+        await expect(selectNone).toHaveAttribute('aria-disabled', 'false');
 
         // Idempotent: a second press changes nothing and must not corrupt
-        // the preview.
+        // the preview. This is exactly the case aria-disabled (rather than
+        // the native `disabled` attribute) has to stay clickable for.
         await selectAll.click();
         await expect(bitmaskBadge).toHaveText(`${expected} bitmask`);
 
@@ -181,13 +193,21 @@ test.describe('flow: admin groups select-all permission flags (upstream #1436)',
         for (let i = 0; i < reloadedTotal; i++) {
             await expect(reloadedChecks.nth(i)).toBeChecked();
         }
+        // Fresh page load re-derives the same state from the SSR-checked
+        // grid, not just from in-memory JS state carried across the click.
+        const reloadedSelectAll = reloadedDetail.locator('[data-testid="flag-select-all"]');
+        const reloadedSelectNone = reloadedDetail.locator('[data-testid="flag-select-none"]');
+        await expect(reloadedSelectAll).toHaveAttribute('aria-disabled', 'true');
+        await expect(reloadedSelectNone).toHaveAttribute('aria-disabled', 'false');
 
         // ---- Select none → every checkbox cleared, badge back to 0 -------
-        await reloadedDetail.locator('[data-testid="flag-select-none"]').click();
+        await reloadedSelectNone.click();
         for (let i = 0; i < reloadedTotal; i++) {
             await expect(reloadedChecks.nth(i)).not.toBeChecked();
         }
         await expect(reloadedBadge).toHaveText(/^0 bitmask$/);
+        await expect(reloadedSelectNone).toHaveAttribute('aria-disabled', 'true');
+        await expect(reloadedSelectAll).toHaveAttribute('aria-disabled', 'false');
     });
 
     test('a bulk toggle arms the unsaved-changes guard', async ({ page }) => {
