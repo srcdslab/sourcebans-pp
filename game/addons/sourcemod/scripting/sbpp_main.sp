@@ -1636,6 +1636,18 @@ public void ProcessQueueCallback(Database db, DBResultSet results, const char[] 
 		return;
 	}
 
+	// Every row in the queue needs to be re-INSERTed against the main game
+	// panel database (DB), not the local SQLite queue DB (db, the handle
+	// this callback fired on) — the whole point of this timer is to catch
+	// up once DB is reachable again. If it still isn't, bail and retry on
+	// the next cycle instead of running DB.Format()/DB.Query() against an
+	// invalid handle, which would throw a native error.
+	if (DB == INVALID_HANDLE)
+	{
+		CreateTimer(float(ProcessQueueTime * 60), ProcessQueue);
+		return;
+	}
+
 	char auth[MAX_AUTHID_LENGTH];
 	int time;
 	int startTime;
@@ -1662,10 +1674,13 @@ public void ProcessQueueCallback(Database db, DBResultSet results, const char[] 
 		results.FetchString(7, adminIp, sizeof(adminIp));
 		if (startTime + time * 60 > GetTime() || time == 0)
 		{
-			// This ban is still valid and should be entered into the db
+			// This ban is still valid and should be entered into the db.
+			// DB.Format(), not db.Format(): db is the local SQLite queue
+			// handle this callback fired on, but %!s_bans lives on the main
+			// panel database and MySQL/SQLite escaping rules differ.
 			if (serverID == -1)
 			{
-				if (db.Format(query, sizeof(query),
+				if (DB.Format(query, sizeof(query),
 					"INSERT INTO %!s_bans (ip, authid, name, created, ends, length, reason, aid, adminIp, admin_name, sid) VALUES  \
 						('%s', '%s', '%s', %d, %d, %d, '%s', (SELECT aid FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), '%s', \
 						IFNULL((SELECT user FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), ''), \
@@ -1678,7 +1693,7 @@ public void ProcessQueueCallback(Database db, DBResultSet results, const char[] 
 			}
 			else
 			{
-				if (db.Format(query, sizeof(query),
+				if (DB.Format(query, sizeof(query),
 					"INSERT INTO %!s_bans (ip, authid, name, created, ends, length, reason, aid, adminIp, admin_name, sid) VALUES  \
 						('%s', '%s', '%s', %d, %d, %d, '%s', (SELECT aid FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), '%s', \
 						IFNULL((SELECT user FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), ''), \
@@ -1692,7 +1707,15 @@ public void ProcessQueueCallback(Database db, DBResultSet results, const char[] 
 			DataPack authPack = new DataPack();
 			authPack.WriteString(auth);
 			authPack.Reset();
-			db.Query(AddedFromSQLiteCallback, query, authPack);
+			// Same reason: this INSERT has to run against DB, the connection
+			// the query text was built for. Pre-fix this ran against `db`
+			// (SQLite), which has no %!s_bans table — every re-queued ban
+			// would fail this INSERT forever (AddedFromSQLiteCallback's
+			// `results == null` branch just re-arms the temp ban and leaves
+			// the row in the queue), so a ban recorded during a DB outage
+			// would never actually land in the permanent table once the
+			// database came back up.
+			DB.Query(AddedFromSQLiteCallback, query, authPack);
 		} else {
 			// The ban is no longer valid and should be deleted from the queue
 			if (db.Format(query, sizeof(query), "DELETE FROM queue WHERE steam_id = '%s'", auth) >= sizeof(query) - 1)
@@ -1724,8 +1747,19 @@ public void AddedFromSQLiteCallback(Database db, DBResultSet results, const char
 		}
 		SQLiteDB.Query(ErrorCheckCallback, buffer);
 
-		// They are added to main banlist, so remove the temp ban
+		// They are added to main banlist, so remove the temp ban.
+		// SBPP_BanIdentity() (called from UTIL_InsertTempBan / this
+		// callback's own failure branch below) may have created that temp
+		// ban under the engine-native / SteamID3 form instead of Steam2 —
+		// some engines (Synergy) reject "banid" with a STEAM_ string, so
+		// SBPP_BanIdentity converts to SteamID3 whenever it can. A
+		// Steam2-only RemoveBan() call would silently miss that entry, so
+		// try the SteamID3 form too; removing an identity SourceMod has no
+		// matching ban for is a harmless no-op.
 		RemoveBan(auth, BANFLAG_AUTHID);
+		char removeSteam3[MAX_AUTHID_LENGTH];
+		if (SBPP_Steam2ToSteam3(auth, removeSteam3, sizeof(removeSteam3)))
+			RemoveBan(removeSteam3, BANFLAG_AUTHID);
 
 	} else {
 		// the insert failed so we leave the record in the queue and increase our temporary ban
