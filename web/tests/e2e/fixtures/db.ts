@@ -49,6 +49,8 @@ const SEED_SERVER_GROUP_INSIDE_CONTAINER =
     '/var/www/html/web/tests/e2e/scripts/seed-server-group-e2e.php';
 const DELETE_SERVER_INSIDE_CONTAINER =
     '/var/www/html/web/tests/e2e/scripts/delete-server-e2e.php';
+const SEED_BAN_DEMO_INSIDE_CONTAINER =
+    '/var/www/html/web/tests/e2e/scripts/seed-ban-demo-e2e.php';
 const CLEAR_TEST_EMAIL_THROTTLE_INSIDE_CONTAINER =
     '/var/www/html/web/tests/e2e/scripts/clear-test-email-throttle-e2e.php';
 const SEED_SYSTEM_LOG_INSIDE_CONTAINER =
@@ -727,6 +729,74 @@ export async function deleteServerE2e(sid: number): Promise<{ sid: number; delet
         const msg = err instanceof Error ? err.message : String(err);
         throw new Error(
             `delete-server-e2e.php: malformed stdout (${msg})\nstdout:\n${trimmed}\nstderr:\n${stderr}`,
+        );
+    }
+}
+
+/**
+ * Attach a demo to an already-seeded ban via the `seed-ban-demo-e2e.php`
+ * shim: writes an opaque payload under `SB_DEMOS` and inserts the
+ * matching `:prefix_demos` row (`demtype = 'B'`) so `getdemo.php` and
+ * the banlist row / drawer "Download demo" affordances have something
+ * real to serve.
+ *
+ * Cleanup is NOT this function's job — call the `bans.remove_demo`
+ * JSON action (`Actions.BansRemoveDemo`) from the spec, which unlinks
+ * the on-disk file and deletes the `:prefix_demos` row in one step
+ * (same as the panel's own "remove demo" affordance).
+ */
+export async function seedBanDemoE2e(
+    bid: number,
+    filename: string,
+    origname: string,
+): Promise<{ bid: number; filename: string; origname: string }> {
+    const inContainer = process.env.E2E_IN_CONTAINER === '1';
+    const cmd = inContainer ? 'php' : 'docker';
+    const cmdArgs = inContainer
+        ? [SEED_BAN_DEMO_INSIDE_CONTAINER]
+        : ['compose', 'exec', '-T', 'web', 'php', SEED_BAN_DEMO_INSIDE_CONTAINER];
+
+    const child = execFile(cmd, cmdArgs, {
+        maxBuffer: 8 * 1024 * 1024,
+        cwd: inContainer ? undefined : process.cwd(),
+    });
+
+    let stdout = '';
+    let stderr = '';
+    child.stdout?.on('data', (chunk: Buffer) => { stdout += chunk.toString('utf8'); });
+    child.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString('utf8'); });
+
+    child.stdin?.write(JSON.stringify({ bid, filename, origname }));
+    child.stdin?.end();
+
+    await new Promise<void>((resolve, reject) => {
+        child.on('error', reject);
+        child.on('exit', (code) => {
+            if (code === 0) {
+                resolve();
+                return;
+            }
+            reject(new Error(
+                `seed-ban-demo-e2e.php exited ${code}\n`
+                + `stdout:\n${stdout}\nstderr:\n${stderr}`,
+            ));
+        });
+    });
+
+    const trimmed = stdout.trim();
+    if (trimmed === '') {
+        throw new Error(`seed-ban-demo-e2e.php: empty stdout\nstderr:\n${stderr}`);
+    }
+    try {
+        const parsed = JSON.parse(trimmed) as { bid: number; filename: string; origname: string };
+        if (typeof parsed.bid !== 'number' || typeof parsed.filename !== 'string') {
+            throw new Error('missing bid/filename keys');
+        }
+        return parsed;
+    } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new Error(
+            `seed-ban-demo-e2e.php: malformed stdout (${msg})\nstdout:\n${trimmed}\nstderr:\n${stderr}`,
         );
     }
 }
