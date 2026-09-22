@@ -7,6 +7,7 @@
 
     Variable contract (kept in sync by SmartyTemplateRule):
         - $permission_listmods   — gate the whole tab body.
+        - $permission_addmods    — gate the empty-state "Add mod" CTA.
         - $permission_editmods   — gate the per-row "Edit" link.
         - $permission_deletemods — gate the per-row "Delete" button.
         - $mod_count             — total mods configured.
@@ -55,7 +56,7 @@
 
     <div class="card" style="overflow:hidden">
         {if $mod_count > 0}
-            <div class="table-scroll">
+            <div class="table-scroll" data-testid="mods-table-wrap">
             <table class="table table--compact" data-testid="mods-table">
                 <thead>
                     <tr>
@@ -69,20 +70,23 @@
                     </tr>
                 </thead>
                 <tbody>
+                    {* Mod metadata is entity-encoded on store. Decode before
+                       Smarty's automatic final escape at every text and
+                       attribute sink so values stay readable without raw HTML. *}
                     {foreach from=$mod_list item=mod}
                         <tr id="mid_{$mod.mid}" data-testid="mod-row" data-id="{$mod.mid}">
                             <td>
                                 <div class="flex items-center gap-2">
-                                    <img src="images/games/{$mod.icon}"
+                                    <img src="images/games/{$mod.icon|unescape:'html'}"
                                          alt=""
                                          width="18"
                                          height="18"
                                          loading="lazy"
                                          onerror="this.style.visibility='hidden'">
-                                    <span class="font-medium">{$mod.name}</span>
+                                    <span class="font-medium">{$mod.name|unescape:'html'}</span>
                                 </div>
                             </td>
-                            <td><span class="font-mono text-xs">{$mod.modfolder}</span></td>
+                            <td><span class="font-mono text-xs">{$mod.modfolder|unescape:'html'}</span></td>
                             <td class="tabular-nums">{$mod.steam_universe}</td>
                             <td>
                                 {if $mod.enabled}
@@ -103,7 +107,7 @@
                                                href="index.php?p=admin&c=mods&o=edit&id={$mod.mid|escape:'url'}"
                                                data-testid="editmod-link"
                                                data-tooltip="Edit"
-                                               aria-label="Edit mod {$mod.name|escape}">
+                                               aria-label="Edit mod {$mod.name|unescape:'html'}">
                                                 <i data-lucide="pencil" style="width:14px;height:14px"></i>
                                             </a>
                                         {/if}
@@ -127,11 +131,11 @@
                                                     type="button"
                                                     data-action="mod-delete"
                                                     data-mid="{$mod.mid}"
-                                                    data-name="{$mod.name|escape}"
+                                                    data-name="{$mod.name|unescape:'html'}"
                                                     data-fallback-href="index.php?p=admin&amp;c=mods"
                                                     data-testid="deletemod-btn"
                                                     data-tooltip="Delete"
-                                                    aria-label="Delete mod {$mod.name|escape}">
+                                                    aria-label="Delete mod {$mod.name|unescape:'html'}">
                                                 <i data-lucide="trash-2" style="width:14px;height:14px;color:var(--danger)"></i>
                                             </button>
                                         {/if}
@@ -151,17 +155,19 @@
                 {foreach from=$mod_list item=mod}
                     <div class="mods-list-card" data-testid="mods-list-card" data-id="{$mod.mid}">
                         <div class="mods-list-card__body flex items-center gap-3">
-                            <img src="images/games/{$mod.icon}"
+                            <img src="images/games/{$mod.icon|unescape:'html'}"
                                  alt=""
                                  width="28"
                                  height="28"
                                  loading="lazy"
                                  onerror="this.style.visibility='hidden'">
                             <div style="flex:1;min-width:0">
-                                <div class="font-medium text-sm truncate">{$mod.name}</div>
-                                <div class="text-xs text-muted truncate" style="margin-top:0.125rem">
-                                    <span class="font-mono">{$mod.modfolder}</span>
-                                    · SU {$mod.steam_universe}
+                                <div class="font-medium text-sm truncate">{$mod.name|unescape:'html'}</div>
+                                <div class="flex items-center gap-2 text-xs text-muted" style="margin-top:0.125rem">
+                                    <span class="font-mono truncate"
+                                          style="min-width:0"
+                                          title="{$mod.modfolder|unescape:'html'}">{$mod.modfolder|unescape:'html'}</span>
+                                    <span class="tabular-nums" style="flex-shrink:0">SU {$mod.steam_universe}</span>
                                 </div>
                                 <div style="margin-top:0.35rem">
                                     {if $mod.enabled}
@@ -179,7 +185,7 @@
                                    href="index.php?p=admin&amp;c=mods&amp;o=edit&amp;id={$mod.mid|escape:'url'}"
                                    data-testid="editmod-link-mobile"
                                    data-tooltip="Edit"
-                                   aria-label="Edit mod {$mod.name|escape}">
+                                   aria-label="Edit mod {$mod.name|unescape:'html'}">
                                     <i data-lucide="pencil" style="width:14px;height:14px"></i>
                                 </a>
                             {/if}
@@ -188,11 +194,11 @@
                                         type="button"
                                         data-action="mod-delete"
                                         data-mid="{$mod.mid}"
-                                        data-name="{$mod.name|escape}"
+                                        data-name="{$mod.name|unescape:'html'}"
                                         data-fallback-href="index.php?p=admin&amp;c=mods"
                                         data-testid="deletemod-btn-mobile"
                                         data-tooltip="Delete"
-                                        aria-label="Delete mod {$mod.name|escape}">
+                                        aria-label="Delete mod {$mod.name|unescape:'html'}">
                                     <i data-lucide="trash-2" style="width:14px;height:14px;color:var(--danger)"></i>
                                 </button>
                             {/if}
@@ -202,8 +208,22 @@
                 {/foreach}
             </div>
         {else}
-            <div class="card__body">
-                <p class="text-muted">No mods configured yet.</p>
+            <div class="empty-state" data-testid="mods-empty" data-filtered="false">
+                <div class="empty-state__icon" aria-hidden="true">
+                    <i data-lucide="puzzle"></i>
+                </div>
+                <h2 class="empty-state__title">No mods configured yet</h2>
+                <p class="empty-state__body">Add a game mod before assigning it to bans or servers.</p>
+                {if $permission_addmods}
+                    <div class="empty-state__actions">
+                        <a class="btn btn--primary btn--sm"
+                           href="index.php?p=admin&amp;c=mods&amp;section=add"
+                           data-testid="mods-empty-add">
+                            <i data-lucide="plus"></i>
+                            Add mod
+                        </a>
+                    </div>
+                {/if}
             </div>
         {/if}
     </div>
