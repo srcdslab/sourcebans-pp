@@ -733,23 +733,7 @@ export async function deleteServerE2e(sid: number): Promise<{ sid: number; delet
     }
 }
 
-/**
- * Attach a demo to an already-seeded ban via the `seed-ban-demo-e2e.php`
- * shim: writes an opaque payload under `SB_DEMOS` and inserts the
- * matching `:prefix_demos` row (`demtype = 'B'`) so `getdemo.php` and
- * the banlist row / drawer "Download demo" affordances have something
- * real to serve.
- *
- * Cleanup is NOT this function's job — call the `bans.remove_demo`
- * JSON action (`Actions.BansRemoveDemo`) from the spec, which unlinks
- * the on-disk file and deletes the `:prefix_demos` row in one step
- * (same as the panel's own "remove demo" affordance).
- */
-export async function seedBanDemoE2e(
-    bid: number,
-    filename: string,
-    origname: string,
-): Promise<{ bid: number; filename: string; origname: string }> {
+async function runBanDemoShim(payload: Record<string, unknown>): Promise<unknown> {
     const inContainer = process.env.E2E_IN_CONTAINER === '1';
     const cmd = inContainer ? 'php' : 'docker';
     const cmdArgs = inContainer
@@ -766,7 +750,7 @@ export async function seedBanDemoE2e(
     child.stdout?.on('data', (chunk: Buffer) => { stdout += chunk.toString('utf8'); });
     child.stderr?.on('data', (chunk: Buffer) => { stderr += chunk.toString('utf8'); });
 
-    child.stdin?.write(JSON.stringify({ bid, filename, origname }));
+    child.stdin?.write(JSON.stringify(payload));
     child.stdin?.end();
 
     await new Promise<void>((resolve, reject) => {
@@ -788,17 +772,44 @@ export async function seedBanDemoE2e(
         throw new Error(`seed-ban-demo-e2e.php: empty stdout\nstderr:\n${stderr}`);
     }
     try {
-        const parsed = JSON.parse(trimmed) as { bid: number; filename: string; origname: string };
-        if (typeof parsed.bid !== 'number' || typeof parsed.filename !== 'string') {
-            throw new Error('missing bid/filename keys');
-        }
-        return parsed;
+        return JSON.parse(trimmed);
     } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         throw new Error(
             `seed-ban-demo-e2e.php: malformed stdout (${msg})\nstdout:\n${trimmed}\nstderr:\n${stderr}`,
         );
     }
+}
+
+/**
+ * Attach a demo to an already-seeded ban via the `seed-ban-demo-e2e.php`
+ * shim: writes an opaque payload under `SB_DEMOS` and inserts the
+ * matching `:prefix_demos` row (`demtype = 'B'`) so `getdemo.php` and
+ * the banlist row / drawer "Download demo" affordances have something
+ * real to serve. Pair with `removeBanDemoE2e` in a `finally`.
+ */
+export async function seedBanDemoE2e(
+    bid: number,
+    filename: string,
+    origname: string,
+): Promise<{ bid: number; filename: string; origname: string }> {
+    const parsed = await runBanDemoShim({ bid, filename, origname }) as {
+        bid?: unknown; filename?: unknown; origname: string;
+    };
+    if (typeof parsed.bid !== 'number' || typeof parsed.filename !== 'string') {
+        throw new Error(`seed-ban-demo-e2e.php: missing bid/filename keys in ${JSON.stringify(parsed)}`);
+    }
+    return parsed as { bid: number; filename: string; origname: string };
+}
+
+/**
+ * Remove a demo attached by `seedBanDemoE2e` (file + `:prefix_demos`
+ * row). Goes through the shim, not `bans.remove_demo`: the web server
+ * usually can't unlink files the CLI shim wrote into a bind-mounted
+ * `web/demos/`, so the JSON action fails there.
+ */
+export async function removeBanDemoE2e(bid: number): Promise<void> {
+    await runBanDemoShim({ bid, remove: true });
 }
 
 async function runAnnouncementsHelper(

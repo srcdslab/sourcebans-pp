@@ -38,14 +38,19 @@
  * filename.
  *
  * Caller responsibility: the bid must already exist (seed the ban via
- * `seedBanViaApi` first). Cleanup: call the `bans.remove_demo` JSON
- * action (`Actions.BansRemoveDemo`) from the spec — it unlinks the
- * on-disk file AND deletes the `:prefix_demos` row in one step, same
- * as the panel's own "remove demo" affordance.
+ * `seedBanViaApi` first).
+ *
+ * Cleanup: pipe `{"bid":42,"remove":true}` to the same shim. It unlinks
+ * the on-disk file and deletes the `:prefix_demos` row. Cleanup runs
+ * here rather than through `bans.remove_demo` because this shim writes
+ * the file as the CLI user, while the web server (www-data) usually
+ * can't unlink from a bind-mounted `web/demos/` owned by the host user,
+ * so the JSON action fails with "Unable to delete demo file from disk."
  *
  * Output on stdout (single JSON line):
  *
  *   {"bid":42,"filename":"...","origname":"evidence.dem"}
+ *   {"bid":42,"removed":true}                         (remove mode)
  */
 
 declare(strict_types=1);
@@ -89,6 +94,24 @@ $bid = (int) ($decoded['bid'] ?? 0);
 if ($bid <= 0) {
     fwrite(STDERR, "seed-ban-demo-e2e.php: missing or invalid `bid` in payload.\n");
     exit(2);
+}
+
+if (!empty($decoded['remove'])) {
+    $row = $GLOBALS['PDO']
+        ->query("SELECT `filename` FROM `:prefix_demos` WHERE `demid` = ? AND `demtype` = 'B'")
+        ->single([$bid]);
+    if ($row) {
+        $onDisk = basename((string) $row['filename']);
+        $path   = SB_DEMOS . DIRECTORY_SEPARATOR . $onDisk;
+        if ($onDisk !== '' && is_file($path) && !unlink($path)) {
+            fwrite(STDERR, "seed-ban-demo-e2e.php: failed to unlink $path.\n");
+            exit(2);
+        }
+        $GLOBALS['PDO']->query("DELETE FROM `:prefix_demos` WHERE `demid` = ? AND `demtype` = 'B'");
+        $GLOBALS['PDO']->execute([$bid]);
+    }
+    fwrite(STDOUT, json_encode(['bid' => $bid, 'removed' => (bool) $row]) . "\n");
+    exit(0);
 }
 
 $filename = basename((string) ($decoded['filename'] ?? ''));

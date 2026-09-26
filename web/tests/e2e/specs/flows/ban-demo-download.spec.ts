@@ -26,7 +26,7 @@ import { createHash } from 'node:crypto';
 
 import { expect, test } from '../../fixtures/auth.ts';
 import { expectNoCriticalA11y } from '../../fixtures/axe.ts';
-import { seedBanDemoE2e } from '../../fixtures/db.ts';
+import { removeBanDemoE2e, seedBanDemoE2e } from '../../fixtures/db.ts';
 import { seedBanViaApi } from '../../fixtures/seeds.ts';
 
 test.describe('flow: ban demo download (#1554)', () => {
@@ -81,18 +81,10 @@ test.describe('flow: ban demo download (#1554)', () => {
             const download = await downloadPromise;
             expect(download.suggestedFilename()).toBe(originalName);
         } finally {
-            // bans.remove_demo unlinks the on-disk payload AND deletes the
-            // :prefix_demos row in one step — same helper the panel's own
-            // "remove demo" affordance uses.
-            await page.evaluate(async (bid) => {
-                const w = window as unknown as {
-                    sb?: { api?: { call: (action: string, params: Record<string, unknown>) => Promise<unknown> } };
-                    Actions?: Record<string, string>;
-                };
-                if (w.sb?.api && w.Actions?.BansRemoveDemo) {
-                    await w.sb.api.call(w.Actions.BansRemoveDemo, { bid });
-                }
-            }, seeded.bid).catch(() => undefined);
+            // Through the shim, not bans.remove_demo: www-data usually
+            // can't unlink the CLI-written file from a bind-mounted
+            // web/demos/, so the JSON action would fail (silently here).
+            await removeBanDemoE2e(seeded.bid);
         }
     });
 });
