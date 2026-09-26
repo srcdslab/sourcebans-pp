@@ -78,7 +78,8 @@ test.describe('flow: punishment comment actions (#1544)', () => {
             (response) =>
                 response.url().includes('api.php')
                 && response.request().method() === 'POST'
-                && response.status() === 200,
+                && response.status() === 200
+                && (response.request().postData() ?? '').includes('"bans.add_comment"'),
         );
         await composer.locator('button[type="submit"]').click();
         const addEnvelope = await (await addResponsePromise).json();
@@ -138,7 +139,8 @@ test.describe('flow: punishment comment actions (#1544)', () => {
             (response) =>
                 response.url().includes('api.php')
                 && response.request().method() === 'POST'
-                && response.status() === 200,
+                && response.status() === 200
+                && (response.request().postData() ?? '').includes('"bans.add_comment"'),
         );
         await composer.locator('button[type="submit"]').click();
         const addEnvelope = await (await addResponsePromise).json();
