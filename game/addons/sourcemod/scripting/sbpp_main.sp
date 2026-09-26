@@ -2562,7 +2562,11 @@ public int Native_SBBanPlayer(Handle plugin, int numParams)
 		}
 	}
 
-	PrepareBan(client, target, time, reason, GetClientUserId(target));
+	// GetClientUserId() throws on an invalid/disconnected index; pass 0 so
+	// PrepareBan()'s own target guard turns it into a silent no-op, as the
+	// native did before userids were threaded through.
+	int targetUserId = (target > 0 && target <= MaxClients && IsClientConnected(target)) ? GetClientUserId(target) : 0;
+	PrepareBan(client, target, time, reason, targetUserId);
 	return true;
 }
 
@@ -3030,7 +3034,10 @@ stock void UTIL_InsertTempBan(int time, const char[] name, const char[] auth, co
 	// we add a temporary ban and then add the record into the queue to be processed when the database is available
 	char kickMessage[512] = "";
 
-	if (IsClientInGame(client))
+	// client is 0 when the target already left (the usual case here: the
+	// target is kicked right after CreateBan()), and IsClientInGame(0)
+	// raises a native error that would abort before the queue INSERT.
+	if (client > 0 && IsClientInGame(client))
 	{
 		char length[32];
 		if(time == 0)
