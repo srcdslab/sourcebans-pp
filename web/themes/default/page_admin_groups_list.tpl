@@ -613,6 +613,10 @@ function SbppGroupsToggleAllFlags(checked) {
 
     var preview = document.querySelector('[data-testid="flag-bitmask"]');
     if (preview) preview.textContent = SbppFoldFlags(grid) + ' bitmask';
+    // The `change` above targets the grid itself, which the grid listener
+    // filters out (it only reacts to `input[name="flags[]"]` targets), so
+    // refresh the Select all / Select none state explicitly here.
+    SbppGroupsRefreshSelectAllButtons();
 }
 
 /**
@@ -640,10 +644,11 @@ function SbppGroupsToggleAllFlags(checked) {
  * assistive tech and sighted users alike while staying clickable.
  *
  * Call after anything that can change the grid's checked state without
- * going through a user click on an individual checkbox: the master-detail
- * `paintGroup()` repaint and the bootstrap call below (`change` events —
- * manual clicks and the bulk toggle's own dispatch — are covered by the
- * listener wired further down this file).
+ * going through a user click on an individual checkbox: the bulk toggle
+ * (`SbppGroupsToggleAllFlags` dispatches `change` on the grid itself,
+ * which the grid listener ignores), the master-detail `paintGroup()`
+ * repaint, and the bootstrap call below. Manual clicks on a checkbox are
+ * covered by the `change` listener wired further down this file.
  */
 function SbppGroupsRefreshSelectAllButtons() {
     var grid = document.querySelector('[data-testid="flag-grid"]');
