@@ -104,6 +104,7 @@ bool
 int
 	g_BanTarget[MAXPLAYERS + 1] =  { -1, ... }
 	, g_BanTime[MAXPLAYERS + 1] =  { -1, ... }
+	, g_BanTargetUserId[MAXPLAYERS + 1] =  { -1, ... }
 	, AutoAdd = 0
 	, curLoading
 	, serverID = -1
@@ -284,8 +285,8 @@ public void OnMapEnd()
 	{
 		if (PlayerDataPack[i] != null)
 		{
-			/* Need to close reason pack */
-			delete PlayerDataPack[i];
+			CleanupBanDataPack(PlayerDataPack[i]);
+			PlayerDataPack[i] = null;
 		}
 	}
 }
@@ -305,6 +306,7 @@ public void OnClientDisconnect(int client)
 	if (PlayerRecheck[client] != INVALID_HANDLE)
 	{
 		delete PlayerRecheck[client];
+		PlayerRecheck[client] = INVALID_HANDLE;
 	}
 
 	FormatEx(g_sSteamIDs[client], sizeof(g_sSteamIDs[]), "\0");
@@ -418,7 +420,7 @@ public Action ChatHook(int client, int args)
 		}
 
 		// ban him!
-		PrepareBan(client, g_BanTarget[client], g_BanTime[client], reason);
+		PrepareBan(client, g_BanTarget[client], g_BanTime[client], reason, g_BanTargetUserId[client]);
 
 		// block the reason to be sent in chat
 		return Plugin_Handled;
@@ -503,6 +505,7 @@ public Action CommandBan(int client, int args)
 
 	g_BanTarget[client] = target;
 	g_BanTime[client] = time;
+	g_BanTargetUserId[client] = GetClientUserId(target);
 
 	CreateBan(client, target, time, reason);
 	return Plugin_Handled;
@@ -580,9 +583,13 @@ public Action CommandBanIp(int client, int args)
 		return Plugin_Handled;
 	}
 
-	// Pack everything into a data pack so we can retain it
+	// Pack everything into a data pack so we can retain it. Store the admin's
+	// userid rather than the raw client index: SourceMod reuses freed client
+	// slots immediately, and this pack survives an async DB round trip, so a
+	// bare index could end up pointing at an unrelated player who connected
+	// into the same slot while the query was in flight.
 	DataPack dataPack = new DataPack();
-	dataPack.WriteCell(client);
+	dataPack.WriteCell(client == 0 ? 0 : GetClientUserId(client));
 	dataPack.WriteCell(minutes);
 	dataPack.WriteString(Arguments[len]);
 	dataPack.WriteString(g_sPlayerIP[target]);
@@ -646,9 +653,10 @@ public Action CommandUnban(int client, int args)
 		}
 	}
 
-	// Pack everything into a data pack so we can retain it
+	// Pack everything into a data pack so we can retain it. Store the admin's
+	// userid, not the raw client index — see CommandBanIp for why.
 	DataPack dataPack = new DataPack();
-	dataPack.WriteCell(client);
+	dataPack.WriteCell(client == 0 ? 0 : GetClientUserId(client));
 	dataPack.WriteString(Arguments[len]); // Reason
 	dataPack.WriteString(arg); // Steamid - IP
 	dataPack.WriteString(adminAuth); // Admin SteamID
@@ -731,9 +739,10 @@ public Action CommandAddBan(int client, int args)
 		return Plugin_Handled;
 	}
 
-	// Pack everything into a data pack so we can retain it
+	// Pack everything into a data pack so we can retain it. Store the admin's
+	// userid, not the raw client index — see CommandBanIp for why.
 	DataPack dataPack = new DataPack();
-	dataPack.WriteCell(client);
+	dataPack.WriteCell(client == 0 ? 0 : GetClientUserId(client));
 	dataPack.WriteCell(minutes);
 	dataPack.WriteString(arg_string[total_len]);
 	dataPack.WriteString(authid);
@@ -862,7 +871,7 @@ public int ReasonSelected(Menu menu, MenuAction action, int param1, int param2)
 			}
 
 			else if (g_BanTarget[param1] != -1 && g_BanTime[param1] != -1)
-				PrepareBan(param1, g_BanTarget[param1], g_BanTime[param1], info);
+				PrepareBan(param1, g_BanTarget[param1], g_BanTime[param1], info, g_BanTargetUserId[param1]);
 		}
 
 		case MenuAction_Cancel:
@@ -871,7 +880,8 @@ public int ReasonSelected(Menu menu, MenuAction action, int param1, int param2)
 			{
 				if (PlayerDataPack[param1] != null)
 				{
-					delete PlayerDataPack[param1];
+					CleanupBanDataPack(PlayerDataPack[param1]);
+					PlayerDataPack[param1] = null;
 				}
 			}
 
@@ -895,7 +905,7 @@ public int HackingSelected(Menu menu, MenuAction action, int param1, int param2)
 			menu.GetItem(param2, key, sizeof(key), _, info, sizeof(info));
 
 			if (g_BanTarget[param1] != -1 && g_BanTime[param1] != -1)
-				PrepareBan(param1, g_BanTarget[param1], g_BanTime[param1], info);
+				PrepareBan(param1, g_BanTarget[param1], g_BanTime[param1], info, g_BanTargetUserId[param1]);
 		}
 
 		case MenuAction_Cancel:
@@ -973,6 +983,7 @@ public int MenuHandler_BanPlayerList(Menu menu, MenuAction action, int param1, i
 			else
 			{
 				g_BanTarget[param1] = target;
+				g_BanTargetUserId[param1] = userid;
 				DisplayBanTimeMenu(param1);
 			}
 		}
@@ -1184,7 +1195,7 @@ public void VerifyInsert(Database db, DBResultSet results, const char[] error, D
 
 		int admin = dataPack.ReadCell();
 		dataPack.ReadCell(); // target
-		dataPack.ReadCell(); // admin userid
+		int adminUserId = dataPack.ReadCell();
 		dataPack.ReadCell(); // target userid
 		int time = dataPack.ReadCell();
 
@@ -1203,6 +1214,15 @@ public void VerifyInsert(Database db, DBResultSet results, const char[] error, D
 		dataPack.Reset();
 		reasonPack.Reset();
 
+		// Re-resolve the admin from their userid: this branch only runs after
+		// the primary-DB INSERT failed asynchronously, so the admin's client
+		// slot may have been recycled by a different player in the meantime.
+		admin = adminUserId == 0 ? 0 : GetClientOfUserId(adminUserId);
+
+		if (PlayerDataPack[admin] != null)
+		{
+			CleanupBanDataPack(PlayerDataPack[admin]);
+		}
 		PlayerDataPack[admin] = null;
 		UTIL_InsertTempBan(time, name, auth, ip, reason, adminAuth, adminIp, dataPack);
 		return;
@@ -1212,9 +1232,18 @@ public void VerifyInsert(Database db, DBResultSet results, const char[] error, D
 	int client = dataPack.ReadCell();
 
 	if (!IsClientConnected(client) || IsFakeClient(client))
+	{
+		CleanupBanDataPack(dataPack);
 		return;
+	}
 
-	dataPack.ReadCell(); // admin userid
+	// Re-resolve the admin from their userid: the ban INSERT this callback
+	// reports on ran asynchronously, so the admin's client slot may have been
+	// recycled by a different player while it was in flight. Without this,
+	// ShowActivity2()/LogAction() below and the PlayerDataPack[admin] cleanup
+	// would act on (or clobber) whoever now happens to occupy that slot.
+	int adminUserId = dataPack.ReadCell();
+	admin = adminUserId == 0 ? 0 : GetClientOfUserId(adminUserId);
 
 	int UserId = dataPack.ReadCell();
 	int time = dataPack.ReadCell();
@@ -1247,10 +1276,12 @@ public void VerifyInsert(Database db, DBResultSet results, const char[] error, D
 
 	LogAction(admin, client, "%t", "Ban Log", admin, client, time, Reason);
 
+	delete ReasonPack;
+
 	if (PlayerDataPack[admin] != INVALID_HANDLE)
 	{
-		delete PlayerDataPack[admin];
-		delete ReasonPack;
+		CleanupBanDataPack(PlayerDataPack[admin]);
+		PlayerDataPack[admin] = null;
 	}
 
 	// Kick player
@@ -1273,7 +1304,8 @@ public void SelectBanIpCallback(Database db, DBResultSet results, const char[] e
 	char targetName[MAX_NAME_LENGTH], targetAuth[MAX_AUTHID_LENGTH];
 
 	dataPack.Reset();
-	admin = dataPack.ReadCell();
+	int adminUserId = dataPack.ReadCell();
+	admin = adminUserId == 0 ? 0 : GetClientOfUserId(adminUserId);
 	minutes = dataPack.ReadCell();
 	dataPack.ReadString(reason, sizeof(reason));
 	dataPack.ReadString(ip, sizeof(ip));
@@ -1342,11 +1374,12 @@ public void InsertBanIpCallback(Database db, DBResultSet results, const char[] e
 	if (dataPack != null)
 	{
 		dataPack.Reset();
-		admin = dataPack.ReadCell();
+		int adminUserId = dataPack.ReadCell();
+		admin = adminUserId == 0 ? 0 : GetClientOfUserId(adminUserId);
 		minutes = dataPack.ReadCell();
 		dataPack.ReadString(reason, sizeof(reason));
 		dataPack.ReadString(targetIP, sizeof(targetIP));
-		
+
 		for(int i = 1; i <= MaxClients; i++)
 		{
 			if(!IsClientInGame(i) || IsFakeClient(i))
@@ -1402,7 +1435,8 @@ public void SelectUnbanCallback(Database db, DBResultSet results, const char[] e
 	char reason[128];
 
 	dataPack.Reset();
-	admin = dataPack.ReadCell();
+	int adminUserId = dataPack.ReadCell();
+	admin = adminUserId == 0 ? 0 : GetClientOfUserId(adminUserId);
 	dataPack.ReadString(reason, sizeof(reason)); // Reason
 	dataPack.ReadString(arg, sizeof(arg)); // SteamID - IP
 	dataPack.ReadString(adminAuth, sizeof(adminAuth)); // Admin SteamID
@@ -1449,6 +1483,10 @@ public void SelectUnbanCallback(Database db, DBResultSet results, const char[] e
 
 		db.Query(InsertUnbanCallback, query, dataPack);
 	}
+	else
+	{
+		delete dataPack;
+	}
 	return;
 }
 
@@ -1462,7 +1500,8 @@ public void InsertUnbanCallback(Database db, DBResultSet results, const char[] e
 	if (dataPack != null)
 	{
 		dataPack.Reset();
-		admin = dataPack.ReadCell();
+		int adminUserId = dataPack.ReadCell();
+		admin = adminUserId == 0 ? 0 : GetClientOfUserId(adminUserId);
 		dataPack.ReadString(reason, sizeof(reason)); // Reason
 		dataPack.ReadString(arg, sizeof(arg)); // SteamID - IP
 		delete dataPack;
@@ -1497,7 +1536,8 @@ public void SelectAddbanCallback(Database db, DBResultSet results, const char[] 
 	char reason[128];
 
 	dataPack.Reset();
-	admin = dataPack.ReadCell();
+	int adminUserId = dataPack.ReadCell();
+	admin = adminUserId == 0 ? 0 : GetClientOfUserId(adminUserId);
 	minutes = dataPack.ReadCell();
 	dataPack.ReadString(reason, sizeof(reason));
 	dataPack.ReadString(authid, sizeof(authid));
@@ -1561,7 +1601,8 @@ public void InsertAddbanCallback(Database db, DBResultSet results, const char[] 
 	char reason[128];
 
 	dataPack.Reset();
-	admin = dataPack.ReadCell();
+	int adminUserId = dataPack.ReadCell();
+	admin = adminUserId == 0 ? 0 : GetClientOfUserId(adminUserId);
 	minutes = dataPack.ReadCell();
 	dataPack.ReadString(reason, sizeof(reason));
 	dataPack.ReadString(authid, sizeof(authid));
@@ -1592,6 +1633,21 @@ public void ProcessQueueCallback(Database db, DBResultSet results, const char[] 
 	if (results == null)
 	{
 		LogToFile(logFile, "Failed to retrieve queued bans from sqlite database, %s", error);
+		// Re-arm like every other exit path, otherwise a single failed
+		// SELECT stops queue processing until the next plugin load.
+		CreateTimer(float(ProcessQueueTime * 60), ProcessQueue);
+		return;
+	}
+
+	// Every row in the queue needs to be re-INSERTed against the main game
+	// panel database (DB), not the local SQLite queue DB (db, the handle
+	// this callback fired on) — the whole point of this timer is to catch
+	// up once DB is reachable again. If it still isn't, bail and retry on
+	// the next cycle instead of running DB.Format()/DB.Query() against an
+	// invalid handle, which would throw a native error.
+	if (DB == INVALID_HANDLE)
+	{
+		CreateTimer(float(ProcessQueueTime * 60), ProcessQueue);
 		return;
 	}
 
@@ -1621,10 +1677,13 @@ public void ProcessQueueCallback(Database db, DBResultSet results, const char[] 
 		results.FetchString(7, adminIp, sizeof(adminIp));
 		if (startTime + time * 60 > GetTime() || time == 0)
 		{
-			// This ban is still valid and should be entered into the db
+			// This ban is still valid and should be entered into the db.
+			// DB.Format(), not db.Format(): db is the local SQLite queue
+			// handle this callback fired on, but %!s_bans lives on the main
+			// panel database and MySQL/SQLite escaping rules differ.
 			if (serverID == -1)
 			{
-				if (db.Format(query, sizeof(query),
+				if (DB.Format(query, sizeof(query),
 					"INSERT INTO %!s_bans (ip, authid, name, created, ends, length, reason, aid, adminIp, admin_name, sid) VALUES  \
 						('%s', '%s', '%s', %d, %d, %d, '%s', (SELECT aid FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), '%s', \
 						IFNULL((SELECT user FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), ''), \
@@ -1637,7 +1696,7 @@ public void ProcessQueueCallback(Database db, DBResultSet results, const char[] 
 			}
 			else
 			{
-				if (db.Format(query, sizeof(query),
+				if (DB.Format(query, sizeof(query),
 					"INSERT INTO %!s_bans (ip, authid, name, created, ends, length, reason, aid, adminIp, admin_name, sid) VALUES  \
 						('%s', '%s', '%s', %d, %d, %d, '%s', (SELECT aid FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), '%s', \
 						IFNULL((SELECT user FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), ''), \
@@ -1651,7 +1710,15 @@ public void ProcessQueueCallback(Database db, DBResultSet results, const char[] 
 			DataPack authPack = new DataPack();
 			authPack.WriteString(auth);
 			authPack.Reset();
-			db.Query(AddedFromSQLiteCallback, query, authPack);
+			// Same reason: this INSERT has to run against DB, the connection
+			// the query text was built for. Pre-fix this ran against `db`
+			// (SQLite), which has no %!s_bans table — every re-queued ban
+			// would fail this INSERT forever (AddedFromSQLiteCallback's
+			// `results == null` branch just re-arms the temp ban and leaves
+			// the row in the queue), so a ban recorded during a DB outage
+			// would never actually land in the permanent table once the
+			// database came back up.
+			DB.Query(AddedFromSQLiteCallback, query, authPack);
 		} else {
 			// The ban is no longer valid and should be deleted from the queue
 			if (db.Format(query, sizeof(query), "DELETE FROM queue WHERE steam_id = '%s'", auth) >= sizeof(query) - 1)
@@ -1683,8 +1750,19 @@ public void AddedFromSQLiteCallback(Database db, DBResultSet results, const char
 		}
 		SQLiteDB.Query(ErrorCheckCallback, buffer);
 
-		// They are added to main banlist, so remove the temp ban
+		// They are added to main banlist, so remove the temp ban.
+		// SBPP_BanIdentity() (called from UTIL_InsertTempBan / this
+		// callback's own failure branch below) may have created that temp
+		// ban under the engine-native / SteamID3 form instead of Steam2 —
+		// some engines (Synergy) reject "banid" with a STEAM_ string, so
+		// SBPP_BanIdentity converts to SteamID3 whenever it can. A
+		// Steam2-only RemoveBan() call would silently miss that entry, so
+		// try the SteamID3 form too; removing an identity SourceMod has no
+		// matching ban for is a harmless no-op.
 		RemoveBan(auth, BANFLAG_AUTHID);
+		char removeSteam3[MAX_AUTHID_LENGTH];
+		if (SBPP_Steam2ToSteam3(auth, removeSteam3, sizeof(removeSteam3)))
+			RemoveBan(removeSteam3, BANFLAG_AUTHID);
 
 	} else {
 		// the insert failed so we leave the record in the queue and increase our temporary ban
@@ -2487,7 +2565,11 @@ public int Native_SBBanPlayer(Handle plugin, int numParams)
 		}
 	}
 
-	PrepareBan(client, target, time, reason);
+	// GetClientUserId() throws on an invalid/disconnected index; pass 0 so
+	// PrepareBan()'s own target guard turns it into a silent no-op, as the
+	// native did before userids were threaded through.
+	int targetUserId = (target > 0 && target <= MaxClients && IsClientConnected(target)) ? GetClientUserId(target) : 0;
+	PrepareBan(client, target, time, reason, targetUserId);
 	return true;
 }
 
@@ -2852,6 +2934,10 @@ public bool CreateBan(int client, int target, int time, const char[] reason)
 		}
 	} else {
 		// We need a reason so offer the administrator a menu of reasons
+		if (PlayerDataPack[admin] != null)
+		{
+			CleanupBanDataPack(PlayerDataPack[admin]);
+		}
 		PlayerDataPack[admin] = dataPack;
 		DisplayMenu(ReasonMenuHandle, admin, MENU_TIME_FOREVER);
 		ReplyToCommand(admin, "%s%t", Prefix, "Check Menu");
@@ -2927,13 +3013,20 @@ stock void UTIL_InsertBan(int time, const char[] Name, const char[] Authid, cons
 
 stock void UTIL_InsertTempBan(int time, const char[] name, const char[] auth, const char[] ip, const char[] reason, const char[] adminAuth, const char[] adminIp, DataPack dataPack)
 {
-	int admin = dataPack.ReadCell(); // admin index
+	dataPack.ReadCell(); // admin index (unused; admin is resolved below via userid)
+	dataPack.ReadCell(); // target index (unused; client is resolved below via userid)
 
-	int client = dataPack.ReadCell();
+	int adminUserId = dataPack.ReadCell();
+	int targetUserId = dataPack.ReadCell();
+	dataPack.ReadCell(); // time (already provided as a parameter)
 
-	dataPack.ReadCell(); // admin userid
-	dataPack.ReadCell(); // target userid
-	dataPack.ReadCell(); // time
+	// This can be reached asynchronously (VerifyInsert's primary-DB-failure
+	// branch), so re-resolve both parties from their userid rather than the
+	// raw client index captured when the ban was first issued: SourceMod can
+	// reuse a freed slot before this fallback fires, and IsClientInGame()
+	// alone can't tell "still the same player" from "someone else now".
+	int admin = adminUserId == 0 ? 0 : GetClientOfUserId(adminUserId);
+	int client = targetUserId == 0 ? 0 : GetClientOfUserId(targetUserId);
 
 	DataPack reasonPack = view_as<DataPack>(dataPack.ReadCell());
 
@@ -2944,7 +3037,10 @@ stock void UTIL_InsertTempBan(int time, const char[] name, const char[] auth, co
 	// we add a temporary ban and then add the record into the queue to be processed when the database is available
 	char kickMessage[512] = "";
 
-	if (IsClientInGame(client))
+	// client is 0 when the target already left (the usual case here: the
+	// target is kicked right after CreateBan()), and IsClientInGame(0)
+	// raises a native error that would abort before the queue INSERT.
+	if (client > 0 && IsClientInGame(client))
 	{
 		char length[32];
 		if(time == 0)
@@ -3079,13 +3175,20 @@ stock void InsertServerInfo()
     }
 }
 
-stock void PrepareBan(int client, int target, int time, char[] reason)
+stock void PrepareBan(int client, int target, int time, char[] reason, int targetUserId)
 {
 	#if defined DEBUG
 	LogToFile(logFile, "PrepareBan()");
 	#endif
 
-	if (!target || !IsClientInGame(target))
+	// target is a client index cached across an admin's menu navigation
+	// (target list -> time -> reason), which can span several seconds of
+	// real time. If the original target disconnected in that window,
+	// SourceMod may have already reassigned their slot to a newly
+	// connecting player; IsClientInGame() alone can't tell the two apart.
+	// Re-check the userid captured at selection time to make sure we are
+	// still about to ban the player the admin actually picked.
+	if (!target || !IsClientInGame(target) || GetClientUserId(target) != targetUserId)
 		return;
 
 	char bannedSite[512];
@@ -3171,10 +3274,16 @@ stock void ParseBackupConfig_Overrides()
 	KeyValues hKV = new KeyValues("SB_Overrides");
 
 	if (!hKV.ImportFromFile(overridesLoc))
+	{
+		delete hKV;
 		return;
+	}
 
 	if (!hKV.GotoFirstSubKey())
+	{
+		delete hKV;
 		return;
+	}
 
 	char sSection[16], sFlags[32], sName[MAX_NAME_LENGTH];
 	OverrideType type;
