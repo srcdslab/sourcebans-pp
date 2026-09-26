@@ -331,11 +331,15 @@ function PruneBans(): void
     // that happens to match both its Steam ID and IP. Keeping the arms
     // separate lets MariaDB probe type_authid / type_ip directly for each
     // submission instead of materialising all active identifiers first.
+    // No FORCE INDEX: the (type, authid) / (type, ip) equality join picks
+    // those indexes on its own, and a hint would turn an install missing
+    // either index (e.g. a half-applied updater 702) into error 1176 on
+    // every banlist render, ban add/edit and GET /api/v1/bans.
     $subIds = $pdo
         ->query(
             'SELECT S.`subid`
                FROM `:prefix_submissions` AS S
-               INNER JOIN `:prefix_bans` AS BSteam FORCE INDEX (`type_authid`)
+               INNER JOIN `:prefix_bans` AS BSteam
                        ON BSteam.`type` = 0
                       AND BSteam.`authid` = S.`SteamId`
                       AND BSteam.`RemoveType` IS NULL
@@ -343,7 +347,7 @@ function PruneBans(): void
               UNION DISTINCT
              SELECT S.`subid`
                FROM `:prefix_submissions` AS S
-               INNER JOIN `:prefix_bans` AS BIp FORCE INDEX (`type_ip`)
+               INNER JOIN `:prefix_bans` AS BIp
                        ON BIp.`type` = 1
                       AND BIp.`ip` = S.`sip`
                       AND BIp.`RemoveType` IS NULL

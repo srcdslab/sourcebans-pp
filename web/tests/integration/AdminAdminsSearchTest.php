@@ -284,6 +284,34 @@ final class AdminAdminsSearchTest extends ApiTestCase
     }
 
     /**
+     * Flag filters are scoped by ?view=, not by `enabled` (the SQL
+     * predicate replaced a HasAccess() loop that returned false for
+     * every deactivated admin, so ?view=inactive + a flag was always
+     * empty).
+     */
+    public function testWebFlagFilterMatchesDeactivatedAdminsInInactiveView(): void
+    {
+        Fixture::rawPdo()->prepare(sprintf(
+            'UPDATE `%s_admins` SET enabled = 0 WHERE aid = ?', DB_PREFIX,
+        ))->execute([$this->charlieAid]);
+
+        $_GET = [
+            'p'          => 'admin',
+            'c'          => 'admins',
+            'view'       => 'inactive',
+            'admwebflag' => ['ADMIN_OWNER'],
+        ];
+        $html = $this->renderAdminsPage();
+        $this->assertSame(1, $this->extractAdminCount($html));
+        $this->assertStringContainsString('>charlie<', $html);
+
+        $_GET['view'] = 'active';
+        $html = $this->renderAdminsPage();
+        $this->assertSame(1, $this->extractAdminCount($html));
+        $this->assertStringNotContainsString('>charlie<', $html);
+    }
+
+    /**
      * #1303 — default render is collapsed.
      *
      * On a bare `?p=admin&c=admins` (no filter populated) the

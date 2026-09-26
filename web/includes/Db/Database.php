@@ -290,7 +290,10 @@ final class Database
         $unique = [];
         $seen   = [];
         foreach ($values as $value) {
-            $key = serialize($value);
+            // MariaDB compares 5 and '5' as equal, so dedupe on the same
+            // terms: otherwise both could land in different chunks and
+            // return the same row twice.
+            $key = serialize(is_int($value) ? (string) $value : $value);
             if (isset($seen[$key])) {
                 continue;
             }

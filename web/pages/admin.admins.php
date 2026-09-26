@@ -260,7 +260,9 @@ if (!empty($_GET['srvgroup']) && is_scalar($_GET['srvgroup'])) {
 // or the legacy comma-joined string. Resolve each name to its bit and
 // OR-combine into a single bitmask. The SQL predicate mirrors
 // UserManager::HasAccess(): direct extraflags OR inherited web-group
-// flags, with any requested bit counting as a match.
+// flags, with any requested bit counting as a match. Unlike HasAccess()
+// it ignores `enabled`: the ?view= filter below already scopes the list,
+// so ?view=inactive&admwebflag[]=X lists deactivated admins holding X.
 $rawWebFlags = $_GET['admwebflag'] ?? null;
 if (is_string($rawWebFlags)) {
     $rawWebFlags = explode(',', $rawWebFlags);
