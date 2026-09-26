@@ -22,6 +22,8 @@
  * download carrying the demo's `origname`.
  */
 
+import { createHash } from 'node:crypto';
+
 import { expect, test } from '../../fixtures/auth.ts';
 import { expectNoCriticalA11y } from '../../fixtures/axe.ts';
 import { seedBanDemoE2e } from '../../fixtures/db.ts';
@@ -30,7 +32,11 @@ import { seedBanViaApi } from '../../fixtures/seeds.ts';
 test.describe('flow: ban demo download (#1554)', () => {
     test('row and drawer expose the attached demo download', async ({ page, isMobile }, testInfo) => {
         const uniq = `${testInfo.workerIndex}${testInfo.retry}${Date.now()}`;
-        const filename = `e2e-demo-1554-${uniq}.dat`;
+        // 32-hex basename, same shape as UploadHandler's renameToHash
+        // output: if the finally-block cleanup never runs (the page died
+        // before the panel JS loaded), `./sbpp.sh db-reset`'s MD5-name
+        // sweep of web/demos/ still removes the orphan.
+        const filename = createHash('md5').update(`e2e-demo-1554-${uniq}`).digest('hex');
         const originalName = 'evidence-1554.dem';
 
         const seeded = await seedBanViaApi(page, {
