@@ -637,11 +637,11 @@ function SbppGroupsToggleAllFlags(checked) {
  * no-op when everything is already on/off (it bails before dispatching
  * `change`, per the comment above it), and the #1436 spec exercises a
  * redundant "Select all" press on a fully-selected grid as a deliberate
- * idempotency check. A `disabled` button can't receive a click at all
- * (Playwright's actionability check would hang waiting for it), which
- * would turn that intentional no-op assertion into a broken test.
- * `aria-disabled` communicates the same "nothing left to do" state to
- * assistive tech and sighted users alike while staying clickable.
+ * idempotency check. A native `disabled` button can't receive a click at
+ * all; `aria-disabled` communicates the same "nothing left to do" state
+ * to assistive tech and sighted users while the button stays pressable
+ * (the spec forces that click, since Playwright's actionability check
+ * treats aria-disabled="true" as disabled).
  *
  * Call after anything that can change the grid's checked state without
  * going through a user click on an individual checkbox: the bulk toggle

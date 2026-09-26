@@ -159,9 +159,11 @@ test.describe('flow: admin groups select-all permission flags (upstream #1436)',
         await expect(selectNone).toHaveAttribute('aria-disabled', 'false');
 
         // Idempotent: a second press changes nothing and must not corrupt
-        // the preview. This is exactly the case aria-disabled (rather than
-        // the native `disabled` attribute) has to stay clickable for.
-        await selectAll.click();
+        // the preview. The button now carries aria-disabled="true", which
+        // Playwright's actionability check treats as disabled, so force
+        // the click: a mouse user can still press it (no native
+        // `disabled`), and that press must stay a no-op.
+        await selectAll.click({ force: true });
         await expect(bitmaskBadge).toHaveText(`${expected} bitmask`);
 
         // ---- Save round-trips the folded OR-sum --------------------------
