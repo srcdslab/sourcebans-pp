@@ -1633,6 +1633,9 @@ public void ProcessQueueCallback(Database db, DBResultSet results, const char[] 
 	if (results == null)
 	{
 		LogToFile(logFile, "Failed to retrieve queued bans from sqlite database, %s", error);
+		// Re-arm like every other exit path, otherwise a single failed
+		// SELECT stops queue processing until the next plugin load.
+		CreateTimer(float(ProcessQueueTime * 60), ProcessQueue);
 		return;
 	}
 
