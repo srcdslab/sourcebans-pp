@@ -1,0 +1,24 @@
+name: Translations
+
+on:
+  push:
+    paths:
+      - "game/addons/sourcemod/translations/**"
+      - ".github/workflows/translations.yml"
+  pull_request:
+    paths:
+      - "game/addons/sourcemod/translations/**"
+      - ".github/workflows/translations.yml"
+  workflow_dispatch:
+
+jobs:
+  check:
+    name: Translations
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: srcdslab/smtranslate@v1
+        with:
+          path: game/addons/sourcemod/translations
+          # Set the TRANSLATIONS_FAIL_ON repository variable to "warning" to make warnings blocking
+          fail-on: ${{ vars.TRANSLATIONS_FAIL_ON || 'error' }}
