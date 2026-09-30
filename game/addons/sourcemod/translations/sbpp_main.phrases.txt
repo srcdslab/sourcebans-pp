@@ -15,6 +15,8 @@
 		"hu"			"Bannolva vagy erről a szerverről, látogass el {1} honlapra a további információkért."
 		"chi"			"你已被此服务器封禁, 详情请参阅: {1}."
 		"tr"			"Sunucuya girişiniz yasaklandı. Detaylı bilgi için {1} adresini ziyaret ediniz."
+		"es"			"Has sido baneado de este servidor. Visita {1} para más información."
+		"sv"			"Du har blivit bannlyst från den här servern. Besök {1} för mer information."
 	}
 	"Ban Not Verified"
 	{
@@ -30,6 +32,8 @@
 		"hu"			"Ez a játékos nincs hitelesítve. Kérlek várj 30 másodpercet mielőtt újra próbálnád."
 		"chi"			"此玩家尚未被认证, 请等待30秒后再试."
 		"tr"			"Bu oyuncu doğrulanamadı. Lütfen tekrar denemeden önce 30 saniye bekleyiniz."
+		"es"			"Este jugador aún no ha sido verificado. Espera treinta segundos antes de volver a intentarlo."
+		"sv"			"Den här spelaren har inte verifierats. Vänta trettio sekunder innan du försöker igen."
 	}
 	"Can Not Unban"
 	{
@@ -46,6 +50,8 @@
 		"hu"			"Nem tudsz unbannolni a szerverről, látogasd meg {1} a ban feloldásért."
 		"chi"			"你无法从游戏中解除封禁, 请访问此链接来解除: {1} ."
 		"tr"			"Giriş yasağını sunucudan kaldıramazsınız, {1} adresini ziyaret ediniz."
+		"es"			"No puedes desbanear desde el servidor, visita {1} para hacerlo."
+		"sv"			"Du kan inte häva en bannlysning från servern, besök {1} för att göra det."
 	}
 	"Can Not Add Ban"
 	{
@@ -62,6 +68,8 @@
 		"hu"			"Nem tudsz a szerverről bannolni, látogasd meg {1} a bannolásért."
 		"chi"			"你不能在游戏中添加封禁, 请访问此链接来封禁: {1} ."
 		"tr"			"Giriş yasağını sunucudan ekleyemezsiniz, {1} adresini ziyaret ediniz."
+		"es"			"No puedes añadir un baneo desde el servidor, visita {1} para añadirlo."
+		"sv"			"Du kan inte lägga till en bannlysning från servern, besök {1} för att lägga till en."
 	}
 	"Check Menu"
 	{
@@ -77,6 +85,8 @@
 		"hu"			"Kérjük, ellenőrizze a menüt, hogy kiválassza a tilalom okait."
 		"chi"			"请从菜单中选择封禁理由."
 		"tr"			"Lütfen menüden yasaklama sebebini seçiniz."
+		"es"			"Consulta el menú para seleccionar un motivo de baneo."
+		"sv"			"Använd menyn för att välja en anledning till bannlysningen."
 	}
 	"Include Reason"
 	{
@@ -92,6 +102,8 @@
 		"hu"			"Kérlek írj indokot is a kliens bannolásához."
 		"chi"			"请填写封禁此玩家的理由."
 		"tr"			"Oyuncuyu yasaklarken bir sebep belitiniz."
+		"es"			"Indica un motivo para banear al jugador."
+		"sv"			"Ange en anledning till att spelaren bannlyses."
 	}
 	"Ban Fail"
 	{
@@ -107,6 +119,8 @@
 		"hu"			"Sikertelen bannolás, próbáld újra."
 		"chi"			"无法封禁此玩家, 请重试."
 		"tr"			"Oyuncu yasaklama işlemi başarısız oldu, lütfen tekrar deneyiniz."
+		"es"			"No se pudo banear al jugador, inténtalo de nuevo."
+		"sv"			"Det gick inte att bannlysa spelaren, försök igen."
 	}
 	"Chat Reason"
 	{
@@ -122,6 +136,8 @@
 		"hu"			"Írd be a chatre az indokot, majd nyomj entert. Írd '!noreason' a megszakításhoz."
 		"chi"			"请在聊天框中填写封禁理由并提交或输入 '!noreason' 放弃操作."
 		"tr"			"Lütfen bir sebep belirtiniz. İptal etmek için '!noreason' yazınız."
+		"es"			"Escribe el motivo del baneo en el chat y pulsa Intro. Escribe '!noreason' para cancelar."
+		"sv"			"Skriv anledningen till bannlysningen i chatten och tryck Enter. Skriv '!noreason' för att avbryta."
 	}
 	"Chat Reason Aborted"
 	{
@@ -137,6 +153,8 @@
 		"hu"			"A ban eljárás sikeresen leállítva."
 		"chi"			"封禁操作已成功取消."
 		"tr"			"Yasaklama işlemi iptal edildi."
+		"es"			"El proceso de baneo se ha detenido correctamente."
+		"sv"			"Bannlysningen har avbrutits."
 	}
 	"Kick Reason"
 	{
@@ -148,6 +166,13 @@
 		"de"			"Administrator: {1}\nGrund: {2}\nDauer: {3}"
 		"tr"			"Yönetici: {1}\nSebep: {2}\nSüre: {3}"
 		"chi"			"管理员: {1}\n原因: {2}\n时长: {3}"
+		"da"			"Admin: {1}\nÅrsag: {2}\nVarighed: {3}"
+		"es"			"Admin: {1}\nMotivo: {2}\nDuración: {3}"
+		"hu"			"Admin: {1}\nIndok: {2}\nIdőtartam: {3}"
+		"nl"			"Admin: {1}\nReden: {2}\nDuur: {3}"
+		"no"			"Admin: {1}\nGrunn: {2}\nVarighet: {3}"
+		"pl"			"Admin: {1}\nPowód: {2}\nCzas trwania: {3}"
+		"sv"			"Admin: {1}\nAnledning: {2}\nVaraktighet: {3}"
 	}
 	"Permabanned Player"
 	{
@@ -158,6 +183,14 @@
 		"fr"			"{1} a été banni à vie."
 		"pt"			"Baniu {1} permanentemente."
 		"chi"			"{1} 已被永久封禁."
+		"da"			"{1} er permanent udelukket"
+		"es"			"{1} ha sido baneado permanentemente"
+		"hu"			"{1} véglegesen kitiltva"
+		"nl"			"{1} is permanent verbannen"
+		"no"			"{1} er permanent utestengt"
+		"pl"			"{1} został zbanowany na stałe"
+		"sv"			"{1} har bannlysts permanent"
+		"tr"			"{1} kalıcı olarak yasaklandı"
 	}
 	"Permabanned Player Reason"
 	{
@@ -168,6 +201,14 @@
 		"fr"			"{1} a été banni à vie. Raison: {2}"
 		"pt"			"Baniu {1} permanentemente. (Motivo: {2}.)"
 		"chi"			"{1} 已被永久封禁. 原因: {2}"
+		"da"			"{1} er permanent udelukket. Årsag: {2}"
+		"es"			"{1} ha sido baneado permanentemente. Motivo: {2}"
+		"hu"			"{1} véglegesen kitiltva. Indok: {2}"
+		"nl"			"{1} is permanent verbannen. Reden: {2}"
+		"no"			"{1} er permanent utestengt. Grunn: {2}"
+		"pl"			"{1} został zbanowany na stałe. Powód: {2}"
+		"sv"			"{1} har bannlysts permanent. Anledning: {2}"
+		"tr"			"{1} kalıcı olarak yasaklandı. Sebep: {2}"
 	}
 	"Banned Player"
 	{
@@ -178,6 +219,14 @@
 		"fr"			"{1} a été banni pendant {2} minutes."
 		"pt"			"Baniu {1} por {2} minutos."
 		"chi"			"{1} 已被封禁 {2} 分钟."
+		"da"			"{1} er udelukket i {2} minutter."
+		"es"			"{1} ha sido baneado durante {2} minutos."
+		"hu"			"{1} kitiltva {2} percre."
+		"nl"			"{1} is verbannen voor {2} minuten."
+		"no"			"{1} er utestengt i {2} minutter."
+		"pl"			"{1} został zbanowany na {2} min."
+		"sv"			"{1} har bannlysts i {2} minuter."
+		"tr"			"{1}, {2} dakika boyunca yasaklandı."
 	}
 	"Banned Player Reason"
 	{
@@ -188,6 +237,14 @@
 		"fr"			"{1} a été banni pendant {2} minutes. Raison: {3}"
 		"pt"			"Baniu {1} por {2} minutos. (Motivo: {3}.)"
 		"chi"			"{1} 已被封禁 {2} 分钟. 原因: {3}"
+		"da"			"{1} er udelukket i {2} minutter. Årsag: {3}"
+		"es"			"{1} ha sido baneado durante {2} minutos. Motivo: {3}"
+		"hu"			"{1} kitiltva {2} percre. Indok: {3}"
+		"nl"			"{1} is verbannen voor {2} minuten. Reden: {3}"
+		"no"			"{1} er utestengt i {2} minutter. Grunn: {3}"
+		"pl"			"{1} został zbanowany na {2} min. Powód: {3}"
+		"sv"			"{1} har bannlysts i {2} minuter. Anledning: {3}"
+		"tr"			"{1}, {2} dakika boyunca yasaklandı. Sebep: {3}"
 	}
 	"permanent"
 	{
@@ -197,6 +254,14 @@
 		"fr"			"permanent"
 		"pt"			"permanente"
 		"chi"			"永久"
+		"da"			"permanent"
+		"es"			"permanente"
+		"hu"			"végleges"
+		"nl"			"permanent"
+		"no"			"permanent"
+		"pl"			"na stałe"
+		"sv"			"permanent"
+		"tr"			"kalıcı"
 	}
 	"minute"
 	{
@@ -206,6 +271,14 @@
 		"fr"			"minute"
 		"pt"			"minuto"
 		"chi"			"分钟"
+		"da"			"minut"
+		"es"			"minuto"
+		"hu"			"perc"
+		"nl"			"minuut"
+		"no"			"minutt"
+		"pl"			"minuta"
+		"sv"			"minut"
+		"tr"			"dakika"
 	}
 	"minutes"
 	{
@@ -215,6 +288,14 @@
 		"fr"			"minutes"
 		"pt"			"minutos"
 		"chi"			"分钟"
+		"da"			"minutter"
+		"es"			"minutos"
+		"hu"			"perc"
+		"nl"			"minuten"
+		"no"			"minutter"
+		"pl"			"minut"
+		"sv"			"minuter"
+		"tr"			"dakika"
 	}
 	"Ban Log"
 	{
@@ -225,6 +306,14 @@
 		"fr"			"\"{1}\" a banni \"{2}\" (minutes: {3}) (raison: {4})."
 		"pt"			"\"{1}\" baniu \"{2}\". (Minutos: {3}.) (Motivo: {4}.)"
 		"chi"			"\"{1}\" 已封禁 \"{2}\" ({3} 分钟) (理由: {4})."
+		"da"			"\"{1}\" udelukkede \"{2}\" (minutter: {3}) (årsag: {4})."
+		"es"			"\"{1}\" baneó a \"{2}\" (minutos: {3}) (motivo: {4})."
+		"hu"			"\"{1}\" kitiltotta: \"{2}\" (perc: {3}) (indok: {4})."
+		"nl"			"\"{1}\" heeft \"{2}\" verbannen (minuten: {3}) (reden: {4})."
+		"no"			"\"{1}\" utestengte \"{2}\" (minutter: {3}) (grunn: {4})."
+		"pl"			"\"{1}\" zbanował \"{2}\" (minuty: {3}) (powód: {4})."
+		"sv"			"\"{1}\" bannlyste \"{2}\" (minuter: {3}) (anledning: {4})."
+		"tr"			"\"{1}\", \"{2}\" oyuncusunu yasakladı (dakika: {3}) (sebep: {4})."
 	}
 	"Ban Added"
 	{
@@ -235,6 +324,14 @@
 		"fr"			"\"{1}\" a ajouté un ban (minutes: {2}) (ID/IP: {3}) (raison: {4})."
 		"pt"			"\"{1}\" adicionou um banimento. (Minutos: {2}.) (ID/IP: {3}.) (Motivo: {4}.)"
 		"chi"			"\"{1}\" 已被封禁 ({2} 分钟) (ID/IP: {3}) (理由: {4})."
+		"da"			"\"{1}\" tilføjede en udelukkelse (minutter: {2}) (ID/IP: {3}) (årsag: {4})."
+		"es"			"\"{1}\" añadió un baneo (minutos: {2}) (ID/IP: {3}) (motivo: {4})."
+		"hu"			"\"{1}\" kitiltást adott hozzá (perc: {2}) (ID/IP: {3}) (indok: {4})."
+		"nl"			"\"{1}\" heeft een ban toegevoegd (minuten: {2}) (ID/IP: {3}) (reden: {4})."
+		"no"			"\"{1}\" la til en utestengelse (minutter: {2}) (ID/IP: {3}) (grunn: {4})."
+		"pl"			"\"{1}\" dodał bana (minuty: {2}) (ID/IP: {3}) (powód: {4})."
+		"sv"			"\"{1}\" lade till en bannlysning (minuter: {2}) (ID/IP: {3}) (anledning: {4})."
+		"tr"			"\"{1}\" yasak ekledi (dakika: {2}) (ID/IP: {3}) (sebep: {4})."
 	}
 	"Ban Success Name"
 	{
@@ -245,6 +342,14 @@
 		"fr"			"{1} a été banni avec succès."
 		"pt"			"Baniu {1} com sucesso."
 		"chi"			"{1} 已被成功封禁."
+		"da"			"{1} er blevet udelukket"
+		"es"			"{1} ha sido baneado correctamente"
+		"hu"			"{1} sikeresen kitiltva"
+		"nl"			"{1} is verbannen"
+		"no"			"{1} er utestengt"
+		"pl"			"{1} został zbanowany"
+		"sv"			"{1} har bannlysts"
+		"tr"			"{1} başarıyla yasaklandı"
 	}
 	"Unban Success Name"
 	{
@@ -255,6 +360,14 @@
 		"fr"			"{1} a été debanni avec succès."
 		"pt"			"Removeu o banimento de {1} com sucesso."
 		"chi"			"{1} 的封禁已解除."
+		"da"			"Udelukkelsen af {1} er ophævet"
+		"es"			"{1} ha sido desbaneado correctamente"
+		"hu"			"{1} kitiltása sikeresen feloldva"
+		"nl"			"De ban van {1} is opgeheven"
+		"no"			"Utestengelsen av {1} er opphevet"
+		"pl"			"{1} został odbanowany"
+		"sv"			"Bannlysningen av {1} har hävts"
+		"tr"			"{1} için yasak başarıyla kaldırıldı"
 	}
 	"Already Banned"
 	{
@@ -265,6 +378,14 @@
 		"fr"			"{1} est déja banni."
 		"pt"			"{1} já está banido(a)."
 		"chi"			"{1} 已被封禁."
+		"da"			"{1} er allerede udelukket."
+		"es"			"{1} ya está baneado."
+		"hu"			"{1} már ki van tiltva."
+		"nl"			"{1} is al verbannen."
+		"no"			"{1} er allerede utestengt."
+		"pl"			"{1} jest już zbanowany."
+		"sv"			"{1} är redan bannlyst."
+		"tr"			"{1} zaten yasaklı."
 	}
 	"Ban Removed"
 	{
@@ -275,6 +396,14 @@
 		"fr"			"\"{1}\" a supprimé le ban (filter: {2}) (raison: {3})."
 		"pt"			"\"{1}\" removeu um banimento. (Filtro: {2}.) (Motivo: {3}.)"
 		"chi"			"\"{1}\" 移除了封禁 (过滤: {2}) (理由: {3})."
+		"da"			"\"{1}\" fjernede en udelukkelse (filter: {2}) (årsag: {3})."
+		"es"			"\"{1}\" eliminó un baneo (filtro: {2}) (motivo: {3})."
+		"hu"			"\"{1}\" feloldott egy kitiltást (szűrő: {2}) (indok: {3})."
+		"nl"			"\"{1}\" heeft een ban opgeheven (filter: {2}) (reden: {3})."
+		"no"			"\"{1}\" fjernet en utestengelse (filter: {2}) (grunn: {3})."
+		"pl"			"\"{1}\" usunął bana (filtr: {2}) (powód: {3})."
+		"sv"			"\"{1}\" tog bort en bannlysning (filter: {2}) (anledning: {3})."
+		"tr"			"\"{1}\" yasağı kaldırdı (filtre: {2}) (sebep: {3})."
 	}
 	"No Active Ban"
 	{
@@ -284,5 +413,13 @@
 		"fr"			"Aucun ban actif trouvé."
 		"pt"			"Nenhum banimento ativo encontrado."
 		"chi"			"未找到对此玩家的封禁."
+		"da"			"Ingen aktiv udelukkelse fundet."
+		"es"			"No se encontró ningún baneo activo."
+		"hu"			"Nem található aktív kitiltás."
+		"nl"			"Geen actieve ban gevonden."
+		"no"			"Ingen aktiv utestengelse funnet."
+		"pl"			"Nie znaleziono aktywnego bana."
+		"sv"			"Ingen aktiv bannlysning hittades."
+		"tr"			"Aktif yasak bulunamadı."
 	}
 }

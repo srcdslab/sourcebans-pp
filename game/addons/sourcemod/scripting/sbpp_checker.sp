@@ -263,13 +263,13 @@ public void OnConnectBanCheck(Database db, DBResultSet results, const char[] err
 		return;
 
 	if ( bancount && commcount ) {
-		PrintToBanAdmins("%s%t", Prefix, "Ban and Comm Warning", client, bancount, ((bancount > 1 || bancount == 0) ? "s":""), commcount, ((commcount > 1 || commcount == 0) ? "s":""));
+		PrintToBanAdmins("%s%t", Prefix, "Ban and Comm Warning", client, bancount, commcount);
 	}
 	else if ( commcount ) {
-		PrintToBanAdmins("%s%t", Prefix, "Comm Warning", client, commcount, ((commcount > 1 || commcount == 0) ? "s":""));
+		PrintToBanAdmins("%s%t", Prefix, "Comm Warning", client, commcount);
 	}
 	else if ( bancount ) {
-		PrintToBanAdmins("%s%t", Prefix, "Ban Warning", client, bancount, ((bancount > 1 || bancount == 0) ? "s":""));
+		PrintToBanAdmins("%s%t", Prefix, "Ban Warning", client, bancount);
 	}
 }
 

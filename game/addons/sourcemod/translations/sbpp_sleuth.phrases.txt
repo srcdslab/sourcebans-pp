@@ -11,6 +11,11 @@
 		"pt"		"Conta dúplice"
 		"chi"		"马甲/多重账户"
 		"tr"		"Çift hesap"
+		"da"		"Dobbeltkonto"
+		"es"		"Cuenta duplicada"
+		"nl"		"Dubbel account"
+		"no"		"Duplikatkonto"
+		"sv"		"Dubblettkonto"
 	}
 
 	"sourcesleuth_admintext"
@@ -26,6 +31,10 @@
 		"pt"		"{1} (ID: {2} | IP: {3}) tem um banimento ativo em seu IP."
 		"chi"		"玩家 {1} (ID: {2} | IP: {3}) 目前有多次IP封禁."
 		"tr"		"Oyuncu {1} (ID: {2} | IP: {3}) IP adresinde aktif yasaklaması var."
+		"da"		"Spilleren {1} (ID: {2} | IP: {3}) har en aktiv udelukkelse på sin IP."
+		"es"		"El jugador {1} (ID: {2} | IP: {3}) tiene un baneo activo en su IP."
+		"nl"		"Speler {1} (ID: {2} | IP: {3}) heeft een actieve ban op zijn IP."
+		"no"		"Spilleren {1} (ID: {2} | IP: {3}) har en aktiv utestengelse på IP-adressen sin."
 	}
 	"sourcesleuth_kicktext"
 	{
@@ -39,5 +48,9 @@
 		"pt"		"Você foi expulso(a) por ter um banimento ativo em seu IP"
 		"chi"		"您因主动禁止您的 IP 而被踢"
 		"tr"		"IP'nizi aktif olarak yasakladığınız için atıldınız"
+		"da"		"Du er blevet smidt ud, fordi der er en aktiv udelukkelse på din IP"
+		"es"		"Has sido expulsado por tener un baneo activo en tu IP"
+		"nl"		"Je bent gekickt omdat er een actieve ban op je IP staat"
+		"no"		"Du har blitt kastet ut fordi det er en aktiv utestengelse på IP-adressen din"
 	}
 }
