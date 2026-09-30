@@ -1888,15 +1888,31 @@ public void VerifyBan(Database db, DBResultSet results, const char[] error, int 
 			}
 		}
 
-		// Ban via BanClient() so SourceMod bans with the engine's own auth
-		// string. The raw "banid <STEAM_...>" console command is rejected by
-		// some engines (e.g. Synergy), which left the player unbanned.
-		// SetGlobalTransTarget() keeps the message in the client's language,
-		// which KickClient() used to do for us.
-		char BanReason[256];
+		// Ban with the engine's own auth string: the raw "banid <STEAM_...>"
+		// console command is rejected by some engines (e.g. Synergy), which
+		// left the player unbanned. Don't use BanClient() for that though: it
+		// needs the player entity, which may not exist yet (VerifyBan runs
+		// from OnClientAuthorized, which can precede OnClientPutInServer), so
+		// SourceMod threw "Client index -1 is invalid" and the player was
+		// never kicked. Mirror BanClient's behaviour with entity-independent
+		// natives instead, falling back to an IP ban on LAN / lookup failure.
+		// SetGlobalTransTarget() keeps the message in the client's language.
+		char BanReason[256], gameAuth[MAX_AUTHID_LENGTH];
 		SetGlobalTransTarget(client);
 		FormatEx(BanReason, sizeof(BanReason), "%t", "Banned Check Site", WebsiteAddress);
-		BanClient(client, 5, BANFLAG_AUTHID, BanReason, BanReason, "sbpp");
+
+		if (GetClientAuthId(client, AuthId_Engine, gameAuth, sizeof(gameAuth))
+			&& BanIdentity(gameAuth, 5, BANFLAG_AUTHID, BanReason, "sbpp"))
+		{
+			KickClient(client, "%s", BanReason);
+		}
+		else
+		{
+			// Kick before addip, as BanClient() does, so the client sees our message.
+			KickClientEx(client, "%s", BanReason);
+			if (clientIp[0] != '\0')
+				BanIdentity(clientIp, 5, BANFLAG_IP, BanReason, "sbpp");
+		}
 
 		return;
 	}
