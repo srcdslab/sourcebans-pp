@@ -137,7 +137,7 @@
 		"de"			"Der Spieler {1} ist bereits im Textchat gesperrt!"
 		"fr"			"Le joueur {1} est déjà mute du chat écrit!"
 		"chi"			"玩家 {1} 已被禁言!"
-		"tr"			"Oyuncu {1] zaten sohbet yasaklı!"
+		"tr"			"Oyuncu {1} zaten sohbet yasaklı!"
 	}
 	"Player already silenced"
 	{
@@ -276,7 +276,7 @@
 		"pt"			"Amordaçou {1} permanentemente. (Motivo: {2}.)"
 		"de"			"Der Spieler {1} ist für immer im Sprachchat gesperrt (Grund: {2})."
 		"fr"			"Un mute permanent a été appliqué a {1} (raison: {2})."
-		"chi"			"已对玩家 {1} 永久静音 (原因: {3})."
+		"chi"			"已对玩家 {1} 永久静音 (原因: {2})."
 		"tr"			"{1} üzerinde kalıcı mikrofon yasağı uygulandı (Sebep: {2})."
 	}
 	"Muted player"
