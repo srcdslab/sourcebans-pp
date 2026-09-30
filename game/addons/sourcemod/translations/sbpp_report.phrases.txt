@@ -12,6 +12,11 @@
 		"chi"	"请等待 {1} 秒后再试"
 		"hu"	"Kérlek várj {1} másodpercet mielőtt report-olnád újra"
 		"tr"	"Tekrar şikayet etmeden önce {1} saniye bekleyiniz"
+		"da"	"Vent venligst {1} sekunder, før du rapporterer igen."
+		"es"	"Espera {1} segundos antes de volver a reportar."
+		"nl"	"Wacht {1} seconden voordat je opnieuw rapporteert."
+		"no"	"Vent {1} sekunder før du rapporterer igjen."
+		"sv"	"Vänta {1} sekunder innan du rapporterar igen."
 	}
 
 	"Report Canceled"
@@ -25,6 +30,11 @@
 		"chi"	"报告已取消."
 		"hu"	"Report megszakítva."
 		"tr"	"Şikayet iptal edildi."
+		"da"	"Rapporten er annulleret."
+		"es"	"Reporte cancelado."
+		"nl"	"Melding geannuleerd."
+		"no"	"Rapporten er avbrutt."
+		"sv"	"Rapporten avbröts."
 	}
 
 	"Report Sent"
@@ -38,6 +48,11 @@
 		"chi"	"你的报告已发送."
 		"hu"	"A Report-ot elküldtük."
 		"tr"	"Şikayetiniz gönderildi."
+		"da"	"Din rapport er blevet sendt."
+		"es"	"Tu reporte ha sido enviado."
+		"nl"	"Je melding is verzonden."
+		"no"	"Rapporten din er sendt."
+		"sv"	"Din rapport har skickats."
 	}
 
 	"Reason Prompt"
@@ -51,6 +66,11 @@
 		"chi"	"请填写报告填写理由或者 \"cancel\" 来取消"
 		"hu"	"Írd be az indokot vagy írd \"cancel\" a megszakításhoz"
 		"tr"	"Şikayetiniz için bir sebep belirtiniz. İptal etmek için \"cancel\" yazınız"
+		"da"	"Skriv årsagen til rapporten, eller \"cancel\" for at annullere."
+		"es"	"Escribe el motivo del reporte o \"cancel\" para cancelar."
+		"nl"	"Voer de reden voor de melding in, of \"cancel\" om te annuleren."
+		"no"	"Skriv inn grunnen til rapporten, eller \"cancel\" for å avbryte."
+		"sv"	"Ange anledningen till rapporten, eller \"cancel\" för att avbryta."
 	}
 
 	"Reason Short Need More"
@@ -64,5 +84,10 @@
 		"chi"	"理由过于简短, 请做更多说明."
 		"hu"	"Az indoklás túl rövid, több információra van szükség."
 		"tr"	"Sebep çok kısa, lütfen daha detaylı yazınız."
+		"da"	"Årsagen er for kort, der kræves flere detaljer."
+		"es"	"El motivo es demasiado corto, se necesitan más detalles."
+		"nl"	"De reden is te kort, meer details zijn vereist."
+		"no"	"Grunnen er for kort, flere detaljer kreves."
+		"sv"	"Anledningen är för kort, fler detaljer krävs."
 	}
 }

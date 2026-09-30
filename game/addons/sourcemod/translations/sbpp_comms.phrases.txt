@@ -13,6 +13,10 @@
 		"fr"			"Vous avez été mute!"
 		"chi"			"你已被静音!"
 		"tr"			"Mikrofonunuz susturuldu!"
+		"da"			"Du er blevet mutet!"
+		"nl"			"Je bent gemute!"
+		"no"			"Du har blitt dempet!"
+		"sv"			"Du har blivit tystad!"
 	}
 	"Gagged on connect"
 	{
@@ -26,6 +30,10 @@
 		"fr"			"Vous avez été mute du chat écrit!"
 		"chi"			"你已被禁言!"
 		"tr"			"Sohbet etmeniz yasaklandı."
+		"da"			"Du er blevet chatblokeret!"
+		"nl"			"Je chat is geblokkeerd!"
+		"no"			"Du har blitt chatblokkert!"
+		"sv"			"Du har blivit chattblockerad!"
 	}
 	//--------------------------------------------------------------------------------
 	"Mute expired"
@@ -40,6 +48,10 @@
 		"fr"			"Votre mute a expiré."
 		"chi"			"静音已过期."
 		"tr"			"Mikrofon yasaklama süresi sona erdi."
+		"da"			"Din mute er udløbet."
+		"nl"			"Je mute is verlopen."
+		"no"			"Dempingen din har utløpt."
+		"sv"			"Din tystning har gått ut."
 	}
 	"Gag expired"
 	{
@@ -53,6 +65,10 @@
 		"fr"			"Votre mute du chat écrit a expiré."
 		"chi"			"禁言已过期."
 		"tr"			"Sohbet yasaklama süresi sona erdi."
+		"da"			"Din chatblokering er udløbet."
+		"nl"			"Je chatblokkade is verlopen."
+		"no"			"Chatblokkeringen din har utløpt."
+		"sv"			"Din chattblockering har gått ut."
 	}
 	//--------------------------------------------------------------------------------
 	"FWUnmute"
@@ -67,6 +83,10 @@
 		"fr"			"Votre mute a été supprimé."
 		"chi"			"对你的静音已取消."
 		"tr"			"Mikrofon yasaklamanız kaldırıldı."
+		"da"			"Din mute er blevet fjernet."
+		"nl"			"Je mute is opgeheven."
+		"no"			"Dempingen din er fjernet."
+		"sv"			"Din tystning har tagits bort."
 	}
 	"FWUngag"
 	{
@@ -80,6 +100,10 @@
 		"fr"			"Votre mute du chat écrit a été supprimé."
 		"chi"			"对你的禁言已取消."
 		"tr"			"Sohbet yasaklamanız kaldırıldı."
+		"da"			"Din chatblokering er blevet fjernet."
+		"nl"			"Je chatblokkade is opgeheven."
+		"no"			"Chatblokkeringen din er fjernet."
+		"sv"			"Din chattblockering har tagits bort."
 	}
 	//--------------------------------------------------------------------------------
 	"Usage_time"
@@ -95,6 +119,10 @@
 		"fr"			"Temps: {1} minutes si non spécifié. Permanent si 0.\nSi < 0 bloque pour la session."
 		"chi"			"时间: {1} 分钟 如果未做选择的话. 如果 0.\n 永久 如果 < 0 则在此局中封禁."
 		"tr"			"Süre: Belirtilmemişse {1} dakika. 0 ise süresiz.\nEğer < 0 harita boyunca yasaklı."
+		"da"			"Tid: {1} minutter hvis ikke angivet. Permanent hvis 0.\nHvis < 0 blokeres for sessionen."
+		"nl"			"Tijd: {1} minuten indien niet opgegeven. Permanent bij 0.\nBij < 0 blokkade voor de sessie."
+		"no"			"Tid: {1} minutter hvis ikke angitt. Permanent hvis 0.\nHvis < 0 blokkeres for økten."
+		"sv"			"Tid: {1} minuter om inget anges. Permanent om 0.\nOm < 0 blockeras för sessionen."
 	}
 	"Player Comms Not Verified"
 	{
@@ -109,6 +137,10 @@
 		"fr"			"{1} n'a pas été vérifié. Veuillez attendre 30 secondes avant de réessayer."
 		"chi"			"此({1})用户尚未认证,请等待30秒后再试."
 		"tr"			"{1} doğrulanamadı. Lütfen tekrar denemeden önce 30 saniye bekleyiniz."
+		"da"			"{1} er ikke blevet verificeret. Vent venligst tredive sekunder, før du prøver igen."
+		"nl"			"{1} is nog niet geverifieerd. Wacht dertig seconden voordat je het opnieuw probeert."
+		"no"			"{1} er ikke verifisert. Vent tretti sekunder før du prøver igjen."
+		"sv"			"{1} har inte verifierats. Vänta trettio sekunder innan du försöker igen."
 	}
 	//--------------------------------------------------------------------------------
 	"Player already muted"
@@ -124,6 +156,10 @@
 		"fr"			"Le joueur {1} est déjà mute!"
 		"chi"			"玩家 {1} 已被静音!"
 		"tr"			"Oyuncu {1} zaten mikrofon yasaklı!"
+		"da"			"Spilleren {1} er allerede mutet!"
+		"nl"			"Speler {1} is al gemute!"
+		"no"			"Spilleren {1} er allerede dempet!"
+		"sv"			"Spelaren {1} är redan tystad!"
 	}
 	"Player already gagged"
 	{
@@ -138,6 +174,10 @@
 		"fr"			"Le joueur {1} est déjà mute du chat écrit!"
 		"chi"			"玩家 {1} 已被禁言!"
 		"tr"			"Oyuncu {1} zaten sohbet yasaklı!"
+		"da"			"Spilleren {1} er allerede chatblokeret!"
+		"nl"			"De chat van speler {1} is al geblokkeerd!"
+		"no"			"Spilleren {1} er allerede chatblokkert!"
+		"sv"			"Spelaren {1} är redan chattblockerad!"
 	}
 	"Player already silenced"
 	{
@@ -152,6 +192,10 @@
 		"fr"			"Le joueur {1} est déjà mute ou mute du chat écrit!"
 		"chi"			"玩家 {1} 已被禁言或静音!"
 		"tr"			"Oyuncu {1} zaten sohbet ve mikrofon yasaklı!"
+		"da"			"Spilleren {1} er allerede chatblokeret eller mutet!"
+		"nl"			"Speler {1} is al gemute of heeft al een chatblokkade!"
+		"no"			"Spilleren {1} er allerede chatblokkert eller dempet!"
+		"sv"			"Spelaren {1} är redan chattblockerad eller tystad!"
 	}
 	//--------------------------------------------------------------------------------
 	"Player not muted"
@@ -166,6 +210,10 @@
 		"fr"			"Le joueur n'est pas mute."
 		"chi"			"玩家尚未被静音."
 		"tr"			"Oyuncunun mikrofon yasağı yok."
+		"da"			"Spilleren er ikke mutet."
+		"nl"			"De speler is niet gemute."
+		"no"			"Spilleren er ikke dempet."
+		"sv"			"Spelaren är inte tystad."
 	}
 	"Player not gagged"
 	{
@@ -179,6 +227,10 @@
 		"fr"			"Le joueur n'est pas mute du chat écrit."
 		"chi"			"玩家尚未被禁言."
 		"tr"			"Oyuncunun sohbet yasağı yok."
+		"da"			"Spilleren er ikke chatblokeret."
+		"nl"			"De chat van de speler is niet geblokkeerd."
+		"no"			"Spilleren er ikke chatblokkert."
+		"sv"			"Spelaren är inte chattblockerad."
 	}
 	"Player not silenced"
 	{
@@ -192,6 +244,10 @@
 		"fr"			"Le joueur n'est pas mit sous silence."
 		"chi"			"玩家尚未被禁言或静音."
 		"tr"			"Oyuncunun sessizlik yasağı yok."
+		"da"			"Spilleren er ikke fuldt blokeret."
+		"nl"			"De speler is niet volledig geblokkeerd."
+		"no"			"Spilleren er ikke fullstendig blokkert."
+		"sv"			"Spelaren är inte helt blockerad."
 	}
 	//--------------------------------------------------------------------------------
 	"Permagagged player"
@@ -207,6 +263,10 @@
 		"fr"			"Un mute du chat écrit permanent a été appliqué a {1}."
 		"chi"			"已对玩家 {1} 做永久禁言."
 		"tr"			"{1} üzerinde kalıcı sohbet yasağı uygulandı."
+		"da"			"Permanent chatblokering givet til {1}."
+		"nl"			"Permanente chatblokkade opgelegd aan {1}."
+		"no"			"Permanent chatblokkering gitt til {1}."
+		"sv"			"Permanent chattblockering utfärdad för {1}."
 	}
 	"Permagagged player reason"
 	{
@@ -221,6 +281,10 @@
 		"fr"			"Un mute du chat écrit permanent a été appliqué a {1} (raison: {2})."
 		"chi"			"已对玩家 {1} 做永久禁言 (原因: {2})."
 		"tr"			"{1} üzerinde kalıcı sohbet yasağı uygulandı (Sebep: {2})."
+		"da"			"Permanent chatblokering givet til {1} (årsag: {2})."
+		"nl"			"Permanente chatblokkade opgelegd aan {1} (reden: {2})."
+		"no"			"Permanent chatblokkering gitt til {1} (grunn: {2})."
+		"sv"			"Permanent chattblockering utfärdad för {1} (anledning: {2})."
 	}
 	"Gagged player"
 	{
@@ -235,6 +299,10 @@
 		"fr"			"Un mute du chat écrit a été appliqué a {1} pour {2} minutes."
 		"chi"			"已对玩家 {1} 的禁言延长了 {2} 分钟."
 		"tr"			"{1} üzerinde {2} dakikalığına sohbet yasağı uygulandı."
+		"da"			"Chatblokering givet til {1} i {2} minutter."
+		"nl"			"Chatblokkade opgelegd aan {1} voor {2} minuten."
+		"no"			"Chatblokkering gitt til {1} i {2} minutter."
+		"sv"			"Chattblockering utfärdad för {1} i {2} minuter."
 	}
 	"Gagged player reason"
 	{
@@ -249,6 +317,10 @@
 		"fr"			"Un mute du chat écrit a été appliqué a {1} pour {2} minutes (raison: {3})."
 		"chi"			"已对玩家 {1} 的禁言延长了 {2} 分钟 (原因: {3})."
 		"tr"			"{1} üzerinde {2} dakikalığına sohbet yasağı uygulandı (Sebep: {3})."
+		"da"			"Chatblokering givet til {1} i {2} minutter (årsag: {3})."
+		"nl"			"Chatblokkade opgelegd aan {1} voor {2} minuten (reden: {3})."
+		"no"			"Chatblokkering gitt til {1} i {2} minutter (grunn: {3})."
+		"sv"			"Chattblockering utfärdad för {1} i {2} minuter (anledning: {3})."
 	}
 	//--------------------------------------------------------------------------------
 	"Permamuted player"
@@ -264,6 +336,10 @@
 		"fr"			"Un mute permanent a été appliqué a {1}."
 		"chi"			"已对玩家 {1} 永久静音."
 		"tr"			"{1} üzerinde kalıcı mikrofon yasağı uygulandı."
+		"da"			"Permanent mute givet til {1}."
+		"nl"			"Permanente mute opgelegd aan {1}."
+		"no"			"Permanent demping gitt til {1}."
+		"sv"			"Permanent tystning utfärdad för {1}."
 	}
 	"Permamuted player reason"
 	{
@@ -278,6 +354,10 @@
 		"fr"			"Un mute permanent a été appliqué a {1} (raison: {2})."
 		"chi"			"已对玩家 {1} 永久静音 (原因: {2})."
 		"tr"			"{1} üzerinde kalıcı mikrofon yasağı uygulandı (Sebep: {2})."
+		"da"			"Permanent mute givet til {1} (årsag: {2})."
+		"nl"			"Permanente mute opgelegd aan {1} (reden: {2})."
+		"no"			"Permanent demping gitt til {1} (grunn: {2})."
+		"sv"			"Permanent tystning utfärdad för {1} (anledning: {2})."
 	}
 	"Muted player"
 	{
@@ -292,6 +372,10 @@
 		"fr"			"Un mute a été appliqué a {1} pour {2} minutes."
 		"chi"			"已对玩家 {1} 的静音延长了 {2} 分钟."
 		"tr"			"{1} üzerinde {2} dakikalığına mikrofon yasağı uygulandı."
+		"da"			"Mute givet til {1} i {2} minutter."
+		"nl"			"Mute opgelegd aan {1} voor {2} minuten."
+		"no"			"Demping gitt til {1} i {2} minutter."
+		"sv"			"Tystning utfärdad för {1} i {2} minuter."
 	}
 	"Muted player reason"
 	{
@@ -306,6 +390,10 @@
 		"fr"			"Un mute a été appliqué a {1} pour {2} minutes (raison: {3})."
 		"chi"			"已对玩家 {1} 的静音延长了 {2} 分钟 (原因: {3})."
 		"tr"			"{1} üzerinde {2} dakikalığına mikrofon yasağı uygulandı (Sebep: {3})."
+		"da"			"Mute givet til {1} i {2} minutter (årsag: {3})."
+		"nl"			"Mute opgelegd aan {1} voor {2} minuten (reden: {3})."
+		"no"			"Demping gitt til {1} i {2} minutter (grunn: {3})."
+		"sv"			"Tystning utfärdad för {1} i {2} minuter (anledning: {3})."
 	}
 	//--------------------------------------------------------------------------------
 	"Permasilenced player"
@@ -321,6 +409,10 @@
 		"fr"			"Un silence permanent a été appliqué a {1}."
 		"chi"			"已对玩家 {1} 进行永久禁言和静音."
 		"tr"			"{1} üzerinde kalıcı sessizlik yasağı uygulandı."
+		"da"			"Permanent fuld blokering givet til {1}."
+		"nl"			"Permanente volledige blokkade opgelegd aan {1}."
+		"no"			"Permanent full blokkering gitt til {1}."
+		"sv"			"Permanent fullständig blockering utfärdad för {1}."
 	}
 	"Permasilenced player reason"
 	{
@@ -335,6 +427,10 @@
 		"fr"			"Un silence permanent a été appliqué a {1} (raison: {2})."
 		"chi"			"已对玩家 {1} 进行永久禁言和静音 (原因: {2})."
 		"tr"			"{1} üzerinde kalıcı sessizlik yasağı uygulandı (Sebep: {2})."
+		"da"			"Permanent fuld blokering givet til {1} (årsag: {2})."
+		"nl"			"Permanente volledige blokkade opgelegd aan {1} (reden: {2})."
+		"no"			"Permanent full blokkering gitt til {1} (grunn: {2})."
+		"sv"			"Permanent fullständig blockering utfärdad för {1} (anledning: {2})."
 	}
 	"Silenced player"
 	{
@@ -349,6 +445,10 @@
 		"fr"			"Un silence a été appliqué a {1} pour {2} minutes."
 		"chi"			"已对玩家 {1} 的禁言和静音延长了 {2} 分钟."
 		"tr"			"{1} üzerinde {2} dakikalığına sessizlik yasağı uygulandı."
+		"da"			"Fuld blokering givet til {1} i {2} minutter."
+		"nl"			"Volledige blokkade opgelegd aan {1} voor {2} minuten."
+		"no"			"Full blokkering gitt til {1} i {2} minutter."
+		"sv"			"Fullständig blockering utfärdad för {1} i {2} minuter."
 	}
 	"Silenced player reason"
 	{
@@ -363,6 +463,10 @@
 		"fr"			"Un silence a été appliqué a {1} pour {2} minutes (raison: {3})."
 		"chi"			"已对玩家 {1} 的禁言和静音延长了 {2} 分钟 (原因: {3})."
 		"tr"			"{1} üzerinde {2} dakikalığına sessizlik yasağı uygulandı (Sebep: {3})."
+		"da"			"Fuld blokering givet til {1} i {2} minutter (årsag: {3})."
+		"nl"			"Volledige blokkade opgelegd aan {1} voor {2} minuten (reden: {3})."
+		"no"			"Full blokkering gitt til {1} i {2} minutter (grunn: {3})."
+		"sv"			"Fullständig blockering utfärdad för {1} i {2} minuter (anledning: {3})."
 	}
 	//--------------------------------------------------------------------------------
 	"Temp unmuted player"
@@ -378,6 +482,10 @@
 		"fr"			"Suppression du mute temporaire de {1}."
 		"chi"			"已对玩家 {1} 暂时解除静音."
 		"tr"			"{1} üzerinden mikrofon yasağı geçici olarak kaldırıldı."
+		"da"			"Midlertidigt fjernet mute fra {1}."
+		"nl"			"Mute van {1} tijdelijk opgeheven."
+		"no"			"Midlertidig fjernet demping fra {1}."
+		"sv"			"Tog tillfälligt bort tystning från {1}."
 	}
 	"Temp ungagged player"
 	{
@@ -392,6 +500,10 @@
 		"fr"			"Suppression du mute du chat écrit temporaire de {1}."
 		"chi"			"已对玩家 {1} 暂时解除禁言."
 		"tr"			"{1} üzerinden sohbet yasağı geçici olarak kaldırıldı."
+		"da"			"Midlertidigt fjernet chatblokering fra {1}."
+		"nl"			"Chatblokkade van {1} tijdelijk opgeheven."
+		"no"			"Midlertidig fjernet chatblokkering fra {1}."
+		"sv"			"Tog tillfälligt bort chattblockering från {1}."
 	}
 	"Temp unsilenced player"
 	{
@@ -406,6 +518,10 @@
 		"fr"			"Suppression du silence temporaire de {1}."
 		"chi"			"已对玩家 {1} 暂时解除禁言和静音."
 		"tr"			"{1} üzerinden sessizlik yasağı geçici olarak kaldırıldı."
+		"da"			"Midlertidigt fjernet fuld blokering fra {1}."
+		"nl"			"Volledige blokkade van {1} tijdelijk opgeheven."
+		"no"			"Midlertidig fjernet full blokkering fra {1}."
+		"sv"			"Tog tillfälligt bort fullständig blockering från {1}."
 	}
 	"Unblock Select Failed"
 	{
@@ -420,6 +536,10 @@
 		"fr"			"Une erreur s'est produite lors de la demande de blocs pour {1} depuis la Base de Données."
 		"chi"			"在数据库中对 {1} 进行禁止时出现错误."
 		"tr"			"Veritabanından {1} için yasaklamalar alınırken hata oluştu."
+		"da"			"Der opstod en fejl under hentning af blokeringer for {1} fra databasen."
+		"nl"			"Er is een fout opgetreden bij het ophalen van blokkades voor {1} uit de database."
+		"no"			"Det oppstod en feil under henting av blokkeringer for {1} fra databasen."
+		"sv"			"Ett fel uppstod när blockeringar för {1} hämtades från databasen."
 	}
 	"No blocks found"
 	{
@@ -434,6 +554,10 @@
 		"fr"			"Aucun blocage de communication actif trouvé dans la Base de Données pour {1}."
 		"chi"			"在数据库中未找到对 {1} 的禁止."
 		"tr"			"Veritabanında {1} için yasaklama bulunamadı."
+		"da"			"Ingen aktive blokeringer fundet i databasen for {1}."
+		"nl"			"Geen actieve blokkades gevonden in de database voor {1}."
+		"no"			"Ingen aktive blokkeringer funnet i databasen for {1}."
+		"sv"			"Inga aktiva blockeringar hittades i databasen för {1}."
 	}
 	"No db error unlock perm"
 	{
@@ -447,6 +571,10 @@
 		"fr"			"Vous n'avez pas la permission de retirer des blocages de communication avec des erreurs de Base de Données."
 		"chi"			"你没有权限解除对  的封禁."
 		"tr"			"Veritabanı hatalarıyla yasaklama kaldırmak için yetkiniz bulunmuyor."
+		"da"			"Du har ikke tilladelse til at fjerne blokeringer ved databasefejl."
+		"nl"			"Je hebt geen toestemming om blokkades op te heffen bij databasefouten."
+		"no"			"Du har ikke tillatelse til å fjerne blokkeringer ved databasefeil."
+		"sv"			"Du saknar behörighet att häva blockeringar vid databasfel."
 	}
 	"No permission unmute"
 	{
@@ -461,6 +589,10 @@
 		"fr"			"Le mute sur {1} n'a pas pu être supprimé car il a été appliqué par un administrateur supérieur!"
 		"chi"			"对玩家 {1} 的静音是由更高级别的管理员完成的,因此你无法解除对此玩家的静音."
 		"tr"			"{1} üzerindeki mikrofon yasağı sizden daha yetkili biri tarafından oluşturulduğu için kaldırılamadı!"
+		"da"			"Muten af {1} kunne ikke fjernes, fordi den blev givet af en højere administrator!"
+		"nl"			"De mute van {1} kon niet worden opgeheven, omdat die is opgelegd door een hogere administrator!"
+		"no"			"Dempingen av {1} kunne ikke fjernes fordi den ble gitt av en høyere administrator!"
+		"sv"			"Tystningen av {1} kunde inte tas bort eftersom den utfärdades av en högre administratör!"
 	}
 	"No permission ungag"
 	{
@@ -475,6 +607,10 @@
 		"fr"			"Le mute du chat sur {1} n'a pas pu être supprimé car il a été appliqué par un administrateur supérieur!"
 		"chi"			"对玩家 {1} 的禁言是由更高级别的管理员完成的,因此你无法解除对此玩家的静音."
 		"tr"			"{1} üzerindeki sohbet yasağı sizden daha yetkili biri tarafından oluşturulduğu için kaldırılamadı!"
+		"da"			"Chatblokeringen af {1} kunne ikke fjernes, fordi den blev givet af en højere administrator!"
+		"nl"			"De chatblokkade van {1} kon niet worden opgeheven, omdat die is opgelegd door een hogere administrator!"
+		"no"			"Chatblokkeringen av {1} kunne ikke fjernes fordi den ble gitt av en høyere administrator!"
+		"sv"			"Chattblockeringen av {1} kunde inte tas bort eftersom den utfärdades av en högre administratör!"
 	}
 	"Unmuted player"
 	{
@@ -489,6 +625,10 @@
 		"fr"			"Suppression du mute temporaire de {1}."
 		"chi"			"已取消对玩家 {1} 的静音延长."
 		"tr"			"{1} üzerindeki mikrofon yasağı kaldırıldı."
+		"da"			"Fjernede mute fra {1}."
+		"nl"			"Mute van {1} opgeheven."
+		"no"			"Fjernet demping fra {1}."
+		"sv"			"Tog bort tystning från {1}."
 	}
 	"Ungagged player"
 	{
@@ -503,6 +643,10 @@
 		"fr"			"Suppression du silence temporaire de {1}. "
 		"chi"			"已取消对玩家 {1} 的禁言延长."
 		"tr"			"{1} üzerindeki sohbet yasağı kaldırıldı."
+		"da"			"Fjernede chatblokering fra {1}."
+		"nl"			"Chatblokkade van {1} opgeheven."
+		"no"			"Fjernet chatblokkering fra {1}."
+		"sv"			"Tog bort chattblockering från {1}."
 	}
 	"Unblock insert failed"
 	{
@@ -516,6 +660,10 @@
 		"fr"			"Impossible de supprimer le blocage de communication de la base de données."
 		"chi"			"从数据库中取消禁止失败."
 		"tr"			"Yasaklama veritabanından kaldırılamadı."
+		"da"			"Kunne ikke fjerne blokeringen fra databasen."
+		"nl"			"Kan de blokkade niet uit de database verwijderen."
+		"no"			"Kunne ikke fjerne blokkeringen fra databasen."
+		"sv"			"Det gick inte att ta bort blockeringen från databasen."
 	}
 	"successfully unmuted"
 	{
@@ -530,6 +678,10 @@
 		"fr"			"Suppression réussie du mute pour {1} de la base de données."
 		"chi"			"已成功从数据库中取消对 {1} 的静音."
 		"tr"			"{1} için mikrofon yasaklaması veritabanından başarıyla silindi."
+		"da"			"Mute for {1} er fjernet fra databasen."
+		"nl"			"Mute voor {1} is uit de database verwijderd."
+		"no"			"Demping for {1} er fjernet fra databasen."
+		"sv"			"Tystning för {1} har tagits bort från databasen."
 	}
 	"successfully ungagged"
 	{
@@ -544,6 +696,10 @@
 		"fr"			"Suppression réussie du mute du chat écrit pour {1} de la base de données."
 		"chi"			"已成功从数据库中取消对 {1} 的禁言."
 		"tr"			"{1} için sohbet yasaklaması veritabanından başarıyla silindi."
+		"da"			"Chatblokering for {1} er fjernet fra databasen."
+		"nl"			"Chatblokkade voor {1} is uit de database verwijderd."
+		"no"			"Chatblokkering for {1} er fjernet fra databasen."
+		"sv"			"Chattblockering för {1} har tagits bort från databasen."
 	}
 	//--------------------------------------------------------------------------------
 	"AdminMenu_Display_None"
@@ -559,6 +715,10 @@
 		"fr"		"[  ] {1}"
 		"chi"		"[  ] {1}"
 		"tr"		"[  ] {1}"
+		"da"		"[  ] {1}"
+		"nl"		"[  ] {1}"
+		"no"		"[  ] {1}"
+		"sv"		"[  ] {1}"
 	}
 	"AdminMenu_Display_Muted"
 	{
@@ -573,6 +733,10 @@
 		"fr"		"[M] {1}"
 		"chi"		"[M] {1}"
 		"tr"		"[M] {1}"
+		"da"		"[M] {1}"
+		"nl"		"[M] {1}"
+		"no"		"[M] {1}"
+		"sv"		"[M] {1}"
 	}
 	"AdminMenu_Display_Gagged"
 	{
@@ -587,6 +751,10 @@
 		"fr"		"[G] {1}"
 		"chi"		"[G] {1}"
 		"tr"		"[G] {1}"
+		"da"		"[G] {1}"
+		"nl"		"[G] {1}"
+		"no"		"[G] {1}"
+		"sv"		"[G] {1}"
 	}
 	"AdminMenu_Display_Silenced"
 	{
@@ -601,6 +769,10 @@
 		"fr"		"[S] {1}"
 		"chi"		"[S] {1}"
 		"tr"		"[S] {1}"
+		"da"		"[S] {1}"
+		"nl"		"[S] {1}"
+		"no"		"[S] {1}"
+		"sv"		"[S] {1}"
 	}
 	"AdminMenu_Main"
 	{
@@ -614,6 +786,10 @@
 		"fr"		"Commandes de communication"
 		"chi"		"禁言和静音"
 		"tr"		"İletişim Komutları"
+		"da"		"Kommunikationskommandoer"
+		"nl"		"Communicatiecommando's"
+		"no"		"Kommunikasjonskommandoer"
+		"sv"		"Kommunikationskommandon"
 	}
 	"AdminMenu_Select_Main"
 	{
@@ -627,6 +803,10 @@
 		"fr"		"Commandes de communication:"
 		"chi"		"禁言和静音:"
 		"tr"		"İletişim Komutları:"
+		"da"		"Kommunikationskommandoer:"
+		"nl"		"Communicatiecommando's:"
+		"no"		"Kommunikasjonskommandoer:"
+		"sv"		"Kommunikationskommandon:"
 	}
 	"AdminMenu_List"
 	{
@@ -640,6 +820,10 @@
 		"fr"		"Voir Les sanctions"
 		"chi"		"显示惩罚"
 		"tr"		"Cezaları Görüntüle"
+		"da"		"Vis straffe"
+		"nl"		"Straffen bekijken"
+		"no"		"Vis straffer"
+		"sv"		"Visa straff"
 	}
 	"AdminMenu_Select_List"
 	{
@@ -653,6 +837,10 @@
 		"fr"		"Sélectionner un joueur:"
 		"chi"		"选择玩家:"
 		"tr"		"Oyuncu Seç:"
+		"da"		"Vælg spiller:"
+		"nl"		"Selecteer speler:"
+		"no"		"Velg spiller:"
+		"sv"		"Välj spelare:"
 	}
 	"AdminMenu_Gag"
 	{
@@ -666,6 +854,10 @@
 		"fr"		"Sanction chat"
 		"chi"		"进行禁言"
 		"tr"		"Sohbet Yasağı"
+		"da"		"Giv chatblokering"
+		"nl"		"Chatblokkade opleggen"
+		"no"		"Gi chatblokkering"
+		"sv"		"Utfärda chattblockering"
 	}
 	"AdminMenu_Select_Gag"
 	{
@@ -679,6 +871,10 @@
 		"fr"		"Sélectionner un joueur:"
 		"chi"		"选择玩家:"
 		"tr"		"Oyuncu Seç:"
+		"da"		"Vælg spiller:"
+		"nl"		"Selecteer speler:"
+		"no"		"Velg spiller:"
+		"sv"		"Välj spelare:"
 	}
 	"AdminMenu_Select_Mute"
 	{
@@ -692,6 +888,10 @@
 		"fr"		"Sélectionner un joueur:"
 		"chi"		"选择玩家:"
 		"tr"		"Oyuncu Seç:"
+		"da"		"Vælg spiller:"
+		"nl"		"Selecteer speler:"
+		"no"		"Velg spiller:"
+		"sv"		"Välj spelare:"
 	}
 	"AdminMenu_Select_Silence"
 	{
@@ -705,6 +905,10 @@
 		"fr"		"Sélectionner un joueur:"
 		"chi"		"选择玩家:"
 		"tr"		"Oyuncu Seç:"
+		"da"		"Vælg spiller:"
+		"nl"		"Selecteer speler:"
+		"no"		"Velg spiller:"
+		"sv"		"Välj spelare:"
 	}
 	"AdminMenu_Select_Ungag"
 	{
@@ -718,6 +922,10 @@
 		"fr"		"Sélectionner un joueur:"
 		"chi"		"选择玩家:"
 		"tr"		"Oyuncu Seç:"
+		"da"		"Vælg spiller:"
+		"nl"		"Selecteer speler:"
+		"no"		"Velg spiller:"
+		"sv"		"Välj spelare:"
 	}
 	"AdminMenu_Select_Unmute"
 	{
@@ -731,6 +939,10 @@
 		"fr"		"Sélectionner un joueur:"
 		"chi"		"选择玩家:"
 		"tr"		"Oyuncu Seç:"
+		"da"		"Vælg spiller:"
+		"nl"		"Selecteer speler:"
+		"no"		"Velg spiller:"
+		"sv"		"Välj spelare:"
 	}
 	"AdminMenu_Select_Unsilence"
 	{
@@ -744,6 +956,10 @@
 		"fr"		"Sélectionner un joueur:"
 		"chi"		"选择玩家:"
 		"tr"		"Oyuncu Seç:"
+		"da"		"Vælg spiller:"
+		"nl"		"Selecteer speler:"
+		"no"		"Velg spiller:"
+		"sv"		"Välj spelare:"
 	}
 	"AdminMenu_Option_Mute_Empty"
 	{
@@ -757,6 +973,10 @@
 		"fr"		"Aucun joueur de mute"
 		"chi"		"没有玩家被静音"
 		"tr"		"Mikrofonu susturulmuş oyuncu yok"
+		"da"		"Ingen mutede spillere"
+		"nl"		"Geen gemute spelers"
+		"no"		"Ingen dempede spillere"
+		"sv"		"Inga tystade spelare"
 	}
 	"AdminMenu_Option_Gag_Empty"
 	{
@@ -770,6 +990,10 @@
 		"fr"		"Aucun joueur de mute du chat"
 		"chi"		"没有玩家被禁言"
 		"tr"		"Mikrofon yasaklı oyuncu yok"
+		"da"		"Ingen chatblokerede spillere"
+		"nl"		"Geen spelers met chatblokkade"
+		"no"		"Ingen chatblokkerte spillere"
+		"sv"		"Inga chattblockerade spelare"
 	}
 	"AdminMenu_Option_Silence_Empty"
 	{
@@ -783,6 +1007,10 @@
 		"fr"		"Aucun joueur en silence"
 		"chi"		"没有玩家被禁言和静音"
 		"tr"		"Sessize alınmış oyuncu yok"
+		"da"		"Ingen fuldt blokerede spillere"
+		"nl"		"Geen volledig geblokkeerde spelers"
+		"no"		"Ingen fullstendig blokkerte spillere"
+		"sv"		"Inga helt blockerade spelare"
 	}
 	"ListMenu_Option_Empty"
 	{
@@ -796,6 +1024,10 @@
 		"fr"		"Aucun client puni"
 		"chi"		"没有玩家被惩罚"
 		"tr"		"Cezalı oyuncu yok"
+		"da"		"Ingen straffede spillere"
+		"nl"		"Geen gestrafte spelers"
+		"no"		"Ingen straffede spillere"
+		"sv"		"Inga straffade spelare"
 	}
 	"AdminMenu_Option_Empty"
 	{
@@ -809,6 +1041,10 @@
 		"fr"		"Aucun joueur disponible"
 		"chi"		"没有可用的玩家"
 		"tr"		"Mevcut oyuncu yok"
+		"da"		"Ingen tilgængelige spillere"
+		"nl"		"Geen beschikbare spelers"
+		"no"		"Ingen tilgjengelige spillere"
+		"sv"		"Inga tillgängliga spelare"
 	}
 	"AdminMenu_UnGag"
 	{
@@ -822,6 +1058,10 @@
 		"fr"		"Enleve un mute du chat"
 		"chi"		"取消禁言"
 		"tr"		"Sohbet yasağını kaldır"
+		"da"		"Fjern chatblokering"
+		"nl"		"Chatblokkade opheffen"
+		"no"		"Fjern chatblokkering"
+		"sv"		"Ta bort chattblockering"
 
 	}
 	"AdminMenu_Title_Durations"
@@ -836,6 +1076,10 @@
 		"fr"		"Sélectionnez la durée:"
 		"chi"		"选择时长:"
 		"tr"		"Süre Seç:"
+		"da"		"Vælg varighed:"
+		"nl"		"Selecteer duur:"
+		"no"		"Velg varighet:"
+		"sv"		"Välj varaktighet:"
 	}
 	"AdminMenu_Title_Reasons"
 	{
@@ -849,6 +1093,10 @@
 		"fr"		"Choisir la raison:"
 		"chi"		"选择原因:"
 		"tr"		"Sebep Seç:"
+		"da"		"Vælg årsag:"
+		"nl"		"Selecteer reden:"
+		"no"		"Velg grunn:"
+		"sv"		"Välj anledning:"
 	}
 	"AdminMenu_Mute"
 	{
@@ -862,6 +1110,10 @@
 		"fr"		"Sanction mute"
 		"chi"		"进行静音"
 		"tr"		"Mikrofon Yasağı"
+		"da"		"Giv mute"
+		"nl"		"Mute opleggen"
+		"no"		"Gi demping"
+		"sv"		"Utfärda tystning"
 	}
 	"AdminMenu_UnMute"
 	{
@@ -875,6 +1127,10 @@
 		"fr"		"Enleve un mute"
 		"chi"		"取消静音"
 		"tr"		"Mikrofon yasağını kaldır"
+		"da"		"Fjern mute"
+		"nl"		"Mute opheffen"
+		"no"		"Fjern demping"
+		"sv"		"Ta bort tystning"
 	}
 	"AdminMenu_Silence"
 	{
@@ -888,6 +1144,10 @@
 		"fr"		"Santion en silence"
 		"chi"		"进行禁言和静音"
 		"tr"		"Sessize Al"
+		"da"		"Giv fuld blokering"
+		"nl"		"Volledige blokkade opleggen"
+		"no"		"Gi full blokkering"
+		"sv"		"Utfärda fullständig blockering"
 	}
 	"AdminMenu_UnSilence"
 	{
@@ -901,6 +1161,10 @@
 		"fr"		"Enleve un silence"
 		"chi"		"取消禁言和静音"
 		"tr"		"Sessizlik yasağını kaldır"
+		"da"		"Fjern fuld blokering"
+		"nl"		"Volledige blokkade opheffen"
+		"no"		"Fjern full blokkering"
+		"sv"		"Ta bort fullständig blockering"
 	}
 	//--------------------------------------------------------------------------------
 	"AdminMenu_Not_Available"
@@ -915,6 +1179,10 @@
 		"fr"		"Le joueur que vous avez sélectionné n'est plus disponible."
 		"chi"		"你选择的玩家目前不可用."
 		"tr"		"Seçtiğiniz oyuncu artık mevcut değil."
+		"da"		"Den valgte spiller er ikke længere tilgængelig."
+		"nl"		"De geselecteerde speler is niet meer beschikbaar."
+		"no"		"Spilleren du valgte er ikke lenger tilgjengelig."
+		"sv"		"Spelaren du valde är inte längre tillgänglig."
 	}
 	"Command_Target_Not_Targetable"
 	{
@@ -928,6 +1196,10 @@
 		"fr"		"Vous ne pouvez pas attendre ce joueur."
 		"chi"		"你无法选择此玩家."
 		"tr"		"Bu oyuncuyu hedefleyemezsiniz."
+		"da"		"Du kan ikke vælge denne spiller."
+		"nl"		"Je kunt deze speler niet selecteren."
+		"no"		"Du kan ikke velge denne spilleren."
+		"sv"		"Du kan inte välja den här spelaren."
 	}
 	//---------------------------------------------------------------------------------
 	"ListMenu_Option_Mute"
@@ -942,6 +1214,10 @@
 		"fr"		"Muté"
 		"chi"		"静音"
 		"tr"		"Mikrofon Yasaklı"
+		"da"		"Mutet"
+		"nl"		"Gemute"
+		"no"		"Dempet"
+		"sv"		"Tystad"
 	}
 	"ListMenu_Option_Gag"
 	{
@@ -955,6 +1231,10 @@
 		"fr"		"Muté du chat"
 		"chi"		"禁言"
 		"tr"		"Sohbet Yasaklı"
+		"da"		"Chatblokeret"
+		"nl"		"Chat geblokkeerd"
+		"no"		"Chatblokkert"
+		"sv"		"Chattblockerad"
 	}
 	"ListMenu_Option_Duration"
 	{
@@ -968,6 +1248,10 @@
 		"fr"		"- Durée: "
 		"chi"		"- 时长: "
 		"tr"		"- Süre: "
+		"da"		"- Varighed: "
+		"nl"		"- Duur: "
+		"no"		"- Varighet: "
+		"sv"		"- Varaktighet: "
 	}
 	"ListMenu_Option_Duration_Perm"
 	{
@@ -981,6 +1265,10 @@
 		"fr"		"Permanent"
 		"chi"		"永久"
 		"tr"		"Süresiz"
+		"da"		"Permanent"
+		"nl"		"Permanent"
+		"no"		"Permanent"
+		"sv"		"Permanent"
 	}
 	"ListMenu_Option_Duration_Time"
 	{
@@ -995,6 +1283,10 @@
 		"fr"		"{1} Minutes"
 		"chi"		"{1} 分钟"
 		"tr"		"{1} Dakika"
+		"da"		"{1} minutter"
+		"nl"		"{1} minuten"
+		"no"		"{1} minutter"
+		"sv"		"{1} minuter"
 	}
 	"ListMenu_Option_Duration_Temp"
 	{
@@ -1008,6 +1300,10 @@
 		"fr"		"Temporaire"
 		"chi"		"临时"
 		"tr"		"Geçici"
+		"da"		"Midlertidig"
+		"nl"		"Tijdelijk"
+		"no"		"Midlertidig"
+		"sv"		"Tillfällig"
 	}
 	"ListMenu_Option_Expire"
 	{
@@ -1021,6 +1317,10 @@
 		"fr"		"- Expire: "
 		"chi"		"- 解除: "
 		"tr"		"- Sona Erme: "
+		"da"		"- Udløber: "
+		"nl"		"- Verloopt: "
+		"no"		"- Utløper: "
+		"sv"		"- Går ut: "
 	}
 	"ListMenu_Option_Expire_Perm"
 	{
@@ -1034,6 +1334,10 @@
 		"fr"		"Jamais"
 		"chi"		"永不"
 		"tr"		"Asla"
+		"da"		"Aldrig"
+		"nl"		"Nooit"
+		"no"		"Aldri"
+		"sv"		"Aldrig"
 	}
 	"ListMenu_Option_Expire_Time"
 	{
@@ -1048,6 +1352,10 @@
 		"fr"		"{1}"
 		"chi"		"{1}"
 		"tr"		"{1}"
+		"da"		"{1}"
+		"nl"		"{1}"
+		"no"		"{1}"
+		"sv"		"{1}"
 	}
 	"ListMenu_Option_Expire_Temp_Reconnect"
 	{
@@ -1061,6 +1369,10 @@
 		"fr"		"Reconnecter"
 		"chi"		"重新连接"
 		"tr"		"Yeniden bağlan"
+		"da"		"Ved genforbindelse"
+		"nl"		"Bij opnieuw verbinden"
+		"no"		"Ved gjenoppkobling"
+		"sv"		"Vid återanslutning"
 	}
 	"ListMenu_Option_Admin"
 	{
@@ -1075,6 +1387,10 @@
 		"fr"		"- Admin: {1}"
 		"chi"		"- 管理员: {1}"
 		"tr"		"- Admin: {1}"
+		"da"		"- Admin: {1}"
+		"nl"		"- Admin: {1}"
+		"no"		"- Admin: {1}"
+		"sv"		"- Admin: {1}"
 	}
 	"ListMenu_Option_Issue"
 	{
@@ -1089,6 +1405,10 @@
 		"fr"		"- Publié: {1}"
 		"chi"		"- 已封禁: {1}"
 		"tr"		"- Oluşturma: {1}"
+		"da"		"- Givet: {1}"
+		"nl"		"- Opgelegd: {1}"
+		"no"		"- Gitt: {1}"
+		"sv"		"- Utfärdad: {1}"
 	}
 	"ListMenu_Option_Reason"
 	{
@@ -1102,6 +1422,10 @@
 		"fr"		"- Voir la raison"
 		"chi"		"- 查看原因"
 		"tr"		"- Sebebi Gör"
+		"da"		"- Vis årsag"
+		"nl"		"- Reden bekijken"
+		"no"		"- Vis grunn"
+		"sv"		"- Visa anledning"
 	}
 	"ListMenu_Option_Reason_None"
 	{
@@ -1115,6 +1439,10 @@
 		"fr"		"- Raison: Aucun"
 		"chi"		"- 原因: 无"
 		"tr"		"- Sebep: Yok"
+		"da"		"- Årsag: Ingen"
+		"nl"		"- Reden: Geen"
+		"no"		"- Grunn: Ingen"
+		"sv"		"- Anledning: Ingen"
 	}
 	//---------------------------------------------------------------------------------
 	"ReasonPanel_Punishment_Mute"
@@ -1129,6 +1457,10 @@
 		"fr"		"Muté: "
 		"chi"		"静音: "
 		"tr"		"Mikrofon Yasağı: "
+		"da"		"Mutet: "
+		"nl"		"Gemute: "
+		"no"		"Dempet: "
+		"sv"		"Tystad: "
 	}
 	"ReasonPanel_Punishment_Gag"
 	{
@@ -1142,6 +1474,10 @@
 		"fr"		"Mute du chat: "
 		"chi"		"禁言: "
 		"tr"		"Sohbet Yasağı: "
+		"da"		"Chatblokeret: "
+		"nl"		"Chat geblokkeerd: "
+		"no"		"Chatblokkert: "
+		"sv"		"Chattblockerad: "
 	}
 	"ReasonPanel_Perm"
 	{
@@ -1155,6 +1491,10 @@
 		"fr"		"Permanent"
 		"chi"		"永久"
 		"tr"		"Süresiz"
+		"da"		"Permanent"
+		"nl"		"Permanent"
+		"no"		"Permanent"
+		"sv"		"Permanent"
 	}
 	"ReasonPanel_Time"
 	{
@@ -1169,6 +1509,10 @@
 		"fr"		"{1} Minutes"
 		"chi"		"{1} 分钟"
 		"tr"		"{1} Dakika"
+		"da"		"{1} minutter"
+		"nl"		"{1} minuten"
+		"no"		"{1} minutter"
+		"sv"		"{1} minuter"
 	}
 	"ReasonPanel_Temp"
 	{
@@ -1182,6 +1526,10 @@
 		"fr"		"Temporaire"
 		"chi"		"临时"
 		"tr"		"Geçici"
+		"da"		"Midlertidig"
+		"nl"		"Tijdelijk"
+		"no"		"Midlertidig"
+		"sv"		"Tillfällig"
 	}
 	"ReasonPanel_Reason"
 	{
@@ -1196,6 +1544,10 @@
 		"fr"		"Raison: {1}"
 		"chi"		"原因: {1}"
 		"tr"		"Sebep: {1}"
+		"da"		"Årsag: {1}"
+		"nl"		"Reden: {1}"
+		"no"		"Grunn: {1}"
+		"sv"		"Anledning: {1}"
 	}
 	"ReasonPanel_Back"
 	{
@@ -1209,6 +1561,10 @@
 		"fr"		"Sorti"
 		"chi"		"退出"
 		"tr"		"Çıkış"
+		"da"		"Afslut"
+		"nl"		"Afsluiten"
+		"no"		"Avslutt"
+		"sv"		"Avsluta"
 	}
 	//---------------------------------------------------------------------------------
 	"Temp muted player"
@@ -1224,6 +1580,10 @@
 		"fr"			"Muté {1}."
 		"chi"			"玩家 {1} 已被静音."
 		"tr"			"Mikrofon yasağı {1}."
+		"da"			"{1} er mutet."
+		"nl"			"{1} is gemute."
+		"no"			"{1} er dempet."
+		"sv"			"{1} har tystats."
 	}
 	"Temp muted player reason"
 	{
@@ -1238,6 +1598,10 @@
 		"fr"			"Muté {1} (raison: {2})."
 		"chi"			"玩家 {1} 已被静音 (原因: {2})."
 		"tr"			"Mikrofon yasağı {1} (sebep: {2})."
+		"da"			"{1} er mutet (årsag: {2})."
+		"nl"			"{1} is gemute (reden: {2})."
+		"no"			"{1} er dempet (grunn: {2})."
+		"sv"			"{1} har tystats (anledning: {2})."
 	}
 	"Temp gagged player"
 	{
@@ -1252,6 +1616,10 @@
 		"fr"			"Mute du chat {1}."
 		"chi"			"玩家 {1} 已被禁言."
 		"tr"			"Sohbet yasağı {1}."
+		"da"			"{1} er chatblokeret."
+		"nl"			"De chat van {1} is geblokkeerd."
+		"no"			"{1} er chatblokkert."
+		"sv"			"{1} har chattblockerats."
 	}
 	"Temp gagged player reason"
 	{
@@ -1266,6 +1634,10 @@
 		"fr"			"Mute du chat {1} (raison: {2})."
 		"chi"			"玩家 {1} 已被禁言 (原因: {2})."
 		"tr"			"Sohbet yasağı {1} (sebep: {2})."
+		"da"			"{1} er chatblokeret (årsag: {2})."
+		"nl"			"De chat van {1} is geblokkeerd (reden: {2})."
+		"no"			"{1} er chatblokkert (grunn: {2})."
+		"sv"			"{1} har chattblockerats (anledning: {2})."
 	}
 	"Temp silenced player"
 	{
@@ -1280,6 +1652,10 @@
 		"fr"			"Silence {1}."
 		"chi"			"玩家 {1} 已被禁言和静音."
 		"tr"			"Sessizlik yasağı {1}."
+		"da"			"{1} er fuldt blokeret."
+		"nl"			"{1} is volledig geblokkeerd."
+		"no"			"{1} er fullstendig blokkert."
+		"sv"			"{1} har blockerats helt."
 	}
 	"Temp silenced player reason"
 	{
@@ -1294,6 +1670,10 @@
 		"fr"			"Silence {1} (raison: {2})."
 		"chi"			"玩家 {1} 已被禁言和静音 (原因: {2})."
 		"tr"			"Sessizlik yasağı {1} (sebep: {2})."
+		"da"			"{1} er fuldt blokeret (årsag: {2})."
+		"nl"			"{1} is volledig geblokkeerd (reden: {2})."
+		"no"			"{1} er fullstendig blokkert (grunn: {2})."
+		"sv"			"{1} har blockerats helt (anledning: {2})."
 	}
 	//---------------------------------------------------------------------------------
 	"CommandComms_na"
@@ -1308,6 +1688,10 @@
 		"fr"		"Disponible uniquement pour les joueurs sur le serveur."
 		"chi"		"只对在游戏中的玩家可用."
 		"tr"		"Yalnızca sunucudaki oyuncular için kullanılabilir."
+		"da"		"Kun tilgængelig for spillere på serveren."
+		"nl"		"Alleen beschikbaar voor spelers op de server."
+		"no"		"Kun tilgjengelig for spillere på serveren."
+		"sv"		"Endast tillgänglig för spelare på servern."
 	}
 	"CommandComms_nb"
 	{
@@ -1321,6 +1705,10 @@
 		"fr"		"Votre chat et votre voix ne sont pas bloquées."
 		"chi"		"你没有被禁言或静音."
 		"tr"		"Sohbet ve mikrofon yasağınız yok."
+		"da"		"Din chat og stemme er ikke blokeret."
+		"nl"		"Je chat en spraak zijn niet geblokkeerd."
+		"no"		"Chatten og stemmen din er ikke blokkert."
+		"sv"		"Din chatt och röst är inte blockerade."
 	}
 	//---------------------------------------------------------------------------------
 	"no access"
@@ -1335,5 +1723,9 @@
 		"fr"		"La punition pour le temps spécifié n'est pas autorisée pour vous."
 		"chi"		"你不能指定惩罚时长."
 		"tr"		"Belirtilen yasaklama süresi için yetkiniz bulunmamaktadır."
+		"da"		"Du har ikke tilladelse til at give en straf af den angivne varighed."
+		"nl"		"Je mag geen straf van de opgegeven duur opleggen."
+		"no"		"Du har ikke tillatelse til å gi en straff av den angitte varigheten."
+		"sv"		"Du har inte behörighet att utfärda ett straff med den angivna varaktigheten."
 	}
 }
