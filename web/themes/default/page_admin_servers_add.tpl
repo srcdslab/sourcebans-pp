@@ -73,13 +73,25 @@
                 <div class="grid gap-4" style="grid-template-columns:repeat(auto-fit,minmax(16rem,1fr))">
                     <label class="block">
                         <span class="label">RCON password</span>
-                        <input type="password"
-                               id="rcon"
-                               name="rcon"
-                               class="input font-mono"
-                               value="{$rcon|escape}"
-                               autocomplete="new-password"
-                               data-testid="addserver-rcon">
+                        <span class="flex gap-2">
+                            <input type="password"
+                                   id="rcon"
+                                   name="rcon"
+                                   class="input font-mono"
+                                   value="{$rcon|escape}"
+                                   autocomplete="new-password"
+                                   style="flex:1;min-width:0"
+                                   data-testid="addserver-rcon">
+                            {* Shared generator dialog (scripts/password-generator.js). *}
+                            <button type="button" class="btn btn--ghost btn--icon"
+                                    title="Generate password"
+                                    aria-label="Generate RCON password"
+                                    data-password-generator
+                                    data-password-targets="rcon,rcon2"
+                                    data-testid="addserver-rcon-generate">
+                                <i data-lucide="refresh-cw" style="width:14px;height:14px"></i>
+                            </button>
+                        </span>
                         <span class="text-xs text-muted">Found in <code class="font-mono">server.cfg</code> next to <code class="font-mono">rcon_password</code>.</span>
                     </label>
                     <label class="block">

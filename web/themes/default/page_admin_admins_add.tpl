@@ -121,15 +121,13 @@
                                         data-testid="admin-add-password-toggle">
                                     <i data-lucide="eye" style="width:14px;height:14px"></i>
                                 </button>
-                                {* #1402: data-action="admin-add-generate-password" replaces the
-                                   dead `onclick="if (typeof LoadGeneratePassword === 'function')
-                                   LoadGeneratePassword(); return false;"` guard. The page-tail
-                                   dispatcher below calls Actions.AdminsGeneratePassword and
-                                   writes the result into #password / #password2. *}
+                                {* Shared generator dialog (scripts/password-generator.js):
+                                   fills #password + #password2 on "Use password". *}
                                 <button type="button" class="btn btn--ghost btn--icon"
-                                        title="Generate random password"
-                                        aria-label="Generate random password"
-                                        data-action="admin-add-generate-password"
+                                        title="Generate password"
+                                        aria-label="Generate password"
+                                        data-password-generator
+                                        data-password-targets="password,password2"
                                         data-testid="admin-add-generate-password">
                                     <i data-lucide="refresh-cw" style="width:14px;height:14px"></i>
                                 </button>
@@ -146,7 +144,7 @@
                     <div class="flex items-center gap-2 mt-2" style="border-top:1px solid var(--border);padding-top:0.75rem">
                         <input type="checkbox" id="a_useserverpass" name="a_useserverpass"
                                tabindex="6" data-testid="admin-add-useserverpass"
-                               onclick="var el = document.getElementById('a_serverpass'); if (el) el.disabled = !this.checked;">
+                               onclick="var on = this.checked; ['a_serverpass', 'a_serverpass_generate'].forEach(function (id) { var el = document.getElementById(id); if (el) el.disabled = !on; });">
                         <label for="a_useserverpass" class="text-sm font-medium" style="margin:0">Set in-game admin password</label>
                         <div class="flex gap-2" style="max-width:16rem;margin-left:auto;flex:1;min-width:0">
                             <input class="input" id="a_serverpass" name="a_serverpass" type="password"
@@ -162,6 +160,15 @@
                                     data-password-targets="a_serverpass"
                                     data-testid="admin-add-serverpass-toggle">
                                 <i data-lucide="eye" style="width:14px;height:14px"></i>
+                            </button>
+                            <button type="button" class="btn btn--ghost btn--icon" disabled
+                                    id="a_serverpass_generate"
+                                    title="Generate password"
+                                    aria-label="Generate in-game password"
+                                    data-password-generator
+                                    data-password-targets="a_serverpass"
+                                    data-testid="admin-add-serverpass-generate">
+                                <i data-lucide="refresh-cw" style="width:14px;height:14px"></i>
                             </button>
                         </div>
                     </div>
@@ -395,9 +402,9 @@
                builds the web-flag bitmask + server-flag string, fires
                sb.api.call(Actions.AdminsAdd, …) and dispatches errors
                into the per-field `.msg` slots.
-             - `LoadGeneratePassword()` → click handler that calls
-               Actions.AdminsGeneratePassword and writes the result
-               into #password / #password2.
+             - `LoadGeneratePassword()` → now the shared generator
+               dialog (scripts/password-generator.js), driven by the
+               `data-password-generator` buttons above.
              - `update_server()` / `update_web()` → change handlers that
                reveal the conditional inputs on "Custom permissions" /
                "New admin group".
@@ -677,46 +684,6 @@
                     : null;
                 if (!first || first.disabled) return;
                 setPasswordGroupVisible(toggle, first.type === 'password');
-            });
-
-            // ---------- Generate password ----------
-            document.addEventListener('click', function (e) {
-                var t = /** @type {Element|null} */ (e.target);
-                if (!t || !t.closest) return;
-                var btn = /** @type {HTMLElement|null} */ (t.closest('[data-action="admin-add-generate-password"]'));
-                if (!btn) return;
-                e.preventDefault();
-                var a = api(), A = actions();
-                if (!a || !A) return;
-                setBusy(btn, true);
-                a.call(A.AdminsGeneratePassword, {}).then(function (r) {
-                    setBusy(btn, false);
-                    if (!r || r.ok === false || !r.data || !r.data.password) return;
-                    var p1 = /** @type {HTMLInputElement|null} */ (document.getElementById('password'));
-                    var p2 = /** @type {HTMLInputElement|null} */ (document.getElementById('password2'));
-                    if (p1) p1.value = String(r.data.password);
-                    if (p2) p2.value = String(r.data.password);
-                    // #1402 adversarial review MEDIUM 5: leave the input
-                    // types as `password` (matches v1.x `LoadGeneratePassword`
-                    // — the legacy helper never flipped .type either).
-                    // Reset any open eye-toggle so a prior "show" click
-                    // does not leave the freshly generated value visible.
-                    var pwToggle = /** @type {HTMLElement|null} */ (
-                        document.querySelector('[data-testid="admin-add-password-toggle"]')
-                    );
-                    if (pwToggle) setPasswordGroupVisible(pwToggle, false);
-                }).catch(function (err) {
-                    // sb.api.call only rejects on internal failures (it
-                    // catches fetch / json errors and synthesises an
-                    // error envelope), but defensive .catch() ensures the
-                    // button doesn't stay busy if a throw escapes the
-                    // success callback (e.g., DOM nodes vanished mid-
-                    // request). Per the AGENTS.md "Loading state on
-                    // action buttons" rule, setBusy(btn, false) must
-                    // fire on every non-navigating response branch.
-                    setBusy(btn, false);
-                    toast('error', 'Generate password failed', String(err && err.message ? err.message : err));
-                });
             });
 
             // ---------- Server-group / web-group conditional UI ----------

@@ -412,6 +412,72 @@ final class AdminsTest extends ApiTestCase
         $this->assertSnapshot('admins/generate_password_success', $env, ['data.password']);
     }
 
+    public function testGeneratePasswordHonoursRequestOptions(): void
+    {
+        $this->loginAsAdmin();
+        $env = $this->api('admins.generate_password', [
+            'length'    => 40,
+            'lowercase' => false,
+            'uppercase' => false,
+            'digits'    => true,
+            'symbols'   => false,
+        ]);
+        $this->assertTrue($env['ok'], json_encode($env));
+        $this->assertMatchesRegularExpression('/^[0-9]{40}$/', $env['data']['password']);
+        $this->assertSame(40, $env['data']['options']['length']);
+        $this->assertFalse($env['data']['options']['lowercase']);
+        $this->assertTrue($env['data']['options']['digits']);
+    }
+
+    public function testGeneratePasswordClampsLength(): void
+    {
+        $this->loginAsAdmin();
+        $env = $this->api('admins.generate_password', ['length' => 1]);
+        $this->assertTrue($env['ok'], json_encode($env));
+        $this->assertSame($env['data']['min_length'], strlen($env['data']['password']));
+
+        $env = $this->api('admins.generate_password', ['length' => 99999]);
+        $this->assertSame($env['data']['max_length'], strlen($env['data']['password']));
+    }
+
+    public function testGeneratePasswordRejectsEmptyCharacterSet(): void
+    {
+        $this->loginAsAdmin();
+        $env = $this->api('admins.generate_password', [
+            'lowercase' => false,
+            'uppercase' => false,
+            'digits'    => false,
+            'symbols'   => false,
+        ]);
+        $this->assertEnvelopeError($env, 'validation');
+        $this->assertSame('charset', $env['error']['field'] ?? null);
+    }
+
+    public function testGeneratePasswordUsesConfiguredDefaults(): void
+    {
+        $this->loginAsAdmin();
+        $set = static function (string $length, string $symbols): void {
+            Fixture::rawPdo()->prepare(sprintf(
+                "REPLACE INTO `%s_settings` (`setting`, `value`) VALUES
+                    ('config.password.generator.length', ?),
+                    ('config.password.generator.symbols', ?)",
+                DB_PREFIX
+            ))->execute([$length, $symbols]);
+            \Config::init($GLOBALS['PDO']);
+        };
+
+        $set('33', '0');
+        try {
+            $env = $this->api('admins.generate_password', []);
+            $this->assertTrue($env['ok'], json_encode($env));
+            $this->assertSame(33, strlen($env['data']['password']));
+            $this->assertFalse($env['data']['options']['symbols']);
+            $this->assertMatchesRegularExpression('/^[A-Za-z0-9]+$/', $env['data']['password']);
+        } finally {
+            $set('20', '1');
+        }
+    }
+
     public function testGeneratePasswordRejectsAnonymous(): void
     {
         $env = $this->api('admins.generate_password', []);

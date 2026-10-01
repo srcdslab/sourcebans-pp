@@ -29,7 +29,8 @@
                 this template doesn't gate any UI on it directly but
                 the View constructor requires it for cross-tab parity.
         Settings values: $config_title, $config_logo,
-            $config_min_password, $config_dateformat,
+            $config_min_password, $pwgen (password generator
+            defaults + length bounds), $config_dateformat,
             $config_dash_title, $config_dash_text, $auth_maxlife,
             $auth_maxlife_remember, $auth_maxlife_steam,
             $auth_maxlife_human, $auth_maxlife_remember_human,
@@ -136,6 +137,41 @@
                                 <label class="label" for="config_password_minlength">Minimum password length</label>
                                 <input class="input" type="number" min="1" id="config_password_minlength" name="config_password_minlength" value="{$config_min_password}">
                             </div>
+                            <fieldset class="space-y-3" data-testid="setting-row" data-key="config.password.generator" style="border:0;padding:0;margin:0">
+                                <legend class="label">Password generator defaults</legend>
+                                <div>
+                                    <label class="label" for="pwgen_length">Length</label>
+                                    <input class="input" type="number" id="pwgen_length" name="pwgen_length"
+                                           min="{$pwgen.min_length}" max="{$pwgen.max_length}" value="{$pwgen.length}"
+                                           style="max-width:8rem" aria-describedby="pwgen_help"
+                                           data-testid="setting-pwgen-length">
+                                </div>
+                                <div class="flex gap-4" style="flex-wrap:wrap">
+                                    <label class="flex items-center gap-2">
+                                        <input type="checkbox" name="pwgen_lowercase" data-testid="setting-pwgen-lowercase"{if $pwgen.lowercase} checked{/if}>
+                                        <span class="text-sm">Lowercase (a-z)</span>
+                                    </label>
+                                    <label class="flex items-center gap-2">
+                                        <input type="checkbox" name="pwgen_uppercase" data-testid="setting-pwgen-uppercase"{if $pwgen.uppercase} checked{/if}>
+                                        <span class="text-sm">Uppercase (A-Z)</span>
+                                    </label>
+                                    <label class="flex items-center gap-2">
+                                        <input type="checkbox" name="pwgen_digits" data-testid="setting-pwgen-digits"{if $pwgen.digits} checked{/if}>
+                                        <span class="text-sm">Digits (0-9)</span>
+                                    </label>
+                                    <label class="flex items-center gap-2">
+                                        <input type="checkbox" name="pwgen_symbols" data-testid="setting-pwgen-symbols"{if $pwgen.symbols} checked{/if}>
+                                        <span class="text-sm">Symbols</span>
+                                    </label>
+                                    <label class="flex items-center gap-2">
+                                        <input type="checkbox" name="pwgen_exclude_ambiguous" data-testid="setting-pwgen-exclude-ambiguous"{if $pwgen.exclude_ambiguous} checked{/if}>
+                                        <span class="text-sm">Skip look-alikes (0 O 1 l I)</span>
+                                    </label>
+                                </div>
+                                <p class="settings-fieldset__help" id="pwgen_help">
+                                    Starting options for every "Generate password" button. Admins can still adjust them per password. Length is kept between {$pwgen.min_length} and {$pwgen.max_length}.
+                                </p>
+                            </fieldset>
                             <div data-testid="setting-row" data-key="config.dateformat">
                                 <label class="label" for="config_dateformat">Date format <span class="text-muted text-xs">(<a href="https://www.php.net/manual/en/datetime.format.php" target="_blank" rel="noopener">PHP date()</a>)</span></label>
                                 <input class="input" type="text" id="config_dateformat" name="config_dateformat" value="{$config_dateformat}">

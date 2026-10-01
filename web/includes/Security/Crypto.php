@@ -17,11 +17,6 @@ final class Crypto
         return self::base64RandomBytes($length);
     }
 
-    public static function genPassword(int $length = 23): string
-    {
-        return self::base64RandomBytes($length);
-    }
-
     public static function recoveryHash(): string
     {
         return hash('sha256', self::base64RandomBytes(12));
