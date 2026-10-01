@@ -12,6 +12,7 @@ use Sbpp\Config;
 use Sbpp\Db\Database;
 use Sbpp\Export\EntityExporter;
 use Sbpp\Log;
+use Sbpp\Security\PasswordGenerator;
 use LogType;
 
 /**
@@ -192,6 +193,11 @@ final class SettingsService
             'config.exportpublic',
             'protest.emailonlyinvolved',
             'telemetry.enabled',
+            PasswordGenerator::SETTING_LOWERCASE,
+            PasswordGenerator::SETTING_UPPERCASE,
+            PasswordGenerator::SETTING_DIGITS,
+            PasswordGenerator::SETTING_SYMBOLS,
+            PasswordGenerator::SETTING_EXCLUDE_AMBIGUOUS,
         ], true);
     }
 
@@ -200,6 +206,7 @@ final class SettingsService
         return str_starts_with($key, 'auth.maxlife')
             || $key === 'banlist.bansperpage'
             || $key === 'config.password.minlength'
+            || $key === PasswordGenerator::SETTING_LENGTH
             || $key === 'config.defaultpage';
     }
 

@@ -12,7 +12,7 @@ use Sbpp\Api\ApiError;
 use Sbpp\Auth\UserManager;
 use Sbpp\Db\Database;
 use Sbpp\Log;
-use Sbpp\Security\Crypto;
+use Sbpp\Security\PasswordGenerator;
 use SteamID\SteamID;
 use WebPermission;
 
@@ -199,7 +199,7 @@ final class AdminsService
         $immunity = max(0, (int) ($body['immunity'] ?? 0));
         $password = (string) ($body['password'] ?? '');
         if ($password === '') {
-            $password = Crypto::genPassword();
+            $password = PasswordGenerator::generate();
         }
         if (strlen($password) < MIN_PASS_LENGTH) {
             throw new ApiError(

@@ -34,4 +34,5 @@ $webExtraFlags = (int) $userbank->GetProperty("extraflags");
     server_permissions:      SmFlagsToSb($userbank->GetProperty("srv_flags")),
     min_pass_len:            (int) MIN_PASS_LENGTH,
     api_tokens:              \Sbpp\Rest\PatAuthenticator::listForAid((int) $userbank->GetAid()),
+    can_generate_password:   $userbank->is_admin(),
 ));

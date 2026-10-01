@@ -245,6 +245,12 @@
    markup matches the runtime behaviour (#1402 adversarial review
    LOW 8). *}
 <script src="./scripts/comment-actions.js"></script>
+{*
+    password-generator.js: shared "Generate password" dialog for every
+    `data-password-generator` trigger (Add / Edit admin, Your account,
+    Add / Edit server RCON). Feature-detected, a no-op elsewhere.
+*}
+<script src="./scripts/password-generator.js"></script>
 
 </body>
 </html>

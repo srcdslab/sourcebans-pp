@@ -81,6 +81,7 @@
         ],
         "server_permissions": false,
         "min_pass_len": 6,
-        "api_tokens": []
+        "api_tokens": [],
+        "can_generate_password": false
     }
 }

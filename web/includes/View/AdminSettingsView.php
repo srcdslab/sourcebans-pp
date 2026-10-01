@@ -57,6 +57,13 @@ final class AdminSettingsView extends View
          */
         public readonly bool $config_logo_using_fallback,
         public readonly int $config_min_password,
+        /**
+         * Password generator defaults (`Sbpp\Security\PasswordGenerator::defaults()`)
+         * plus the clamp bounds the length input advertises.
+         *
+         * @var array{length: int, lowercase: bool, uppercase: bool, digits: bool, symbols: bool, exclude_ambiguous: bool, min_length: int, max_length: int}
+         */
+        public readonly array $pwgen,
         public readonly string $config_dateformat,
         public readonly string $config_dash_title,
         public readonly string $config_dash_text,

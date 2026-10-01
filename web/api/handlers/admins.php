@@ -3,6 +3,7 @@
 // Licensed under the Elastic License 2.0.
 // See LICENSE.txt for the full license text and THIRD-PARTY-NOTICES.txt for attributions.
 
+use Sbpp\Security\PasswordGenerator;
 use SteamID\SteamID;
 
 /**
@@ -778,7 +779,27 @@ function api_admins_edit_perms(array $params): array
     ];
 }
 
+/**
+ * Generate a random password. Any option left out falls back to the
+ * owner-configured defaults (`config.password.generator.*`); `length`
+ * is clamped to `[min_length, max_length]`. The response echoes the
+ * effective options so the generator dialog can paint them.
+ *
+ * @param array{length?: int|string, lowercase?: bool|int|string, uppercase?: bool|int|string, digits?: bool|int|string, symbols?: bool|int|string, exclude_ambiguous?: bool|int|string} $params
+ * @return array{password: string, options: array{length: int, lowercase: bool, uppercase: bool, digits: bool, symbols: bool, exclude_ambiguous: bool}, min_length: int, max_length: int}
+ */
 function api_admins_generate_password(array $params): array
 {
-    return ['password' => Crypto::genPassword()];
+    try {
+        $options = PasswordGenerator::resolve($params);
+    } catch (\InvalidArgumentException $e) {
+        throw new ApiError('validation', $e->getMessage(), 'charset');
+    }
+
+    return [
+        'password'   => PasswordGenerator::generate($options),
+        'options'    => $options,
+        'min_length' => PasswordGenerator::minLength(),
+        'max_length' => PasswordGenerator::MAX_LENGTH,
+    ];
 }
