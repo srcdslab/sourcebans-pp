@@ -26,9 +26,9 @@
  *   1. Submitting a valid form calls `Actions.AdminsAdd`, the new
  *      row appears on the admins list, and the operator gets a
  *      success toast.
- *   2. Clicking "Generate password" calls
- *      `Actions.AdminsGeneratePassword` and the password+confirm
- *      fields are populated with the same value.
+ *   2. Clicking "Generate password" opens the shared generator
+ *      dialog (`Actions.AdminsGeneratePassword`); "Use password"
+ *      populates the password+confirm fields with the same value.
  *   3. Picking "New admin group" on the server-group select reveals
  *      the new-group name input AND the SourceMod flags input.
  *   4. Picking "Custom permissions" on the web-group select reveals
@@ -133,7 +133,7 @@ test.describe('flow: admin admins add form (#1402 — ProcessAddAdmin zombie)', 
         ).toEqual([]);
     });
 
-    test('Generate password button → fills password + confirm', async ({ page }) => {
+    test('Generate password dialog → fills password + confirm', async ({ page }) => {
         await page.goto(ADMIN_ADMINS_ADD_ROUTE);
 
         const responsePromise = page.waitForResponse(
@@ -148,16 +148,22 @@ test.describe('flow: admin admins add form (#1402 — ProcessAddAdmin zombie)', 
         expect(typeof env.data?.password).toBe('string');
         expect(env.data.password.length).toBeGreaterThan(0);
 
-        // Both fields land on the generated value.
+        // The shared generator dialog shows the value; "Use password"
+        // copies it into both fields.
+        const dialog = page.locator('[data-testid="password-generator-dialog"]');
+        await expect(dialog).toBeVisible();
+        await expect(page.locator('[data-testid="password-generator-output"]'))
+            .toHaveValue(env.data.password);
+        await page.locator('[data-testid="password-generator-use"]').click();
+        await expect(dialog).toBeHidden();
+
         const pw1 = await page.locator('[data-testid="admin-add-password"]').inputValue();
         const pw2 = await page.locator('[data-testid="admin-add-password2"]').inputValue();
         expect(pw1).toBe(env.data.password);
         expect(pw2).toBe(env.data.password);
         // #1402 adversarial review MEDIUM 5: the input types must
-        // stay as `password` — the legacy `LoadGeneratePassword`
-        // helper never flipped `.type`, and leaving the generated
-        // value visible indefinitely is a privacy / shoulder-surf /
-        // screenshot leak.
+        // stay as `password` — leaving the generated value visible
+        // indefinitely is a privacy / shoulder-surf / screenshot leak.
         expect(await page.locator('[data-testid="admin-add-password"]').getAttribute('type'))
             .toBe('password');
         expect(await page.locator('[data-testid="admin-add-password2"]').getAttribute('type'))

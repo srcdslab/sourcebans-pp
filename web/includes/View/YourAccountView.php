@@ -45,6 +45,10 @@ final class YourAccountView extends View
      * @param list<array{id: int, name: string, token_prefix: string, created: int, last_used: int|null, expires_at: int|null}> $api_tokens
      *     Active Personal Access Tokens for the REST API. Empty when
      *     the admin has none. The plaintext secret is never listed.
+     * @param bool $can_generate_password
+     *     Shows the "Generate password" buttons. Mirrors the
+     *     `admins.generate_password` gate (web admins only), so an
+     *     admin with SourceMod flags alone doesn't get a dead button.
      */
     public function __construct(
         public readonly bool $srvpwset,
@@ -54,6 +58,7 @@ final class YourAccountView extends View
         public readonly false|array $server_permissions,
         public readonly int $min_pass_len,
         public readonly array $api_tokens,
+        public readonly bool $can_generate_password = false,
     ) {
     }
 }

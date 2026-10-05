@@ -9,6 +9,7 @@ if (!defined("IN_SB")) {
 }
 global $userbank, $theme;
 
+use Sbpp\Security\PasswordGenerator;
 use Sbpp\View\AdminFeaturesView;
 use Sbpp\View\AdminLogsView;
 use Sbpp\View\AdminSettingsView;
@@ -70,7 +71,21 @@ if ($canSettings && isset($_POST['settingsGroup'])) {
             $errors .= "Min password length must be a number<br />";
         }
         if (!is_numeric($_POST['banlist_bansperpage'] ?? '')) {
-            $errors .= 'Bans per page must be a number';
+            $errors .= 'Bans per page must be a number<br />';
+        }
+
+        // Password generator defaults. The length is clamped (not
+        // rejected) to the generator's bounds; an empty character-set
+        // selection is rejected because it can't produce anything.
+        $pwgenFlags = [];
+        foreach (['lowercase', 'uppercase', 'digits', 'symbols', 'exclude_ambiguous'] as $flag) {
+            $pwgenFlags[$flag] = (($_POST['pwgen_' . $flag] ?? '') === 'on') ? 1 : 0;
+        }
+        if (!is_numeric($_POST['pwgen_length'] ?? '')) {
+            $errors .= 'Generated password length must be a number<br />';
+        }
+        if ($pwgenFlags['lowercase'] + $pwgenFlags['uppercase'] + $pwgenFlags['digits'] + $pwgenFlags['symbols'] === 0) {
+            $errors .= 'The password generator needs at least one character set<br />';
         }
 
         if (empty($errors)) {
@@ -145,6 +160,25 @@ if ($canSettings && isset($_POST['settingsGroup'])) {
                     (string) ($_POST['auth_maxlife_remember'] ?? ''),
                     (string) ($_POST['auth_maxlife_steam'] ?? ''),
                     ...$smtpConfig,
+                ]);
+
+            $pwgenLength = max(
+                PasswordGenerator::minLength(),
+                min(PasswordGenerator::MAX_LENGTH, (int) $_POST['pwgen_length']),
+            );
+            $GLOBALS['PDO']->query("REPLACE INTO `:prefix_settings` (`value`, `setting`) VALUES
+                (?, '" . PasswordGenerator::SETTING_LENGTH . "'),
+                (?, '" . PasswordGenerator::SETTING_LOWERCASE . "'),
+                (?, '" . PasswordGenerator::SETTING_UPPERCASE . "'),
+                (?, '" . PasswordGenerator::SETTING_DIGITS . "'),
+                (?, '" . PasswordGenerator::SETTING_SYMBOLS . "'),
+                (?, '" . PasswordGenerator::SETTING_EXCLUDE_AMBIGUOUS . "')")->execute([
+                    (string) $pwgenLength,
+                    (string) $pwgenFlags['lowercase'],
+                    (string) $pwgenFlags['uppercase'],
+                    (string) $pwgenFlags['digits'],
+                    (string) $pwgenFlags['symbols'],
+                    (string) $pwgenFlags['exclude_ambiguous'],
                 ]);
             Log::add(LogType::Message, 'Settings updated', 'Main settings were updated.');
             $savedSection = 'settings';
@@ -426,6 +460,10 @@ if ($section === 'themes') {
         config_logo:                 $rawLogo,
         config_logo_using_fallback:  $logoUsingFallback,
         config_min_password:         (int) MIN_PASS_LENGTH,
+        pwgen:                       PasswordGenerator::defaults() + [
+            'min_length' => PasswordGenerator::minLength(),
+            'max_length' => PasswordGenerator::MAX_LENGTH,
+        ],
         config_dateformat:           (string) Config::get('config.dateformat'),
         config_dash_title:           (string) Config::get('dash.intro.title'),
         config_dash_text:            $dashText,

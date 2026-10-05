@@ -77,8 +77,13 @@
  * @typedef {Object} ApiAdminsEditPermsResponse
  */
 /**
+ * Generate a random password. Any option left out falls back to the
+ * owner-configured defaults (`config.password.generator.*`); `length` is
+ * clamped to `[min_length, max_length]`. The response echoes the effective
+ * options so the generator dialog can paint them.
+ *
  * @typedef {Object} ApiAdminsGeneratePasswordRequest
- * @typedef {Object} ApiAdminsGeneratePasswordResponse
+ * @typedef {{password: string, options: {length: number, lowercase: boolean, uppercase: boolean, digits: boolean, symbols: boolean, exclude_ambiguous: boolean}, min_length: number, max_length: number}} ApiAdminsGeneratePasswordResponse
  */
 /**
  * Restore a soft-retired admin (`enabled = 1`).

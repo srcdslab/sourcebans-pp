@@ -101,8 +101,20 @@
                     <div class="grid gap-4" style="grid-template-columns:1fr 1fr">
                         <div>
                             <label class="label" for="password">New password</label>
-                            <input class="input" id="password" name="password" type="password"
-                                   data-testid="edit-admin-password" autocomplete="new-password">
+                            <div class="flex gap-2">
+                                <input class="input" id="password" name="password" type="password"
+                                       data-testid="edit-admin-password" autocomplete="new-password"
+                                       style="flex:1;min-width:0">
+                                {* Shared generator dialog (scripts/password-generator.js). *}
+                                <button type="button" class="btn btn--ghost btn--icon"
+                                        title="Generate password"
+                                        aria-label="Generate password"
+                                        data-password-generator
+                                        data-password-targets="password,password2"
+                                        data-testid="edit-admin-generate-password">
+                                    <i data-lucide="refresh-cw" style="width:14px;height:14px"></i>
+                                </button>
+                            </div>
                             <div id="password.msg" class="text-xs" style="color:var(--danger);margin-top:0.25rem"></div>
                         </div>
                         <div>
@@ -116,12 +128,25 @@
                         <input type="checkbox" id="a_useserverpass" name="a_useserverpass"
                                {if $a_spass}checked{/if}
                                data-testid="edit-admin-useserverpass"
-                               onclick="var el = document.getElementById('a_serverpass'); if (el) el.disabled = !this.checked;">
+                               onclick="var on = this.checked; ['a_serverpass', 'a_serverpass_generate'].forEach(function (id) { var el = document.getElementById(id); if (el) el.disabled = !on; });">
                         <label for="a_useserverpass" class="text-sm font-medium" style="margin:0">Use in-game admin password</label>
-                        <input class="input" id="a_serverpass" name="a_serverpass" type="password"
-                               style="max-width:14rem;margin-left:auto"
-                               {if !$a_spass}disabled{/if}
-                               data-testid="edit-admin-serverpass" autocomplete="new-password">
+                        <div class="flex gap-2" style="max-width:16rem;margin-left:auto;flex:1;min-width:0">
+                            <input class="input" id="a_serverpass" name="a_serverpass" type="password"
+                                   style="flex:1;min-width:0"
+                                   {if !$a_spass}disabled{/if}
+                                   aria-label="In-game admin password"
+                                   data-testid="edit-admin-serverpass" autocomplete="new-password">
+                            <button type="button" class="btn btn--ghost btn--icon"
+                                    id="a_serverpass_generate"
+                                    {if !$a_spass}disabled{/if}
+                                    title="Generate password"
+                                    aria-label="Generate in-game password"
+                                    data-password-generator
+                                    data-password-targets="a_serverpass"
+                                    data-testid="edit-admin-serverpass-generate">
+                                <i data-lucide="refresh-cw" style="width:14px;height:14px"></i>
+                            </button>
+                        </div>
                     </div>
                     <div id="a_serverpass.msg" class="text-xs" style="color:var(--danger)"></div>
                 </div>

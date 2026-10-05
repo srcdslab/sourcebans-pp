@@ -146,6 +146,28 @@ password login site-wide under **Admin Panel → Settings → Features
 later you'll need a database query to get back in (covered in the
 [FAQ](/faq/#i-locked-myself-out-by-enabling-steam-only-login)).
 
+## Generating passwords
+
+Password fields on **Add admin**, **Edit admin**, **Your account**,
+and the server form (RCON) have a generate button. It opens a dialog
+with a random password. Adjust the length and character sets there,
+copy the value if you need it elsewhere, then click **Use password**
+to fill the field and its confirmation.
+
+Set the starting options under **Admin Panel → Settings → Main →
+Password generator defaults**:
+
+- **Length**: 20 by default. Kept between the panel's minimum
+  password length (never below 8) and 128.
+- **Character sets**: lowercase, uppercase, digits, symbols. At least
+  one must stay on.
+- **Skip look-alikes**: leaves out `0 O 1 l I`. On by default, which
+  helps when typing a server password into the game console.
+
+Symbols never include quotes, backslash, semicolon, space, or
+backtick, so generated values are safe in `server.cfg` and SourceMod
+config files.
+
 ## What admins see
 
 Each admin only sees the parts of the panel their permissions allow.
