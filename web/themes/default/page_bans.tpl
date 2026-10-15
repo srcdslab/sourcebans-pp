@@ -6,7 +6,8 @@
          $view_comments.
    Per-row $ban.* keys: bid, name, steam, state, length, length_human,
          banned_human, banned_iso, sname, reason, aname, ban_ip_raw,
-         can_edit_ban, can_unban, mod_icon, country, demo_available,
+         can_edit_ban, can_unban, mod_icon, country, country_code,
+         country_name, demo_available,
          view_delete, type, commentdata.
    Permission gates that aren't pre-precomputable on the View use
    the {has_access flag=...} block plugin (A3 helper).
@@ -292,6 +293,12 @@
                  click on `[data-drawer-href]`; stopping bubble would
                  fall through to native href navigation (#1124 Slice 6). *}
               <div class="ban-player-cell__head" style="flex:1;min-width:0">
+                {* Country flag (banlist.nocountryfetch off). country_code is
+                   normalised to a bundled two-letter flag in page.banlist.php,
+                   empty when unknown / disabled. *}
+                {if !empty($ban.country_code)}
+                <img class="country-flag" src="images/country/{$ban.country_code}.png" width="16" height="11" alt="{$ban.country_code|upper}" title="{$ban.country_name|escape}" data-testid="ban-country-flag">
+                {/if}
                 <a class="font-medium ban-player-cell__name" href="?p=banlist&amp;id={$ban.bid}" data-drawer-href="?p=banlist&amp;c=details&amp;id={$ban.bid}" data-testid="drawer-trigger">{if empty($ban.name)}<i class="text-faint">no nickname</i>{else}{$ban.name|escape}{/if}</a>
                 {* #BANLIST-COMMENTS: native <details> disclosure. Summary
                    is icon+count only (GitHub/Linear shape); body lists
@@ -615,6 +622,9 @@
           <span class="avatar" style="width:36px;height:36px;background:hsl({$ban.avatar_hue} 55% 45%);font-size:13px" aria-hidden="true">{$ban.avatar_initials|escape}</span>
           <div style="flex:1;min-width:0">
             <div class="flex items-center gap-2">
+              {if !empty($ban.country_code)}
+              <img class="country-flag" src="images/country/{$ban.country_code}.png" width="16" height="11" alt="{$ban.country_code|upper}" title="{$ban.country_name|escape}" data-testid="ban-country-flag-mobile">
+              {/if}
               <span class="font-medium text-sm truncate">{if empty($ban.name)}<i class="text-faint">no nickname</i>{else}{$ban.name|escape}{/if}</span>
               {assign var=_m_pill_label value=$ban.state|capitalize}
               <span class="pill pill--{$ban.state}">{$_m_pill_label|escape}</span>

@@ -5,6 +5,7 @@
 
 use Sbpp\Mail\EmailType;
 use Sbpp\Mail\Mail;
+use Sbpp\Util\CountryFlag;
 use SteamID\SteamID;
 
 /**
@@ -1041,6 +1042,20 @@ function api_bans_detail(array $params): array
     $type      = $banType->value;
     $authid    = (string)$row['authid'];
     $banIp     = (string)($row['ip'] ?? '');
+
+    // Country flag, same gate + cache write-back as page.banlist.php.
+    // A coarse country is shown even when banlist.hideplayerips hides
+    // the IP itself (v1.x parity).
+    $countryCode     = null;
+    $lookedUpCountry = null;
+    if (CountryFlag::enabled()) {
+        $countryCode = CountryFlag::resolve($row['country'], $banIp, $lookedUpCountry);
+        if ($lookedUpCountry !== null) {
+            $GLOBALS['PDO']->query("UPDATE `:prefix_bans` SET country = ? WHERE bid = ?")
+                ->execute([$lookedUpCountry, $bid]);
+        }
+    }
+
     $created   = (int)$row['created'];
     $length    = (int)$row['length'];
     $ends      = (int)$row['ends'];
@@ -1157,7 +1172,7 @@ function api_bans_detail(array $params): array
             'steam_id_3'   => $steam3,
             'community_id' => $communityId,
             'ip'           => $hideIps || $banIp === '' ? null : $banIp,
-            'country'      => !empty($row['country']) && trim((string)$row['country']) !== '' ? (string)$row['country'] : null,
+            'country'      => $countryCode !== null ? strtoupper($countryCode) : null,
         ],
         'ban' => [
             'reason'           => (string)$row['reason'],

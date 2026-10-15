@@ -3,6 +3,7 @@
 // Licensed under the Elastic License 2.0.
 // See LICENSE.txt for the full license text and THIRD-PARTY-NOTICES.txt for attributions.
 
+use Sbpp\Util\CountryFlag;
 use Sbpp\View\BanListView;
 use Sbpp\View\Renderer;
 use SteamID\SteamID;
@@ -868,27 +869,30 @@ if ($viewCommentsEnabled && $banIds !== []) {
 // on `:prefix_bans` is queued here and flushed as ONE batched UPDATE
 // after the loop instead of one UPDATE per row.
 $pendingCountryUpdates = [];
+$countryFlagsEnabled   = CountryFlag::enabled();
 
 foreach ($res as $row) {
     $data = [];
 
     $data['ban_id'] = $row['ban_id'];
 
-    if (!empty($row['ban_ip']) && !Config::getBool('banlist.nocountryfetch')) {
-        if (!empty($row['ban_country']) && $row['ban_country'] != ' ') {
-            $data['country'] = '<img src="images/country/' . strtolower($row['ban_country']) . '.png" alt="' . $row['ban_country'] . '" border="0" align="absmiddle" />';
-        } elseif (!Config::getBool('banlist.nocountryfetch')) {
-            $country = FetchIp($row['ban_ip']);
-            $pendingCountryUpdates[(int) $row['ban_id']] = $country;
-
-            $countryFlag = empty($country) ? 'zz' : strtolower($country);
-            $data['country'] = '<img src="images/country/' . $countryFlag . '.png" alt="' . $country . '" border="0" align="absmiddle" />';
-        } else {
-            $data['country'] = '<img src="images/country/zz.png" alt="Unknown Country" border="0" align="absmiddle" />';
+    // Country-of-origin flag. `country_code` / `country_name` drive the
+    // flag in page_bans.tpl; `country` keeps the legacy `<img>` HTML for
+    // third-party themes. The stored column is written by the plugin
+    // too, so it only reaches HTML after CountryFlag::normalize().
+    $countryCode     = null;
+    $lookedUpCountry = null;
+    if ($countryFlagsEnabled) {
+        $countryCode = CountryFlag::resolve($row['ban_country'], $row['ban_ip'], $lookedUpCountry);
+        if ($lookedUpCountry !== null) {
+            $pendingCountryUpdates[(int) $row['ban_id']] = $lookedUpCountry;
         }
-    } else {
-        $data['country'] = '<img src="images/country/zz.png" alt="Unknown Country" border="0" align="absmiddle" />';
     }
+    $data['country_code'] = $countryCode ?? '';
+    $data['country_name'] = $countryCode !== null ? CountryFlag::name($countryCode) : '';
+    $data['country'] = $countryCode !== null
+        ? '<img src="' . CountryFlag::imageUrl($countryCode) . '" alt="' . strtoupper($countryCode) . '" border="0" align="absmiddle" />'
+        : '<img src="images/country/zz.png" alt="Unknown Country" border="0" align="absmiddle" />';
 
     $data['ban_date']    = Config::time($row['ban_created']);
 

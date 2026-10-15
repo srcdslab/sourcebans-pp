@@ -1343,6 +1343,18 @@ html.dark .pill--online    { color: #6ee7b7; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* Player country-of-origin flag (banlist rows, ban cards, drawer).
+   The bundled PNGs are 22x15; render at 16x11 so the flag sits on the
+   text line without growing the row. */
+.country-flag {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 11px;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px var(--border);
+  vertical-align: -1px;
+}
 .ban-comments-inline {
   display: block;
   flex: 0 0 auto;
