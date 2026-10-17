@@ -1126,6 +1126,10 @@
                     toast('error', 'Delete failed', msg);
                     return;
                 }
+                // The dialog is shared by every row: release the submit
+                // button before closing so the next delete can confirm.
+                // The trigger is removed with the row, no reset needed.
+                setBusy(delSubmit, false);
                 rowsForBid(delCtx.bid).forEach(removeRow);
                 decrementCount();
                 closeDeleteDialog();
