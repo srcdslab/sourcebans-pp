@@ -10,6 +10,21 @@ Legend:
 ? = Other stuff
 ```
 
+(18/10/26): Version 2.1.4-srcdslab
+-----------------------
+```
+01. ! Security: admins with only "Edit own bans" or "Edit group bans"
+        could edit every comm block (inverted check) (#55)
+02. ! Security: submission demos (`getdemo.php?type=S`) now require
+        ADMIN_BAN_SUBMISSIONS; ban demos stay public (#55)
+03. ! Security: the contact page (`?p=admin&c=bans&o=email`) requires
+        the submissions / protests flag before showing a reporter's
+        email (#55)
+04. ! The group editor requires ADMIN_EDIT_GROUPS (#55)
+05. + Admins with "Edit group bans" can reach comm block edits, like
+        ban edits (#55)
+```
+
 (05/05/26): Version 2.0.0 (**Run updater required**)
 -----------------------
 > [!IMPORTANT]
