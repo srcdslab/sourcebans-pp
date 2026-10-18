@@ -75,9 +75,9 @@ final class RestSessionTest extends TestCase
         $past = time() - 120;
         $pdo = Fixture::rawPdo();
         $pdo->prepare(sprintf(
-            'INSERT INTO `%s_login_tokens` (jti, secret, lastAccessed) VALUES (?, ?, ?)',
+            'INSERT INTO `%s_login_tokens` (jti, aid, secret, lastAccessed) VALUES (?, ?, ?, ?)',
             DB_PREFIX
-        ))->execute([$jti, 'test-secret', $past]);
+        ))->execute([$jti, Fixture::adminAid(), 'test-secret', $past]);
 
         $token = \Sbpp\Auth\JWT::create($jti, 3600, Fixture::adminAid());
         $_COOKIE['sbpp_auth'] = $token->toString();

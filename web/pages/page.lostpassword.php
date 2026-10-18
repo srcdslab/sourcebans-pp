@@ -102,6 +102,8 @@ if (isset($_GET['email'], $_GET['validation']) && (!empty($_GET['email']) || !em
     $GLOBALS['PDO']->bind(':password', password_hash($password, PASSWORD_BCRYPT));
     $GLOBALS['PDO']->bind(':aid', $result['aid']);
     $GLOBALS['PDO']->execute();
+    // A reset is the "someone may have my password" path: end every session (#54).
+    Auth::revokeAllForAdmin((int) $result['aid']);
 
     // Body line-breaks (`<br />`) converted to spaces so the body reads
     // as a single line — `showToast` (theme.js) `escapeHtml`s the value

@@ -3,6 +3,7 @@
 namespace Sbpp\Auth;
 
 use Lcobucci\JWT\Token;
+use Lcobucci\JWT\UnencryptedToken;
 use PDO;
 use Sbpp\Db\Database;
 use Sbpp\Security\Crypto;
@@ -19,11 +20,18 @@ final class Auth
         self::$dbs = $dbs;
     }
 
+    /** Lazily probed: `login_tokens.aid` only exists once migration 814 ran. */
+    private static ?bool $hasAidColumn = null;
+
     public static function login(int $aid, int $maxlife): void
     {
         $jti = self::generateJTI();
 
         $token = JWT::create($jti, $maxlife, $aid);
+        // Every session is backed by a `login_tokens` row; verify() refuses
+        // a token whose row is gone, which is how logout and password
+        // changes revoke it server-side (#54).
+        self::insertNewToken($jti, $aid);
         self::updateLastVisit($aid);
 
         self::setCookie($token->toString(), time() + $maxlife, Host::cookieDomain(), Host::isSecure());
@@ -38,13 +46,13 @@ final class Auth
         if (empty($cookie) || preg_match('/.*\..*\..*\./', $cookie)) {
             return false;
         }
-//        $token = JWT::parse($cookie);
 
-//        if (JWT::validate($token)) {
-//            self::$dbs->query("DELETE FROM `:prefix_login_tokens` WHERE jti = :jti");
-//            self::$dbs->bind(':jti', $token->claims()->get('jti'));
-//            self::$dbs->execute();
-//        }
+        $token = self::parseCookie($cookie);
+        if ($token !== null && JWT::validate($token)) {
+            self::$dbs->query("DELETE FROM `:prefix_login_tokens` WHERE jti = :jti");
+            self::$dbs->bind(':jti', (string) $token->claims()->get('jti'), PDO::PARAM_STR);
+            self::$dbs->execute();
+        }
 
         self::setCookie('', 1, Host::cookieDomain(), Host::isSecure());
 
@@ -65,14 +73,71 @@ final class Auth
             return null;
         }
 
-        $token = JWT::parse($cookie);
-
-        if (JWT::validate($token)) {
-            self::updateLastAccessed($token->claims()->get('jti'));
-            return $token;
+        $token = self::parseCookie($cookie);
+        if ($token === null || !JWT::validate($token)) {
+            return null;
         }
 
-        return null;
+        $jti = (string) $token->claims()->get('jti');
+        $row = self::getTokenRow($jti);
+        if ($row === null) {
+            // Revoked (logout / password change / admin removed) or minted
+            // before sessions were persisted.
+            return null;
+        }
+        if (array_key_exists('aid', $row) && (int) $row['aid'] !== (int) $token->claims()->get('aid')) {
+            return null;
+        }
+
+        self::updateLastAccessed($jti);
+        return $token;
+    }
+
+    /**
+     * End every browser session of an admin. Called when their password
+     * changes, and when they are deactivated or deleted (#54). A no-op
+     * until migration 814 adds `login_tokens.aid`.
+     */
+    public static function revokeAllForAdmin(int $aid): void
+    {
+        if ($aid <= 0 || !self::hasAidColumn()) {
+            return;
+        }
+
+        self::$dbs->query("DELETE FROM `:prefix_login_tokens` WHERE aid = :aid");
+        self::$dbs->bind(':aid', $aid, PDO::PARAM_INT);
+        self::$dbs->execute();
+    }
+
+    /** Parse a cookie value, or null when it isn't a well-formed, unencrypted JWT. */
+    private static function parseCookie(string $cookie): ?UnencryptedToken
+    {
+        try {
+            $token = JWT::parse($cookie);
+        } catch (\Lcobucci\JWT\Exception) {
+            return null;
+        }
+
+        return $token instanceof UnencryptedToken ? $token : null;
+    }
+
+    private static function hasAidColumn(): bool
+    {
+        if (self::$hasAidColumn !== null) {
+            return self::$hasAidColumn;
+        }
+
+        self::$dbs->query(
+            'SELECT COUNT(*) AS c FROM information_schema.COLUMNS '
+            . 'WHERE TABLE_SCHEMA = DATABASE() '
+            . 'AND TABLE_NAME = :table '
+            . "AND COLUMN_NAME = 'aid'"
+        );
+        self::$dbs->bind(':table', self::$dbs->getPrefix() . '_login_tokens');
+        $row = self::$dbs->single();
+        self::$hasAidColumn = is_array($row) && (int) ($row['c'] ?? 0) > 0;
+
+        return self::$hasAidColumn;
     }
 
     private static function setCookie(string $data, int $lifetime, string $domain, bool $secure): void
@@ -95,13 +160,22 @@ final class Auth
         self::$dbs->execute();
     }
 
-    private static function insertNewToken(string $jti, string $secret): void
+    private static function insertNewToken(string $jti, int $aid): void
     {
-        self::$dbs->query(
-            "INSERT INTO `:prefix_login_tokens` (jti, secret, lastAccessed) VALUES (:jti, :secret, UNIX_TIMESTAMP())"
-        );
+        // `secret` is a legacy NOT NULL UNIQUE column nothing reads; a random
+        // value keeps the constraint satisfied.
+        if (self::hasAidColumn()) {
+            self::$dbs->query(
+                "INSERT INTO `:prefix_login_tokens` (jti, aid, secret, lastAccessed) VALUES (:jti, :aid, :secret, UNIX_TIMESTAMP())"
+            );
+            self::$dbs->bind(':aid', $aid, PDO::PARAM_INT);
+        } else {
+            self::$dbs->query(
+                "INSERT INTO `:prefix_login_tokens` (jti, secret, lastAccessed) VALUES (:jti, :secret, UNIX_TIMESTAMP())"
+            );
+        }
         self::$dbs->bind(':jti', $jti, PDO::PARAM_STR);
-        self::$dbs->bind(':secret', $secret, PDO::PARAM_STR);
+        self::$dbs->bind(':secret', Crypto::genSecret(), PDO::PARAM_STR);
         self::$dbs->execute();
     }
 
@@ -119,12 +193,14 @@ final class Auth
         self::$dbs->execute();
     }
 
-    private static function getTokenSecret(string $jti): mixed
+    /** @return array<string, mixed>|null the session row, `aid` included once migration 814 ran */
+    private static function getTokenRow(string $jti): ?array
     {
-        self::$dbs->query("SELECT secret FROM `:prefix_login_tokens` WHERE jti = :jti");
+        $columns = self::hasAidColumn() ? 'jti, aid' : 'jti';
+        self::$dbs->query("SELECT {$columns} FROM `:prefix_login_tokens` WHERE jti = :jti");
         self::$dbs->bind(':jti', $jti, PDO::PARAM_STR);
         $result = self::$dbs->single();
-        return $result['secret'];
+        return is_array($result) && $result !== [] ? $result : null;
     }
 
     private static function generateJTI(): string

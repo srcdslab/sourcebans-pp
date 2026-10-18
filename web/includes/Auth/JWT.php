@@ -2,6 +2,7 @@
 
 namespace Sbpp\Auth;
 
+use DateInterval;
 use DateTimeImmutable;
 use Lcobucci\JWT\Configuration;
 use Lcobucci\JWT\Encoding\CannotDecodeContent;
@@ -11,8 +12,10 @@ use Lcobucci\JWT\Signer\Key\InMemory;
 use Lcobucci\JWT\Token;
 use Lcobucci\JWT\Validation\Constraint\IdentifiedBy;
 use Lcobucci\JWT\Validation\Constraint\IssuedBy;
+use Lcobucci\JWT\Validation\Constraint\LooseValidAt;
 use Lcobucci\JWT\Validation\Constraint\PermittedFor;
 use Lcobucci\JWT\Validation\Constraint\SignedWith;
+use Psr\Clock\ClockInterface;
 
 final class JWT
 {
@@ -39,6 +42,20 @@ final class JWT
         return $config->parser()->parse($jwt);
     }
 
+    /**
+     * Wall-clock source for the time-claim constraint. `psr/clock` ships
+     * as a dependency of lcobucci/jwt; no clock implementation does.
+     */
+    private static function clock(): ClockInterface
+    {
+        return new class implements ClockInterface {
+            public function now(): DateTimeImmutable
+            {
+                return new DateTimeImmutable();
+            }
+        };
+    }
+
     public static function validate(Token $token): bool
     {
         $config = self::getConfig();
@@ -47,7 +64,11 @@ final class JWT
             new SignedWith($config->signer(), $config->signingKey()),
             new IssuedBy(Host::domain()),
             new PermittedFor(Host::domain()),
-            new IdentifiedBy($token->claims()->get('jti'))
+            new IdentifiedBy($token->claims()->get('jti')),
+            // lcobucci/jwt only checks the constraints it is given, so
+            // without this the `exp` / `nbf` / `iat` claims were never
+            // enforced and a cookie stayed valid forever (#54).
+            new LooseValidAt(self::clock(), new DateInterval('PT30S')),
         ];
 
         return $config->validator()->validate($token, ...$constrains);
