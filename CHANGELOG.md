@@ -10,6 +10,17 @@ Legend:
 ? = Other stuff
 ```
 
+(18/10/26): Version 2.1.5-srcdslab
+-----------------------
+```
+01. ! Security: notification emails HTML-escape every template value, so
+        text from the public Submit / Protest forms can no longer inject
+        links or images into admin inboxes (#56)
+02. ! Custom themes' `mails/*.html` templates are used again; themes
+        without them fall back to the default theme instead of failing
+        every send (#56)
+```
+
 (05/05/26): Version 2.0.0 (**Run updater required**)
 -----------------------
 > [!IMPORTANT]
