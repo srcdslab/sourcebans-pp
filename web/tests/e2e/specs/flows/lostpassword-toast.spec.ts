@@ -83,9 +83,11 @@
 import { expect, test } from '../../fixtures/auth.ts';
 import { seedLostpasswordE2e, seedLostpasswordEnumAdminE2e } from '../../fixtures/db.ts';
 
-// #1456 cross-test isolation: the marquee #1403 test seeds the
-// `admin@example.test` row's `:prefix_admins.validate` column to a
-// known token then GETs a URL keyed on it. The form-POST tests at
+// #1456 cross-test isolation: the marquee #1403 test seeds a
+// dedicated `lostpw-happy@example.test` admin's `:prefix_admins.validate`
+// column to a known token then GETs a URL keyed on it. (Not the seeded
+// `admin@example.test`: completing a reset revokes the target admin's
+// sessions since #54, and the shared storage state belongs to that admin.) The form-POST tests at
 // the tail of this file call `api_auth_lost_password` which UPDATEs
 // the matched admin's `validate` to a fresh random value. Two
 // safeguards keep these from racing:

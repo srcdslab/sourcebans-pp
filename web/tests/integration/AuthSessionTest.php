@@ -25,6 +25,9 @@ final class AuthSessionTest extends ApiTestCase
     {
         parent::setUp();
         unset($_COOKIE['sbpp_auth']);
+        // Fixture::reset() keeps login_tokens (the E2E storage state
+        // depends on it), so clear it for the row-counting assertions.
+        Fixture::rawPdo()->exec(sprintf('DELETE FROM `%s_login_tokens`', DB_PREFIX));
     }
 
     protected function tearDown(): void
