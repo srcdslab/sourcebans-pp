@@ -18,17 +18,8 @@ if (!Config::getBool('config.enablecomms')) {
 $BansPerPage = SB_BANS_PER_PAGE;
 $servers     = [];
 global $userbank;
-function setPostKey()
-{
-    if (isset($_SERVER['REMOTE_IP'])) {
-        $_SESSION['banlist_postkey'] = md5($_SERVER['REMOTE_IP'] . time() . rand(0, 100000));
-    } else {
-        $_SESSION['banlist_postkey'] = md5(time() . rand(0, 100000));
-    }
-}
-if (!isset($_SESSION['banlist_postkey']) || strlen((string) $_SESSION['banlist_postkey']) < 4) {
-    setPostKey();
-}
+// #57: CSPRNG key for the GET fallbacks below (see sbpp_list_action_key()).
+sbpp_list_action_key();
 
 $page     = 1;
 $pagelink = "";
@@ -41,7 +32,7 @@ if (isset($_GET['page']) && $_GET['page'] > 0) {
 }
 
 if (isset($_GET['a']) && $_GET['a'] == "ungag" && isset($_GET['id'])) {
-    if ($_GET['key'] != $_SESSION['banlist_postkey']) {
+    if (!sbpp_list_action_key_valid($_GET['key'] ?? null)) {
         die("Possible hacking attempt (URL Key mismatch)");
     }
     // #1301: see page.banlist.php for the full rationale. Both the
@@ -135,7 +126,7 @@ if (isset($_GET['a']) && $_GET['a'] == "ungag" && isset($_GET['id'])) {
         );
     }
 } else if (isset($_GET['a']) && $_GET['a'] == "unmute" && isset($_GET['id'])) {
-    if ($_GET['key'] != $_SESSION['banlist_postkey']) {
+    if (!sbpp_list_action_key_valid($_GET['key'] ?? null)) {
         die("Possible hacking attempt (URL Key mismatch)");
     }
     // #1301: see ungag branch above for rationale.
@@ -231,7 +222,7 @@ if (isset($_GET['a']) && $_GET['a'] == "ungag" && isset($_GET['id'])) {
         );
     }
 } else if (isset($_GET['a']) && $_GET['a'] == "delete") {
-    if ($_GET['key'] != $_SESSION['banlist_postkey']) {
+    if (!sbpp_list_action_key_valid($_GET['key'] ?? null)) {
         die("Possible hacking attempt (URL Key mismatch)");
     }
 

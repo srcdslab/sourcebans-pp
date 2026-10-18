@@ -10,6 +10,14 @@ Legend:
 ? = Other stuff
 ```
 
+(18/10/26): Version 2.1.6-srcdslab
+-----------------------
+```
+01. ! Security: the ban / comm list GET-fallback key is now CSPRNG-minted
+        (256 bits) and checked with hash_equals; an empty `key=` no
+        longer passes on a session that never opened a list page (#57)
+```
+
 (05/05/26): Version 2.0.0 (**Run updater required**)
 -----------------------
 > [!IMPORTANT]
