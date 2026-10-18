@@ -94,12 +94,18 @@ if (!isset($_POST['subban']) || $_POST['subban'] != 1) {
             $validsubmit = false;
         }
     }
-    $GLOBALS['PDO']->query("SELECT length FROM `:prefix_bans` WHERE authid = :authid AND RemoveType IS NULL");
-    $GLOBALS['PDO']->bind(':authid', $SteamID);
-    $checkres = $GLOBALS['PDO']->resultset();
-    if (count($checkres) == 1 && $checkres[0]['length'] == 0) {
-        $errors .= '* The player is already banned permanent.<br>';
-        $validsubmit = false;
+    // #58: only meaningful when a Steam ID was given. With an empty one
+    // `authid = ''` matched IP bans, so a single permanent IP ban made
+    // every IP-only report fail. toSearchPattern() also matches the
+    // SteamID64 / Steam3 / STEAM_1 forms the form accepts.
+    $steamPattern = \SteamID\SteamID::toSearchPattern($SteamID);
+    if ($steamPattern !== null) {
+        $GLOBALS['PDO']->query("SELECT bid FROM `:prefix_bans` WHERE authid REGEXP :pattern AND type = 0 AND length = 0 AND RemoveType IS NULL LIMIT 1");
+        $GLOBALS['PDO']->bind(':pattern', $steamPattern);
+        if ($GLOBALS['PDO']->single()) {
+            $errors .= '* The player is already banned permanently.<br>';
+            $validsubmit = false;
+        }
     }
 
 
@@ -118,7 +124,8 @@ if (!isset($_POST['subban']) || $_POST['subban'] != 1) {
     if ($validsubmit) {
         $filename = md5($SteamID . time());
         //echo SB_DEMOS."/".$filename;
-        $demo     = move_uploaded_file($_FILES['demo_file']['tmp_name'], SB_DEMOS . "/" . $filename);
+        $demo     = !empty($_FILES['demo_file']['name'])
+            && move_uploaded_file((string) ($_FILES['demo_file']['tmp_name'] ?? ''), SB_DEMOS . "/" . $filename);
         if ($demo || empty($_FILES['demo_file']['name'])) {
             if ($SID != 0) {
                 $GLOBALS['PDO']->query("SELECT ip, port FROM `:prefix_servers` WHERE sid = :sid");
@@ -187,8 +194,6 @@ if (!isset($_POST['subban']) || $_POST['subban'] != 1) {
             $headers = 'From: ' . SB_EMAIL . "\n" . 'X-Mailer: PHP/' . phpversion();
 
             $admins = $userbank->GetAllAdmins();
-            $requestUri = (string) ($_SERVER['REQUEST_URI'] ?? '');
-            $requri = substr($requestUri, 0, (int) strrpos($requestUri, ".php") - 5);
             $mailDests = [];
 
             foreach ($admins as $admin) {
@@ -199,22 +204,26 @@ if (!isset($_POST['subban']) || $_POST['subban'] != 1) {
 
             if (count($mailDests) > 0)
             {
-                $demoLink = empty($_FILES['demo_file']['name']) ? 'no' : 'yes (http://' . $_SERVER['HTTP_HOST'] . $requri . 'getdemo.php?type=S&id=' . $subid . ')';
+                // #58: Host::complete() picks http/https and keeps the
+                // install subfolder; the old 'http://' . HTTP_HOST .
+                // <REQUEST_URI slice> was always plain http and fragile.
+                $panelUrl = rtrim(Host::complete(), '/');
+                $demoLink = empty($_FILES['demo_file']['name']) ? 'no' : 'yes (' . $panelUrl . '/getdemo.php?type=S&id=' . $subid . ')';
 
                 $isEmailSent = Mail::send($mailDests, EmailType::BanSubmission, [
                     '{admin}' => 'admin',
                     '{name}' => $_POST['PlayerName'],
-                    '{steamid}' => $_POST['SteamdID'] ?? 'NA',
+                    '{steamid}' => ($_POST['SteamID'] ?? '') !== '' ? $_POST['SteamID'] : 'NA',
                     '{demo}' => $demoLink,
                     '{server}' => $mailserver,
                     '{reason}' => $_POST['BanReason'],
-                    '{home}' => Host::complete(true),
+                    '{home}' => $panelUrl,
                     // #1275 — admin-bans is Pattern A; the legacy `#^2`
                     // anchor that targeted the old page-toc chrome is no
                     // longer wired. Link directly to the submissions
                     // section so the email recipient lands on the queue
                     // they're being asked to review.
-                    '{link}' => Host::complete(true) . '/index.php?p=admin&c=bans&section=submissions'
+                    '{link}' => $panelUrl . '/index.php?p=admin&c=bans&section=submissions'
                 ]);
             }
 
