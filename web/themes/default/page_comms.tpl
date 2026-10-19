@@ -249,6 +249,20 @@
                                            href="?p=commslist&amp;id={$comm.cid}"
                                            data-drawer-cid="{$comm.cid}"
                                            data-testid="drawer-trigger">{if $comm.name}{$comm.name|escape}{else}<i class="text-faint">no nickname</i>{/if}</a>
+                                        {* Punishment history chip: every mute, gag and
+                                           silence on record for this Steam ID (this row included),
+                                           painted only for repeat offenders. Links to a
+                                           search listing every block on the same Steam ID. *}
+                                        {if isset($comm.history_total) && $comm.history_total > 1}
+                                        {if $comm.history_url}<a class="history-chip" href="{$comm.history_url|escape}"{else}<span class="history-chip"{/if}
+                                           data-testid="comm-history-chip"
+                                           title="{$comm.history_label|escape}"
+                                           aria-label="{$comm.history_label|escape}{if $comm.history_url}, show all{/if}">
+                                          {if $comm.history_mutes > 0}<span class="history-chip__part" data-testid="comm-history-mutes"><i data-lucide="mic-off" style="width:11px;height:11px" aria-hidden="true"></i><span class="tabular-nums">{$comm.history_mutes}</span></span>{/if}
+                                          {if $comm.history_gags > 0}<span class="history-chip__part" data-testid="comm-history-gags"><i data-lucide="message-square-off" style="width:11px;height:11px" aria-hidden="true"></i><span class="tabular-nums">{$comm.history_gags}</span></span>{/if}
+                                          {if $comm.history_silences > 0}<span class="history-chip__part" data-testid="comm-history-silences"><i data-lucide="volume-x" style="width:11px;height:11px" aria-hidden="true"></i><span class="tabular-nums">{$comm.history_silences}</span></span>{/if}
+                                        {if $comm.history_url}</a>{else}</span>{/if}
+                                        {/if}
                                         {assign var=_comm_ccount value=0}
                                         {if isset($comm.commentdata) && $comm.commentdata != "None" && $comm.commentdata|@count > 0}{assign var=_comm_ccount value=$comm.commentdata|@count}{/if}
                                         {if $view_comments && ($_comm_ccount > 0 || $can_comment)}
@@ -511,6 +525,17 @@
                                     {if $comm.name}{$comm.name|escape}{else}<span class="text-faint">no nickname</span>{/if}
                                 </span>
                                 <span class="pill pill--{$comm.state}">{$comm.state|escape}</span>
+                                {* Mobile mirror of the history chip. Static <span>:
+                                   the whole card is already a drawer-trigger <a>. *}
+                                {if isset($comm.history_total) && $comm.history_total > 1}
+                                <span class="history-chip" data-testid="comm-history-chip-mobile"
+                                      title="{$comm.history_label|escape}"
+                                      aria-label="{$comm.history_label|escape}">
+                                    {if $comm.history_mutes > 0}<span class="history-chip__part"><i data-lucide="mic-off" style="width:11px;height:11px" aria-hidden="true"></i><span class="tabular-nums">{$comm.history_mutes}</span></span>{/if}
+                                    {if $comm.history_gags > 0}<span class="history-chip__part"><i data-lucide="message-square-off" style="width:11px;height:11px" aria-hidden="true"></i><span class="tabular-nums">{$comm.history_gags}</span></span>{/if}
+                                    {if $comm.history_silences > 0}<span class="history-chip__part"><i data-lucide="volume-x" style="width:11px;height:11px" aria-hidden="true"></i><span class="tabular-nums">{$comm.history_silences}</span></span>{/if}
+                                </span>
+                                {/if}
                             </div>
                             <div class="text-xs text-muted truncate" style="margin-top:0.125rem">
                                 <span style="text-transform:capitalize">{$comm.type|escape}</span>

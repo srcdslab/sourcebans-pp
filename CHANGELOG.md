@@ -10,6 +10,14 @@ Legend:
 ? = Other stuff
 ```
 
+(19/10/26): Version 2.1.10-srcdslab
+-----------------------
+```
+01. + Ban list and comms list: repeat offenders get a history chip next
+        to their name with the number of punishments on record (bans, or
+        mutes, gags and silences). Click it to list them all
+```
+
 (05/05/26): Version 2.0.0 (**Run updater required**)
 -----------------------
 > [!IMPORTANT]
