@@ -80,10 +80,12 @@ final class BanListCountryFlagTest extends ApiTestCase
         $html = $this->renderBanList(['country_code' => 'fr', 'country_name' => 'France']);
 
         $this->assertMatchesRegularExpression(
-            '#<img class="country-flag" src="images/country/fr\.png"[^>]*alt="FR" title="France" data-testid="ban-country-flag">#',
+            '#<span class="avatar avatar--flag"[^>]*><img class="country-flag country-flag--avatar" src="images/country/fr\.png"[^>]*alt="FR" title="France" data-testid="ban-country-flag"></span>#',
             $html,
         );
         $this->assertStringContainsString('data-testid="ban-country-flag-mobile"', $html);
+        // The flag takes the avatar slot: no initials circle on this row.
+        $this->assertStringNotContainsString('>FL</span>', $html);
     }
 
     public function testNoFlagWhenCountryUnknownOrDisabled(): void
@@ -92,6 +94,8 @@ final class BanListCountryFlagTest extends ApiTestCase
 
         $this->assertStringNotContainsString('data-testid="ban-country-flag"', $html);
         $this->assertStringNotContainsString('data-testid="ban-country-flag-mobile"', $html);
+        // Unknown country keeps the initials avatar (desktop + mobile).
+        $this->assertSame(2, substr_count($html, '>FL</span>'));
     }
 
     public function testSettingsFormUsesPositiveToggle(): void

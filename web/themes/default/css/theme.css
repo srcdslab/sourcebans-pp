@@ -1355,6 +1355,11 @@ html.dark .pill--online    { color: #6ee7b7; }
   box-shadow: 0 0 0 1px var(--border);
   vertical-align: -1px;
 }
+/* Flag in the avatar slot (banlist rows + cards): replaces the initials
+   circle when flags are on. Native 22x15, centred in the avatar box so
+   rows with and without a known country stay aligned. */
+.avatar--flag { background: none; }
+.country-flag--avatar { width: 22px; height: 15px; vertical-align: 0; }
 .ban-comments-inline {
   display: block;
   flex: 0 0 auto;
