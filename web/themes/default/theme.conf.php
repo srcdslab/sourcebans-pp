@@ -23,7 +23,7 @@ define('theme_author', 'SourceBans++ Dev Team');
 // Theme version — independent of the panel's `SB_VERSION`. Bump
 // when the theme's chrome / tokens change in a way fork maintainers
 // should know about.
-define('theme_version', '2.0.0');
+define('theme_version', '2.0.1');
 
 // Upstream link for the picker's "more info" affordance.
 define('theme_link', 'https://github.com/srcdslab/sourcebans-pp');
