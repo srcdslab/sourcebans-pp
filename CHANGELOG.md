@@ -10,6 +10,14 @@ Legend:
 ? = Other stuff
 ```
 
+(20/10/26): Version 2.1.12-srcdslab
+-----------------------
+```
+01. ! Security: the login form no longer reveals whether a username
+        exists (same answer for an empty password, same bcrypt delay
+        for unknown users) (#59)
+```
+
 (20/10/26): Version 2.1.11-srcdslab
 -----------------------
 ```

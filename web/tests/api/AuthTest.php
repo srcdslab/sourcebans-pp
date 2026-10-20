@@ -287,6 +287,40 @@ final class AuthTest extends ApiTestCase
     }
 
     /**
+     * #59: pre-fix an empty password returned `empty_pwd` for existing
+     * accounts and `failed` for unknown ones, so one request per name
+     * revealed which usernames exist.
+     */
+    public function testLoginEmptyPasswordIsIdenticalForKnownAndUnknownUsers(): void
+    {
+        $known   = $this->api('auth.login', ['username' => 'admin', 'password' => '']);
+        $unknown = $this->api('auth.login', ['username' => 'no-such-admin-59', 'password' => '']);
+
+        $this->assertSame($known, $unknown);
+    }
+
+    public function testLoginWrongPasswordIsIdenticalForKnownAndUnknownUsers(): void
+    {
+        $known   = $this->api('auth.login', ['username' => 'admin', 'password' => 'wrong']);
+        $unknown = $this->api('auth.login', ['username' => 'no-such-admin-59', 'password' => 'wrong']);
+
+        $this->assertSame('?p=login&m=failed', $known['redirect'] ?? null);
+        $this->assertSame($known, $unknown);
+    }
+
+    public function testTimingDummyHashIsAValidCurrentCostBcryptHash(): void
+    {
+        $info = password_get_info(API_AUTH_TIMING_DUMMY_HASH);
+
+        $this->assertSame(PASSWORD_BCRYPT, $info['algo']);
+        $this->assertSame(
+            password_get_info(password_hash('x', PASSWORD_BCRYPT))['options']['cost'],
+            $info['options']['cost'],
+            'Keep the dummy hash at the cost password_hash() uses, or unknown users answer faster.',
+        );
+    }
+
+    /**
      * 5 wrong attempts puts the account in lockout. Subsequent login
      * attempts (even with the correct password) get the lockout redirect
      * until the timeout expires. This locks #1081's hardening into the
