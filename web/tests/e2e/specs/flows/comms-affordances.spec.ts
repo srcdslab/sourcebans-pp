@@ -62,8 +62,10 @@ const FIXTURE = {
     /** Distinct SteamID per finding so the two tests can run in either order without colliding. */
     steamUnmute: 'STEAM_0:1:9912001',
     steamRemove: 'STEAM_0:0:9912002',
+    steamRemoveSecond: 'STEAM_0:1:9912003',
     nicknameUnmute: 'e2e-adm5-unmute',
     nicknameRemove: 'e2e-adm6-remove',
+    nicknameRemoveSecond: 'e2e-adm6-remove-2',
     reasonUnmute: 'e2e: ADM-5/6 unmute affordance',
     reasonRemove: 'e2e: ADM-5/6 remove affordance',
     /** 60 minutes — keeps the row in `state="active"` for the spec's lifetime. */
@@ -349,5 +351,44 @@ test.describe('flow: comms list affordances (#1207 ADM-5/ADM-6)', () => {
             .locator('.toast[data-kind="success"]')
             .filter({ hasText: /block removed/i });
         await expect(successToast).toBeVisible();
+    });
+
+    test('Remove works twice in a row without a reload', async ({ page, isMobile }) => {
+        // Regression: the shared `#comms-delete-dialog` submit button
+        // stayed busy (disabled + spinner) after a successful delete,
+        // so the second Remove opened a dialog that could not be
+        // confirmed until the page was reloaded.
+        test.skip(isMobile, 'delete-flow desktop covers the API contract; mobile visibility is in the card spec');
+
+        const steams = [FIXTURE.steamRemove, FIXTURE.steamRemoveSecond];
+        await seedGagViaApi(page, {
+            steam: steams[0],
+            nickname: FIXTURE.nicknameRemove,
+            reason: FIXTURE.reasonRemove,
+            length: FIXTURE.lengthMinutes,
+        });
+        await seedGagViaApi(page, {
+            steam: steams[1],
+            nickname: FIXTURE.nicknameRemoveSecond,
+            reason: FIXTURE.reasonRemove,
+            length: FIXTURE.lengthMinutes,
+        });
+
+        await page.goto(COMMSLIST_ROUTE);
+
+        const dialog = page.locator('[data-testid="comms-delete-dialog"]');
+        const submit = page.locator('[data-testid="comms-delete-submit"]');
+
+        for (const steam of steams) {
+            const row = page.locator('[data-testid="comm-row"]').filter({ hasText: steam });
+            await expect(row).toHaveCount(1);
+            await row.locator('[data-testid="row-action-delete"]').click();
+            await expect(dialog).toBeVisible();
+            await expect(submit).toBeEnabled();
+            await expect(submit).not.toHaveAttribute('data-loading', 'true');
+            await submit.click();
+            await expect(row).toHaveCount(0);
+            await expect(dialog).toBeHidden();
+        }
     });
 });
