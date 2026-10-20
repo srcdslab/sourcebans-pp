@@ -39,15 +39,18 @@ if (!isset($_POST['subprotest']) || $_POST['subprotest'] != 1) {
         $errors .= '* Please type a valid STEAM ID.<br>';
         $validsubmit = false;
     } elseif ($Type == 0) {
-        $GLOBALS['PDO']->query("SELECT bid FROM `:prefix_bans` WHERE authid = :authid AND RemovedBy IS NULL AND type = 0");
-        $GLOBALS['PDO']->bind(':authid', $SteamID);
+        // #58: match every accepted input format (SteamID64, [U:1:N],
+        // STEAM_0/STEAM_1) against the stored STEAM_X:Y:Z authid, and
+        // attach the protest to the newest ban that is still active.
+        $GLOBALS['PDO']->query("SELECT bid FROM `:prefix_bans` WHERE authid REGEXP :pattern AND RemovedBy IS NULL AND type = 0 AND (length = 0 OR ends > UNIX_TIMESTAMP()) ORDER BY bid DESC LIMIT 1");
+        $GLOBALS['PDO']->bind(':pattern', (string) \SteamID\SteamID::toSearchPattern($SteamID));
         $res = $GLOBALS['PDO']->resultset();
         if (count($res) == 0) {
             $errors .= '* That Steam ID is not banned!<br>';
             $validsubmit = false;
         } else {
             $BanId = (int) $res[0]['bid'];
-            $GLOBALS['PDO']->query("SELECT pid FROM `:prefix_protests` WHERE bid = :bid");
+            $GLOBALS['PDO']->query("SELECT pid FROM `:prefix_protests` WHERE bid = :bid AND archiv = '0'");
             $GLOBALS['PDO']->bind(':bid', $BanId);
             $res   = $GLOBALS['PDO']->resultset();
             if (count($res) > 0) {
@@ -60,7 +63,7 @@ if (!isset($_POST['subprotest']) || $_POST['subprotest'] != 1) {
         $errors .= '* Please type a valid IP.<br>';
         $validsubmit = false;
     } elseif ($Type == 1) {
-        $GLOBALS['PDO']->query("SELECT bid FROM `:prefix_bans` WHERE ip = :ip AND RemovedBy IS NULL AND type = 1");
+        $GLOBALS['PDO']->query("SELECT bid FROM `:prefix_bans` WHERE ip = :ip AND RemovedBy IS NULL AND type = 1 AND (length = 0 OR ends > UNIX_TIMESTAMP()) ORDER BY bid DESC LIMIT 1");
         $GLOBALS['PDO']->bind(':ip', $IP);
         $res = $GLOBALS['PDO']->resultset();
         if (count($res) == 0) {
@@ -68,7 +71,7 @@ if (!isset($_POST['subprotest']) || $_POST['subprotest'] != 1) {
             $validsubmit = false;
         } else {
             $BanId = (int) $res[0]['bid'];
-            $GLOBALS['PDO']->query("SELECT pid FROM `:prefix_protests` WHERE bid = :bid");
+            $GLOBALS['PDO']->query("SELECT pid FROM `:prefix_protests` WHERE bid = :bid AND archiv = '0'");
             $GLOBALS['PDO']->bind(':bid', $BanId);
             $res   = $GLOBALS['PDO']->resultset();
             if (count($res) > 0) {
@@ -167,8 +170,9 @@ if (!isset($_POST['subprotest']) || $_POST['subprotest'] != 1) {
                 // longer wired. Link directly to the protests section
                 // so the email recipient lands on the queue they're
                 // being asked to review.
-                '{link}' => Host::complete(true) . '/index.php?p=admin&c=bans&section=protests',
-                '{home}' => Host::complete(true)
+                // Host::complete() keeps the install subfolder (#58).
+                '{link}' => rtrim(Host::complete(), '/') . '/index.php?p=admin&c=bans&section=protests',
+                '{home}' => rtrim(Host::complete(), '/')
             ]);
         }
 
