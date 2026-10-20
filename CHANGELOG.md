@@ -10,6 +10,108 @@ Legend:
 ? = Other stuff
 ```
 
+(20/10/26): Version 2.1.18-srcdslab (**Run updater required**)
+-----------------------
+> [!IMPORTANT]
+> Every admin is logged out once after this upgrade.
+```
+01. ! Security: session cookies now expire server-side (`exp` / `nbf`
+        are validated) instead of staying valid forever (#54)
+02. ! Security: sessions are stored in `:prefix_login_tokens`; logout
+        revokes the session on the server (#54)
+03. + Changing or resetting a password, deactivating or deleting an
+        admin ends every session of that admin (#54)
+04. ! A cookie for a deleted or deactivated admin no longer counts as
+        logged in (#54)
+05. ? Updater migration 814 adds `:prefix_login_tokens.aid`
+```
+
+(20/10/26): Version 2.1.17-srcdslab
+-----------------------
+```
+01. ! Security: notification emails HTML-escape every template value, so
+        text from the public Submit / Protest forms can no longer inject
+        links or images into admin inboxes (#56)
+02. ! Custom themes' `mails/*.html` templates are used again; themes
+        without them fall back to the default theme instead of failing
+        every send (#56)
+```
+
+(20/10/26): Version 2.1.16-srcdslab
+-----------------------
+```
+01. ! Protest a ban: SteamID64, [U:1:N] and STEAM_1 IDs now find the ban
+        instead of "That Steam ID is not banned!" (#58)
+02. ! Protest a ban: an archived protest no longer blocks every future
+        appeal; the protest attaches to the newest active ban (#58)
+03. ! Submit a ban: IP-only reports are no longer rejected because a
+        permanent IP ban exists; the permanent-ban check matches every
+        Steam ID format (#58)
+04. ! Submission email: the Steam ID is filled in (was always "NA") and
+        the demo / queue links use the right scheme and subfolder (#58)
+```
+
+(20/10/26): Version 2.1.15-srcdslab
+-----------------------
+```
+01. ! Security: admins with only "Edit own bans" or "Edit group bans"
+        could edit every comm block (inverted check) (#55)
+02. ! Security: submission demos (`getdemo.php?type=S`) now require
+        ADMIN_BAN_SUBMISSIONS; ban demos stay public (#55)
+03. ! Security: the contact page (`?p=admin&c=bans&o=email`) requires
+        the submissions / protests flag before showing a reporter's
+        email (#55)
+04. ! The group editor requires ADMIN_EDIT_GROUPS (#55)
+05. + Admins with "Edit group bans" can reach comm block edits, like
+        ban edits (#55)
+```
+
+(20/10/26): Version 2.1.14-srcdslab
+-----------------------
+```
+01. ! Security: `bans.send_message` no longer lets any web admin run
+        arbitrary RCON. It now requires ADMIN_ADD_BAN plus per-server
+        access, and control characters are stripped from the message (#53)
+02. ! Security: `bans.view_community`, `bans.setup_ban`,
+        `bans.prepare_reban`, `comms.prepare_reblock` and
+        `comms.prepare_block_from_ban` now require ADMIN_ADD_BAN (#53)
+```
+
+(20/10/26): Version 2.1.13-srcdslab
+-----------------------
+```
+01. ! Security: the ban / comm list GET-fallback key is now CSPRNG-minted
+        (256 bits) and checked with hash_equals; an empty `key=` no
+        longer passes on a session that never opened a list page (#57)
+```
+
+(20/10/26): Version 2.1.12-srcdslab
+-----------------------
+```
+01. ! Security: the login form no longer reveals whether a username
+        exists (same answer for an empty password, same bcrypt delay
+        for unknown users) (#59)
+```
+
+(20/10/26): Version 2.1.11-srcdslab
+-----------------------
+```
+01. ! Moderation queue: the submission "Get demo" link shows its icon
+        (Lucide instead of the missing Font Awesome); "No demo" is plain
+        text instead of a dead link (#60)
+02. ! `exportbans.php` serves `banned_user.cfg` / `banned_ip.cfg` as
+        text/plain, returns 400 for an unknown type and 403 when access
+        is denied (#60)
+```
+
+(19/10/26): Version 2.1.10-srcdslab
+-----------------------
+```
+01. + Ban list and comms list: repeat offenders get a history chip next
+        to their name with the number of punishments on record (bans, or
+        mutes, gags and silences). Click it to list them all
+```
+
 (05/05/26): Version 2.0.0 (**Run updater required**)
 -----------------------
 > [!IMPORTANT]

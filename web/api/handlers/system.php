@@ -567,7 +567,7 @@ function api_system_test_email(array $params): array
     $subject = '[SourceBans++] SMTP test email';
     $message = "This is a test email from SourceBans++ confirming your SMTP credentials are working."
         . " It was triggered manually by admin '" . $adminName . "' from Admin → Settings → SMTP."
-        . " You can safely ignore it — no action is required.";
+        . " No action is required.";
     $sent = Mail::send($to, EmailType::Custom, [
         '{message}' => $message,
         '{subject}' => $subject,

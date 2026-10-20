@@ -17,17 +17,8 @@ if (!defined("IN_SB")) {
 $BansPerPage = SB_BANS_PER_PAGE;
 $servers     = [];
 global $userbank;
-function setPostKey()
-{
-    if (isset($_SERVER['REMOTE_IP'])) {
-        $_SESSION['banlist_postkey'] = md5($_SERVER['REMOTE_IP'] . time() . rand(0, 100000));
-    } else {
-        $_SESSION['banlist_postkey'] = md5(time() . rand(0, 100000));
-    }
-}
-if (!isset($_SESSION['banlist_postkey']) || strlen((string) $_SESSION['banlist_postkey']) < 4) {
-    setPostKey();
-}
+// #57: CSPRNG key for the GET fallbacks below (see sbpp_list_action_key()).
+sbpp_list_action_key();
 
 $page     = 1;
 $pagelink = "";
@@ -39,7 +30,7 @@ if (isset($_GET['page']) && $_GET['page'] > 0) {
     $pagelink = "&page=" . $page;
 }
 if (isset($_GET['a']) && $_GET['a'] == "unban" && isset($_GET['id'])) {
-    if ($_GET['key'] != $_SESSION['banlist_postkey']) {
+    if (!sbpp_list_action_key_valid($_GET['key'] ?? null)) {
         die("Possible hacking attempt (URL Key mismatch)");
     }
     // #1301: legacy GET path for unban no longer accepts an empty
@@ -187,7 +178,7 @@ if (isset($_GET['a']) && $_GET['a'] == "unban" && isset($_GET['id'])) {
         );
     }
 } elseif (isset($_GET['a']) && $_GET['a'] == "delete") {
-    if ($_GET['key'] != $_SESSION['banlist_postkey']) {
+    if (!sbpp_list_action_key_valid($_GET['key'] ?? null)) {
         die("Possible hacking attempt (URL Key mismatch)");
     }
 
@@ -1230,6 +1221,23 @@ foreach ($res as $row) {
     $data['can_edit_ban']   = (bool) $data['view_edit'];
     $data['can_unban']      = (bool) $data['view_unban'];
     $data['can_delete_ban'] = (bool) $data['view_delete'];
+
+    // Punishment history chip: total bans on record for this identity
+    // (Steam ID for Steam bans, IP for IP bans), this row included. The
+    // template only paints the chip when the count is above 1 and links
+    // it to a search for every ban on the same identity. IP-type rows
+    // get no link when IPs are hidden from the viewer: the search URL
+    // would leak the IP (and IP search is disabled for them anyway).
+    $historyNeedle = $rowBanType === BanType::Steam
+        ? (string) $data['steamid']
+        : (string) ($row['ban_ip'] ?? '');
+    $historyIpHidden = $rowBanType === BanType::Ip
+        && Config::getBool('banlist.hideplayerips')
+        && !$userbank->is_admin();
+    $data['history_total'] = (int) $row['history_count'];
+    $data['history_url']   = ($historyNeedle !== '' && !$historyIpHidden)
+        ? 'index.php?p=banlist&searchText=' . urlencode($historyNeedle)
+        : '';
 
     // Avatar metadata precomputed server-side so the template doesn't
     // have to lean on Smarty's `%` arithmetic operator (parses

@@ -115,8 +115,17 @@ class Fixture
                 sprintf("SELECT table_name FROM information_schema.tables WHERE table_schema = '%s'", DB_NAME)
             )->fetchAll(\PDO::FETCH_COLUMN);
 
+            // Browser sessions live in :prefix_login_tokens (#54). The
+            // Playwright storage state is minted once per run and must
+            // survive the per-spec reset, so that table is kept; tests
+            // that count sessions clear it themselves.
+            $keep = [DB_PREFIX . '_login_tokens'];
+
             $pdo->exec('SET FOREIGN_KEY_CHECKS = 0');
             foreach ($tables as $t) {
+                if (in_array($t, $keep, true)) {
+                    continue;
+                }
                 $pdo->exec("TRUNCATE TABLE `$t`");
             }
             $pdo->exec('SET FOREIGN_KEY_CHECKS = 1');

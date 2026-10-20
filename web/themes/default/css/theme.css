@@ -1360,6 +1360,41 @@ html.dark .pill--online    { color: #6ee7b7; }
    rows with and without a known country stay aligned. */
 .avatar--flag { background: none; }
 .country-flag--avatar { width: 22px; height: 15px; vertical-align: 0; }
+/* Punishment history chip on the public banlist / commslist: total
+   punishments on record for the row's identity, painted next to the
+   player name only for repeat offenders. Same geometry as the comment
+   chip, warning tint so it reads at a glance while scanning the list.
+   A link (search for every punishment on the identity) on desktop, a
+   static span inside the mobile card's drawer-trigger anchor. */
+.history-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  flex-shrink: 0;
+  padding: 0.0625rem 0.4375rem;
+  border-radius: var(--radius-full);
+  background: var(--warning-bg);
+  color: #b45309;
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  line-height: 1.4;
+  white-space: nowrap;
+  text-decoration: none;
+  border: 1px solid transparent;
+  transition: border-color .15s;
+}
+.history-chip__part {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.1875rem;
+}
+a.history-chip:hover { border-color: currentColor; }
+a.history-chip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgb(234 88 12 / 0.15);
+  border-color: var(--brand-500);
+}
+html.dark .history-chip { color: #fcd34d; }
 .ban-comments-inline {
   display: block;
   flex: 0 0 auto;

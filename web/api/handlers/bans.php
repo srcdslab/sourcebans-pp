@@ -901,28 +901,42 @@ function api_bans_kick_player(array $params): array
     throw new ApiError('player_not_found', "Can't kick " . htmlspecialchars($name) . '. Player not on the server anymore!');
 }
 
+/**
+ * Make an admin-typed message safe to embed in `sm_psay #id "<message>"`.
+ *
+ * `"` becomes `'` so the argument stays one quoted token. Control
+ * characters (CR/LF included) become spaces: the Source engine's command
+ * buffer ends a command at a newline even inside quotes, so an unstripped
+ * `\n` would let the message start a second, arbitrary console command
+ * (#53). The body is NOT html_entity_decode'd: the JSON API delivers raw
+ * UTF-8 and decoding would collapse a literal `&amp;` the admin typed.
+ */
+function _api_bans_sanitize_rcon_message(string $message): string
+{
+    return str_replace('"', "'", (string) preg_replace('/[\x00-\x1F\x7F]/', ' ', $message));
+}
+
 function api_bans_send_message(array $params): array
 {
     global $userbank;
     $sid     = (int)($params['sid'] ?? 0);
     $name    = (string)($params['name']    ?? '');
-    $message = (string)($params['message'] ?? '');
+    $message = _api_bans_sanitize_rcon_message((string)($params['message'] ?? ''));
 
-    if (!$userbank->is_admin()) {
-        return Api::redirect('index.php?p=login&m=no_access');
+    // The dispatcher already checked ADMIN_OWNER | ADMIN_ADD_BAN. RCON
+    // also needs the per-server mapping `servers.send_rcon` enforces;
+    // owners are exempt, matching their reach everywhere else (#53).
+    if (!$userbank->HasAccess(WebPermission::Owner)
+        && !_api_servers_admin_can_rcon($userbank->GetAid(), $sid)) {
+        Log::add(LogType::Warning, 'Hacking Attempt',
+            $userbank->GetProperty('user') . " tried to message a player on server $sid without per-server access.");
+        throw new ApiError('forbidden', 'No access to that server', null, 403);
     }
 
     $ret = rcon('status', $sid);
     if (!$ret) {
         throw new ApiError('rcon_failed', "Can't connect to server!");
     }
-
-    // The message goes into an rcon command wrapped in double quotes.
-    // Replace any user-supplied `"` so the argument stays a single token,
-    // but do NOT html_entity_decode the body first — the panel now
-    // receives it as raw UTF-8 via the JSON API and decoding would
-    // silently collapse a literal `&amp;` the admin typed.
-    $message = str_replace('"', "'", $message);
 
     foreach (parseRconStatus($ret) as $player) {
         if ($name === $player['name']) {
@@ -947,8 +961,11 @@ function api_bans_view_community(array $params): array
     $sid  = (int)($params['sid']  ?? 0);
     $name = (string)($params['name'] ?? '');
 
-    if (!$userbank->is_admin()) {
-        return Api::redirect('index.php?p=login&m=no_access');
+    // Same per-server RCON gate as bans.send_message (#53): resolving a
+    // player's profile runs `rcon status` on the target server.
+    if (!$userbank->HasAccess(WebPermission::Owner)
+        && !_api_servers_admin_can_rcon($userbank->GetAid(), $sid)) {
+        throw new ApiError('forbidden', 'No access to that server', null, 403);
     }
 
     $ret = rcon('status', $sid);

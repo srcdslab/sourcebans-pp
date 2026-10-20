@@ -71,6 +71,8 @@ function api_account_change_password(array $params): array
     $GLOBALS['PDO']->execute();
 
     \Sbpp\Rest\PatAuthenticator::revokeAllForAid($aid);
+    // End the admin's browser sessions everywhere, not just this one (#54).
+    Auth::revokeAllForAdmin($aid);
 
     $GLOBALS['PDO']->query("SELECT user FROM `:prefix_admins` WHERE aid = :aid");
     $GLOBALS['PDO']->bind(':aid', $aid);

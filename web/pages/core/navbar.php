@@ -67,7 +67,7 @@ $admin = [
     [
         'title' => 'Comms',
         'endpoint' => 'comms',
-        'permission' => ADMIN_OWNER|ADMIN_ADD_BAN|ADMIN_EDIT_OWN_BANS|ADMIN_EDIT_ALL_BANS
+        'permission' => ADMIN_OWNER|ADMIN_ADD_BAN|ADMIN_EDIT_OWN_BANS|ADMIN_EDIT_GROUP_BANS|ADMIN_EDIT_ALL_BANS
     ],
     [
         'title' => 'Groups',
