@@ -455,6 +455,7 @@ matching its directory. PSR-4 autoloads from `web/includes/` →
 | `Sbpp\Version`                           | three-tier `SB_VERSION` resolver (tarball JSON → git → `'dev'`) |
 | `Sbpp\Util\Duration`                     | minute-count humanizer for `sb_settings` token-lifetime echoes |
 | `Sbpp\Util\PlayerName`                   | hostile-input-shaped player display-name sanitiser for the `?name=` smart-default arm (#1440) |
+| `Sbpp\Util\CountryFlag`                  | ban-list / drawer country flag: `banlist.nocountryfetch` gate (shown in Settings as "Show player country flags"), untrusted-code normaliser, GeoIP fallback |
 | `Sbpp\PHPStan\SmartyTemplateRule` (+ `Sbpp\PHPStan\SbppSyntaxErrorInQueryMethodRule` / `SbppPrefixAwareReflector` / `SbppNullReflector` under `web/phpstan/`) | bespoke PHPStan rules + DBA reflectors for the codebase |
 
 Legacy global names (`Database`, `CUserManager`, `Log`, `Api`, …) are

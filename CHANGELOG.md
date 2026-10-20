@@ -10,13 +10,26 @@ Legend:
 ? = Other stuff
 ```
 
-(20/10/26): Version 2.1.19-srcdslab
+(20/10/26): Version 2.1.20-srcdslab
 -----------------------
 ```
 01. ! Password reset emails now link to the right place on panels
         installed in a subfolder (the reset link used to 404) (#71)
 02. ! "Ban added", contact and SMTP test emails keep the install
         subfolder in their panel links (#71)
+```
+
+(20/10/26): Version 2.1.19-srcdslab
+-----------------------
+```
+01. * The ban list shows the player's country flag again, in place of
+        the initials avatar; the player drawer shows the flag and the
+        country name (#49)
+02. + Settings > Main: the toggle now reads "Show player country
+        flags" (same `banlist.nocountryfetch` key, no migration) (#49)
+03. ! Security: the stored country code is validated against the
+        bundled flags before it reaches the page (#49)
+04. ? Default theme version 2.0.2
 ```
 
 (20/10/26): Version 2.1.18-srcdslab (**Run updater required**)
