@@ -10,6 +10,17 @@ Legend:
 ? = Other stuff
 ```
 
+(20/10/26): Version 2.1.11-srcdslab
+-----------------------
+```
+01. ! Moderation queue: the submission "Get demo" link shows its icon
+        (Lucide instead of the missing Font Awesome); "No demo" is plain
+        text instead of a dead link (#60)
+02. ! `exportbans.php` serves `banned_user.cfg` / `banned_ip.cfg` as
+        text/plain, returns 400 for an unknown type and 403 when access
+        is denied (#60)
+```
+
 (19/10/26): Version 2.1.10-srcdslab
 -----------------------
 ```
