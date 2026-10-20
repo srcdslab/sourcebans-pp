@@ -12,7 +12,7 @@ global $userbank, $theme;
 
 new AdminTabs([], $userbank, $theme);
 
-if ($_GET['key'] != $_SESSION['banlist_postkey']) {
+if (!sbpp_list_action_key_valid($_GET['key'] ?? null)) {
     \Sbpp\View\Toast::emit(
         'error',
         'Error',
@@ -73,7 +73,15 @@ if (!$res) {
     PageDie();
 }
 
-if (!$userbank->HasAccess(WebPermission::mask(WebPermission::Owner, WebPermission::EditAllBans)) && (!$userbank->HasAccess(WebPermission::EditOwnBans) && $res['aid'] != $userbank->GetAid()) && (!$userbank->HasAccess(WebPermission::EditGroupBans) && $res['gid'] != $userbank->GetProperty('gid'))) {
+// #55: positive form, same as admin.edit.ban.php. The old negated
+// chain (`!A && (!B && !own) && (!C && !group)`) let anyone holding
+// EditOwnBans or EditGroupBans edit EVERY comm block, because holding
+// the flag made its clause false and the deny never fired.
+$canEditComm = (bool) $userbank->HasAccess(WebPermission::mask(WebPermission::Owner, WebPermission::EditAllBans))
+    || ($userbank->HasAccess(WebPermission::EditOwnBans) && (int) $res['aid'] === $userbank->GetAid())
+    || ($userbank->HasAccess(WebPermission::EditGroupBans) && (int) $res['gid'] === (int) $userbank->GetProperty('gid'));
+
+if (!$canEditComm) {
     \Sbpp\View\Toast::emit(
         'error',
         'Error',
