@@ -10,7 +10,7 @@ Legend:
 ? = Other stuff
 ```
 
-(18/10/26): Version 2.1.9-srcdslab
+(20/10/26): Version 2.1.11-srcdslab
 -----------------------
 ```
 01. ! Moderation queue: the submission "Get demo" link shows its icon
@@ -19,6 +19,14 @@ Legend:
 02. ! `exportbans.php` serves `banned_user.cfg` / `banned_ip.cfg` as
         text/plain, returns 400 for an unknown type and 403 when access
         is denied (#60)
+```
+
+(19/10/26): Version 2.1.10-srcdslab
+-----------------------
+```
+01. + Ban list and comms list: repeat offenders get a history chip next
+        to their name with the number of punishments on record (bans, or
+        mutes, gags and silences). Click it to list them all
 ```
 
 (05/05/26): Version 2.0.0 (**Run updater required**)
