@@ -12,7 +12,7 @@ global $userbank, $theme;
 
 new AdminTabs([], $userbank, $theme);
 
-if ($_GET['key'] != $_SESSION['banlist_postkey']) {
+if (!sbpp_list_action_key_valid($_GET['key'] ?? null)) {
     \Sbpp\View\Toast::emit(
         'error',
         'Error',

@@ -7,7 +7,7 @@
    Per-row $ban.* keys: bid, name, steam, state, length, length_human,
          banned_human, banned_iso, sname, reason, aname, ban_ip_raw,
          can_edit_ban, can_unban, mod_icon, country, demo_available,
-         view_delete, type, commentdata.
+         view_delete, type, commentdata, history_total, history_url.
    Permission gates that aren't pre-precomputable on the View use
    the {has_access flag=...} block plugin (A3 helper).
    Add / Edit comments open the player drawer (data-comment-compose);
@@ -293,6 +293,20 @@
                  fall through to native href navigation (#1124 Slice 6). *}
               <div class="ban-player-cell__head" style="flex:1;min-width:0">
                 <a class="font-medium ban-player-cell__name" href="?p=banlist&amp;id={$ban.bid}" data-drawer-href="?p=banlist&amp;c=details&amp;id={$ban.bid}" data-testid="drawer-trigger">{if empty($ban.name)}<i class="text-faint">no nickname</i>{else}{$ban.name|escape}{/if}</a>
+                {* Punishment history chip: total bans on record for this
+                   Steam ID / IP (this row included), painted only for
+                   repeat offenders. Links to a search listing every ban on
+                   the same identity; a plain <span> when the handler
+                   withholds the link (IP ban with IPs hidden). *}
+                {if isset($ban.history_total) && $ban.history_total > 1}
+                {if $ban.history_url}<a class="history-chip" href="{$ban.history_url|escape}"{else}<span class="history-chip"{/if}
+                   data-testid="ban-history-chip"
+                   title="{$ban.history_total} bans on record"
+                   aria-label="{$ban.history_total} bans on record{if $ban.history_url}, show all{/if}">
+                  <i data-lucide="history" style="width:11px;height:11px" aria-hidden="true"></i>
+                  <span class="tabular-nums">{$ban.history_total}</span>
+                {if $ban.history_url}</a>{else}</span>{/if}
+                {/if}
                 {* #BANLIST-COMMENTS: native <details> disclosure. Summary
                    is icon+count only (GitHub/Linear shape); body lists
                    comments when opened. Drawer Overview still mirrors
@@ -618,6 +632,17 @@
               <span class="font-medium text-sm truncate">{if empty($ban.name)}<i class="text-faint">no nickname</i>{else}{$ban.name|escape}{/if}</span>
               {assign var=_m_pill_label value=$ban.state|capitalize}
               <span class="pill pill--{$ban.state}">{$_m_pill_label|escape}</span>
+              {* Mobile mirror of the history chip. Static <span>: the
+                 whole card is already a drawer-trigger <a>, and a nested
+                 link would be invalid HTML. *}
+              {if isset($ban.history_total) && $ban.history_total > 1}
+              <span class="history-chip" data-testid="ban-history-chip-mobile"
+                    title="{$ban.history_total} bans on record"
+                    aria-label="{$ban.history_total} bans on record">
+                <i data-lucide="history" style="width:11px;height:11px" aria-hidden="true"></i>
+                <span class="tabular-nums">{$ban.history_total}</span>
+              </span>
+              {/if}
             </div>
             {* `title=` carries the full (un-truncated) reason +
                length so a long-press / hover surfaces the full
