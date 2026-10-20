@@ -10,6 +10,15 @@ Legend:
 ? = Other stuff
 ```
 
+(20/10/26): Version 2.1.21-srcdslab
+-----------------------
+```
+01. ! Comm blocks list: after deleting a block, the next Remove no
+        longer opens the "Delete block" dialog with its confirm button
+        stuck on the spinner (#51)
+02. ? Default theme version 2.0.3
+```
+
 (20/10/26): Version 2.1.19-srcdslab
 -----------------------
 ```
