@@ -6,7 +6,8 @@
          $view_comments.
    Per-row $ban.* keys: bid, name, steam, state, length, length_human,
          banned_human, banned_iso, sname, reason, aname, ban_ip_raw,
-         can_edit_ban, can_unban, mod_icon, country, demo_available,
+         can_edit_ban, can_unban, mod_icon, country, country_code,
+         country_name, demo_available,
          view_delete, type, commentdata, history_total, history_url.
    Permission gates that aren't pre-precomputable on the View use
    the {has_access flag=...} block plugin (A3 helper).
@@ -283,7 +284,15 @@
                  from $ban.avatar_initials / $ban.avatar_hue,
                  precomputed in page.banlist.php so the template
                  doesn't depend on Smarty's `%` operator parsing. *}
+              {* Country flag replaces the initials avatar when flags are on
+                 (banlist.nocountryfetch off) and the country is known.
+                 country_code is normalised to a bundled two-letter flag in
+                 page.banlist.php, empty when unknown / disabled. *}
+              {if !empty($ban.country_code)}
+              <span class="avatar avatar--flag" style="width:22px;height:22px"><img class="country-flag country-flag--avatar" src="images/country/{$ban.country_code}.png" width="22" height="15" alt="{$ban.country_code|upper}" title="{$ban.country_name|escape}" data-testid="ban-country-flag"></span>
+              {else}
               <span class="avatar" style="width:22px;height:22px;background:hsl({$ban.avatar_hue} 55% 45%);font-size:9px" aria-hidden="true">{$ban.avatar_initials|escape}</span>
+              {/if}
               {* Player name + comment chip share one line
                  (`.ban-player-cell__head`) so comment presence does
                  not add a second line of row height. No
@@ -626,7 +635,11 @@
            href="?p=banlist&amp;id={$ban.bid}"
            data-drawer-href="?p=banlist&amp;c=details&amp;id={$ban.bid}"
            data-testid="drawer-trigger">
+          {if !empty($ban.country_code)}
+          <span class="avatar avatar--flag" style="width:36px;height:36px"><img class="country-flag country-flag--avatar" src="images/country/{$ban.country_code}.png" width="22" height="15" alt="{$ban.country_code|upper}" title="{$ban.country_name|escape}" data-testid="ban-country-flag-mobile"></span>
+          {else}
           <span class="avatar" style="width:36px;height:36px;background:hsl({$ban.avatar_hue} 55% 45%);font-size:13px" aria-hidden="true">{$ban.avatar_initials|escape}</span>
+          {/if}
           <div style="flex:1;min-width:0">
             <div class="flex items-center gap-2">
               <span class="font-medium text-sm truncate">{if empty($ban.name)}<i class="text-faint">no nickname</i>{else}{$ban.name|escape}{/if}</span>

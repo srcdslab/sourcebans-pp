@@ -96,7 +96,9 @@ if ($canSettings && isset($_POST['settingsGroup'])) {
             $debugmode      = (isset($_POST['config_debug'])     && $_POST['config_debug']     === 'on') ? 1 : 0;
             $hideadmname    = (isset($_POST['banlist_hideadmname'])    && $_POST['banlist_hideadmname']    === 'on') ? 1 : 0;
             $hideplayerips  = (isset($_POST['banlist_hideplayerips'])  && $_POST['banlist_hideplayerips']  === 'on') ? 1 : 0;
-            $nocountryfetch = (isset($_POST['banlist_nocountryfetch']) && $_POST['banlist_nocountryfetch'] === 'on') ? 1 : 0;
+            // "Show player country flags" is the positive form of the
+            // inverted `banlist.nocountryfetch` key (1 = no lookup, no flag).
+            $nocountryfetch = (isset($_POST['banlist_showcountryflags']) && $_POST['banlist_showcountryflags'] === 'on') ? 0 : 1;
             $onlyinvolved   = (isset($_POST['protest_emailonlyinvolved']) && $_POST['protest_emailonlyinvolved'] === 'on') ? 1 : 0;
 
             $rawReasons = $_POST['bans_customreason'] ?? [];
