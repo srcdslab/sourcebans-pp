@@ -6,8 +6,9 @@
          $view_comments.
    Per-row $ban.* keys: bid, name, steam, state, length, length_human,
          banned_human, banned_iso, sname, reason, aname, ban_ip_raw,
-         can_edit_ban, can_unban, mod_icon, country, demo_available,
-         view_delete, type, commentdata.
+         can_edit_ban, can_unban, mod_icon, country, country_code,
+         country_name, demo_available,
+         view_delete, type, commentdata, history_total, history_url.
    Permission gates that aren't pre-precomputable on the View use
    the {has_access flag=...} block plugin (A3 helper).
    Add / Edit comments open the player drawer (data-comment-compose);
@@ -283,7 +284,15 @@
                  from $ban.avatar_initials / $ban.avatar_hue,
                  precomputed in page.banlist.php so the template
                  doesn't depend on Smarty's `%` operator parsing. *}
+              {* Country flag replaces the initials avatar when flags are on
+                 (banlist.nocountryfetch off) and the country is known.
+                 country_code is normalised to a bundled two-letter flag in
+                 page.banlist.php, empty when unknown / disabled. *}
+              {if !empty($ban.country_code)}
+              <span class="avatar avatar--flag" style="width:22px;height:22px"><img class="country-flag country-flag--avatar" src="images/country/{$ban.country_code}.png" width="22" height="15" alt="{$ban.country_code|upper}" title="{$ban.country_name|escape}" data-testid="ban-country-flag"></span>
+              {else}
               <span class="avatar" style="width:22px;height:22px;background:hsl({$ban.avatar_hue} 55% 45%);font-size:9px" aria-hidden="true">{$ban.avatar_initials|escape}</span>
+              {/if}
               {* Player name + comment chip share one line
                  (`.ban-player-cell__head`) so comment presence does
                  not add a second line of row height. No
@@ -293,6 +302,20 @@
                  fall through to native href navigation (#1124 Slice 6). *}
               <div class="ban-player-cell__head" style="flex:1;min-width:0">
                 <a class="font-medium ban-player-cell__name" href="?p=banlist&amp;id={$ban.bid}" data-drawer-href="?p=banlist&amp;c=details&amp;id={$ban.bid}" data-testid="drawer-trigger">{if empty($ban.name)}<i class="text-faint">no nickname</i>{else}{$ban.name|escape}{/if}</a>
+                {* Punishment history chip: total bans on record for this
+                   Steam ID / IP (this row included), painted only for
+                   repeat offenders. Links to a search listing every ban on
+                   the same identity; a plain <span> when the handler
+                   withholds the link (IP ban with IPs hidden). *}
+                {if isset($ban.history_total) && $ban.history_total > 1}
+                {if $ban.history_url}<a class="history-chip" href="{$ban.history_url|escape}"{else}<span class="history-chip"{/if}
+                   data-testid="ban-history-chip"
+                   title="{$ban.history_total} bans on record"
+                   aria-label="{$ban.history_total} bans on record{if $ban.history_url}, show all{/if}">
+                  <i data-lucide="history" style="width:11px;height:11px" aria-hidden="true"></i>
+                  <span class="tabular-nums">{$ban.history_total}</span>
+                {if $ban.history_url}</a>{else}</span>{/if}
+                {/if}
                 {* #BANLIST-COMMENTS: native <details> disclosure. Summary
                    is icon+count only (GitHub/Linear shape); body lists
                    comments when opened. Drawer Overview still mirrors
@@ -612,12 +635,27 @@
            href="?p=banlist&amp;id={$ban.bid}"
            data-drawer-href="?p=banlist&amp;c=details&amp;id={$ban.bid}"
            data-testid="drawer-trigger">
+          {if !empty($ban.country_code)}
+          <span class="avatar avatar--flag" style="width:36px;height:36px"><img class="country-flag country-flag--avatar" src="images/country/{$ban.country_code}.png" width="22" height="15" alt="{$ban.country_code|upper}" title="{$ban.country_name|escape}" data-testid="ban-country-flag-mobile"></span>
+          {else}
           <span class="avatar" style="width:36px;height:36px;background:hsl({$ban.avatar_hue} 55% 45%);font-size:13px" aria-hidden="true">{$ban.avatar_initials|escape}</span>
+          {/if}
           <div style="flex:1;min-width:0">
             <div class="flex items-center gap-2">
               <span class="font-medium text-sm truncate">{if empty($ban.name)}<i class="text-faint">no nickname</i>{else}{$ban.name|escape}{/if}</span>
               {assign var=_m_pill_label value=$ban.state|capitalize}
               <span class="pill pill--{$ban.state}">{$_m_pill_label|escape}</span>
+              {* Mobile mirror of the history chip. Static <span>: the
+                 whole card is already a drawer-trigger <a>, and a nested
+                 link would be invalid HTML. *}
+              {if isset($ban.history_total) && $ban.history_total > 1}
+              <span class="history-chip" data-testid="ban-history-chip-mobile"
+                    title="{$ban.history_total} bans on record"
+                    aria-label="{$ban.history_total} bans on record">
+                <i data-lucide="history" style="width:11px;height:11px" aria-hidden="true"></i>
+                <span class="tabular-nums">{$ban.history_total}</span>
+              </span>
+              {/if}
             </div>
             {* `title=` carries the full (un-truncated) reason +
                length so a long-press / hover surfaces the full

@@ -369,13 +369,18 @@ also requires BanSubmissions / BanProtests; DELETE is Owner via
 
 ### Auth (`includes/Auth/` — `Sbpp\Auth\*`)
 
-- `Sbpp\Auth\Auth::login(aid, maxlife)` mints a JWT and stores it in
-  the `sbpp_auth` cookie (HttpOnly, SameSite=Lax). `Auth::verify()`
-  returns the parsed token (or `null`). `Auth::logout()` clears the
-  cookie.
+- `Sbpp\Auth\Auth::login(aid, maxlife)` mints a JWT, records its `jti`
+  and `aid` in `sb_login_tokens`, and stores the token in the
+  `sbpp_auth` cookie (HttpOnly, SameSite=Lax). `Auth::verify()` returns
+  the parsed token only when the signature and time claims are valid
+  **and** its `jti` row still exists (or `null`). `Auth::logout()`
+  deletes that row and clears the cookie. `Auth::revokeAllForAdmin(aid)`
+  deletes every session of an admin; it runs on password change,
+  password reset, deactivation and deletion (#54).
 - The token's only meaningful claim is `aid` (admin id).
   `Sbpp\Auth\UserManager` (legacy `CUserManager` alias) reads the row
-  from `sb_admins` and exposes `is_logged_in()`, `is_admin()`,
+  from `sb_admins` (a missing or `enabled = 0` row means logged out)
+  and exposes `is_logged_in()`, `is_admin()`,
   `HasAccess(flags)`, and `GetProperty(name)`.
 - Two login back-ends:
   - `Sbpp\Auth\Handler\NormalAuthHandler` — username + bcrypt password,
@@ -384,9 +389,10 @@ also requires BanSubmissions / BanProtests; DELETE is Owner via
   - `Sbpp\Auth\Handler\SteamAuthHandler` — OpenID via the third-party
     `includes/Auth/openid.php` (LightOpenID, intentionally kept in
     the global namespace).
-- `Sbpp\Auth\JWT::validate()` rejects expired or tampered tokens.
-  `Auth::gc()` garbage-collects `sb_login_tokens` rows older than 30
-  days.
+- `Sbpp\Auth\JWT::validate()` rejects tampered tokens and enforces
+  `exp` / `nbf` / `iat` via `LooseValidAt` (30s leeway).
+  `Auth::gc()` garbage-collects `sb_login_tokens` rows not accessed for
+  30 days, which also ends sessions idle that long.
 
 ### Permissions
 
@@ -1056,7 +1062,7 @@ in dev/CI). Major tables:
 | `sb_mods`                   | Configured game mods (icons, names).          |
 | `sb_settings`               | Flat key/value config used by `Config`.       |
 | `sb_log`                    | Audit log (see `Log.php`).                    |
-| `sb_login_tokens`           | JWT id (`jti`) → last-accessed for GC.        |
+| `sb_login_tokens`           | Live browser sessions: JWT id (`jti`) → admin (`aid`), last-accessed for GC. |
 | `sb_notes`                  | Per-Steam-ID admin scratchpad (Notes tab in the player drawer, #1165). |
 
 Reseeded in tests via `web/tests/Fixture.php`, which renders `struc.sql`

@@ -87,7 +87,11 @@ test.describe('flow: SMTP test email (#1455)', () => {
         //         from_email so the button renders enabled. The
         //         seeder also clears mailpit's inbox indirectly
         //         (we do it explicitly below for safety).
-        const { email } = await seedLostpasswordE2e();
+        await seedLostpasswordE2e();
+        // The logged-in operator is the fixture's seeded admin. The
+        // lostpassword seed's own `email` is a dedicated reset target
+        // since #54, so it isn't the operator's address.
+        const email = 'admin@example.test';
 
         // Clear mailpit so the assertion is unambiguous.
         const purge = await request.delete(`${MAILPIT_BASE_URL}/api/v1/messages`);

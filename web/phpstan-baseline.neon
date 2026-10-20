@@ -31,24 +31,6 @@ parameters:
 			path: export.php
 
 		-
-			message: '#^Call to an undefined method Lcobucci\\JWT\\Token\:\:claims\(\)\.$#'
-			identifier: method.notFound
-			count: 1
-			path: includes/Auth/Auth.php
-
-		-
-			message: '#^Static method Sbpp\\Auth\\Auth\:\:getTokenSecret\(\) is unused\.$#'
-			identifier: method.unused
-			count: 1
-			path: includes/Auth/Auth.php
-
-		-
-			message: '#^Static method Sbpp\\Auth\\Auth\:\:insertNewToken\(\) is unused\.$#'
-			identifier: method.unused
-			count: 1
-			path: includes/Auth/Auth.php
-
-		-
 			message: '#^Variable \$password in empty\(\) always exists and is not falsy\.$#'
 			identifier: empty.variable
 			count: 1
@@ -123,7 +105,7 @@ parameters:
 		-
 			message: '#^Constant SB_THEME not found\.$#'
 			identifier: constant.notFound
-			count: 2
+			count: 1
 			path: includes/Mail/Mail.php
 
 		-
@@ -181,19 +163,13 @@ parameters:
 			path: pages/page.banlist.php
 
 		-
-			message: '#^Negated boolean expression is always true\.$#'
-			identifier: booleanNot.alwaysTrue
-			count: 1
-			path: pages/page.banlist.php
-
-		-
 			message: '#^Offset ''advSearch'' on non\-empty\-array\<mixed\> in isset\(\) always exists and is not nullable\.$#'
 			identifier: isset.offset
 			count: 1
 			path: pages/page.banlist.php
 
 		-
-			message: '#^Offset ''ub_reason'' on array\{ban_id\: mixed, country\: non\-falsy\-string, ban_date\: string, player\: string, type\: mixed, steamid\: mixed, communityid\: mixed, steamid3\: mixed, \.\.\.\} in isset\(\) always exists and is not nullable\.$#'
+			message: '#^Offset ''ub_reason'' on array\{ban_id\: mixed, country_code\: string, country_name\: string, country\: non\-falsy\-string, ban_date\: string, player\: string, type\: mixed, steamid\: mixed, \.\.\.\} in isset\(\) always exists and is not nullable\.$#'
 			identifier: isset.offset
 			count: 1
 			path: pages/page.banlist.php

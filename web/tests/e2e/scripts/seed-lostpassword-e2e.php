@@ -110,7 +110,20 @@ foreach ($settings as $key => $value) {
 // rolls 16-char tokens. Match that shape so the seed reads as
 // realistic.
 $token = bin2hex(random_bytes(8));
-$email = 'admin@example.test';
+// A dedicated admin, not the seeded `admin@example.test`: completing a
+// reset revokes every session of the target admin (#54), and the shared
+// Playwright storage state belongs to the seeded admin. INSERT IGNORE
+// keeps re-runs idempotent (`user` is unique).
+$email = 'lostpw-happy@example.test';
+$pdo->query(
+    'INSERT IGNORE INTO `:prefix_admins` (user, authid, password, gid, email, validate, extraflags, immunity)
+     VALUES (:user, :authid, :password, -1, :email, NULL, 0, 0)'
+);
+$pdo->bind(':user', 'lostpw-happy');
+$pdo->bind(':authid', 'STEAM_0:0:9999998');
+$pdo->bind(':password', hash('sha256', bin2hex(random_bytes(16))));
+$pdo->bind(':email', $email);
+$pdo->execute();
 
 $pdo->query('UPDATE `:prefix_admins` SET validate = :validate WHERE email = :email');
 $pdo->bind(':validate', $token);

@@ -91,7 +91,7 @@ function route(int|string $fallback): array
                 'default' => ['Bans', '/admin.bans.php'],
             ],
             'comms' => [
-                'permission' => ADMIN_OWNER|ADMIN_ADD_BAN|ADMIN_EDIT_OWN_BANS|ADMIN_EDIT_ALL_BANS,
+                'permission' => ADMIN_OWNER|ADMIN_ADD_BAN|ADMIN_EDIT_OWN_BANS|ADMIN_EDIT_GROUP_BANS|ADMIN_EDIT_ALL_BANS,
                 'options'    => ['edit' => ['Edit Block Details', '/admin.edit.comms.php']],
                 'default'    => ['Comms', '/admin.comms.php'],
             ],

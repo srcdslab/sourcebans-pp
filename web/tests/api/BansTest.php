@@ -2,6 +2,7 @@
 
 namespace Sbpp\Tests\Api;
 
+use PHPUnit\Framework\Attributes\DataProvider;
 use Sbpp\Tests\ApiTestCase;
 use Sbpp\Tests\Fixture;
 
@@ -771,6 +772,47 @@ final class BansTest extends ApiTestCase
             'IP-type ban must still surface the IP as the row identity (#1486)');
     }
 
+    public function testDetailCountryFollowsShowFlagsSetting(): void
+    {
+        // Country-flag restore: `player.country` is the uppercase ISO code
+        // when banlist.nocountryfetch is off, and null when it is on
+        // (data.sql default). Stored values are normalised, so a junk
+        // column value never reaches the wire.
+        $pdo = Fixture::rawPdo();
+        $insert = $pdo->prepare(sprintf(
+            'INSERT INTO `%s_bans` (created, type, ip, authid, name, ends, length, reason, aid, adminIp, country)
+             VALUES (UNIX_TIMESTAMP(), 0, ?, ?, "Flagged", UNIX_TIMESTAMP(), 0, "country", ?, "127.0.0.1", ?)',
+            DB_PREFIX
+        ));
+        $insert->execute(['203.0.113.10', 'STEAM_0:1:3030', Fixture::adminAid(), 'fr']);
+        $storedBid = (int)$pdo->lastInsertId();
+        $insert->execute(['', 'STEAM_0:1:3031', Fixture::adminAid(), '<b>']);
+        $junkBid = (int)$pdo->lastInsertId();
+        $insert->execute(['8.8.8.8', 'STEAM_0:1:3032', Fixture::adminAid(), null]);
+        $lookupBid = (int)$pdo->lastInsertId();
+
+        $env = $this->api('bans.detail', ['bid' => $storedBid]);
+        $this->assertTrue($env['ok'], json_encode($env));
+        $this->assertNull($env['data']['player']['country'], 'flags are off by default (banlist.nocountryfetch=1)');
+
+        $pdo->prepare(sprintf(
+            "REPLACE INTO `%s_settings` (`setting`, `value`) VALUES ('banlist.nocountryfetch', '0')",
+            DB_PREFIX
+        ))->execute();
+        \Config::init($GLOBALS['PDO']);
+
+        $env = $this->api('bans.detail', ['bid' => $storedBid]);
+        $this->assertSame('FR', $env['data']['player']['country'], 'stored code is surfaced uppercase');
+
+        $env = $this->api('bans.detail', ['bid' => $junkBid]);
+        $this->assertNull($env['data']['player']['country'], 'junk stored value must not reach the wire');
+
+        $env = $this->api('bans.detail', ['bid' => $lookupBid]);
+        $this->assertSame('US', $env['data']['player']['country'], 'empty column falls back to the bundled GeoIP DB');
+        $cached = $pdo->query(sprintf('SELECT country FROM `%s_bans` WHERE bid = %d', DB_PREFIX, $lookupBid))->fetchColumn();
+        $this->assertSame('US', $cached, 'lookup result is cached on the ban row');
+    }
+
     public function testAddCommentInsertsRow(): void
     {
         $this->loginAsAdmin();
@@ -1485,5 +1527,61 @@ final class BansTest extends ApiTestCase
         $row->execute([$bid, 'B']);
         $this->assertSame(0, (int) $row->fetchColumn());
         $this->assertFileDoesNotExist($path);
+    }
+
+    /**
+     * #53: these actions only feed the Add ban / Add block forms (or run
+     * RCON). An admin holding one unrelated flag must not reach them.
+     *
+     * @return array<string, array{string, array<string, mixed>}>
+     */
+    public static function addBanGatedActionProvider(): array
+    {
+        return [
+            'bans.send_message'            => ['bans.send_message', ['sid' => 1, 'name' => 'x', 'message' => 'hi']],
+            'bans.view_community'          => ['bans.view_community', ['sid' => 1, 'name' => 'x']],
+            'bans.setup_ban'               => ['bans.setup_ban', ['subid' => 1]],
+            'bans.prepare_reban'           => ['bans.prepare_reban', ['bid' => 1]],
+            'comms.prepare_reblock'        => ['comms.prepare_reblock', ['bid' => 1]],
+            'comms.prepare_block_from_ban' => ['comms.prepare_block_from_ban', ['bid' => 1]],
+        ];
+    }
+
+    /** @param array<string, mixed> $params */
+    #[DataProvider('addBanGatedActionProvider')]
+    public function testAddBanGatedActionsRejectUnrelatedAdmin(string $action, array $params): void
+    {
+        $this->loginAs($this->createAdminWithFlags(ADMIN_LIST_SERVERS));
+
+        $this->assertEnvelopeError($this->api($action, $params), 'forbidden');
+    }
+
+    /**
+     * #53: holding ADMIN_ADD_BAN is not enough to run RCON on a server the
+     * admin isn't mapped to. The gate fires before any RCON connection.
+     */
+    public function testRconMessageActionsRequirePerServerAccess(): void
+    {
+        $this->loginAs($this->createAdminWithFlags(ADMIN_ADD_BAN));
+
+        $env = $this->api('bans.send_message', ['sid' => 1, 'name' => 'x', 'message' => 'hi']);
+        $this->assertEnvelopeError($env, 'forbidden');
+
+        $env = $this->api('bans.view_community', ['sid' => 1, 'name' => 'x']);
+        $this->assertEnvelopeError($env, 'forbidden');
+    }
+
+    /**
+     * #53: a newline would end the `sm_psay` command and start a second,
+     * arbitrary console command on the game server.
+     */
+    public function testRconMessageSanitizerStripsControlCharactersAndQuotes(): void
+    {
+        $this->assertSame(
+            "hi  quit 'x'  rcon_password y",
+            _api_bans_sanitize_rcon_message("hi\r\nquit \"x\"\n\trcon_password y"),
+        );
+        $this->assertSame('caf&amp; ok', _api_bans_sanitize_rcon_message('caf&amp; ok'));
+        $this->assertStringNotContainsString("\0", _api_bans_sanitize_rcon_message("a\0b\x7Fc"));
     }
 }

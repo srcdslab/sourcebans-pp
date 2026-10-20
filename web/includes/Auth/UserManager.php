@@ -23,9 +23,16 @@ final class UserManager
     {
         $this->dbh = new Database(DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASS, DB_PREFIX, DB_CHARSET);
 
-        $this->aid = $aidOverride ?? (int)($token?->claims()->get('aid') ?? -1);
+        $aid = $aidOverride ?? (int)($token?->claims()->get('aid') ?? -1);
 
-        $this->GetUserArray($this->aid);
+        // A still-valid cookie for an admin who was deleted or deactivated
+        // is a logged-out caller, not a flagless logged-in one: the
+        // `account.*` actions only require is_logged_in() (#54).
+        $user = $this->GetUserArray($aid);
+        if ($user === false || (int) ($user['enabled'] ?? 1) === 0) {
+            $aid = -1;
+        }
+        $this->aid = $aid;
     }
 
     /**

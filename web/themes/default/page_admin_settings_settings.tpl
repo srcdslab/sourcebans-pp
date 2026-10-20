@@ -480,9 +480,11 @@
                             </div>
                             <div data-testid="setting-row" data-key="banlist.nocountryfetch">
                                 <label class="flex items-center gap-2">
-                                    <input type="checkbox" id="banlist_nocountryfetch" name="banlist_nocountryfetch"{if $banlist_nocountryfetch} checked{/if}>
-                                    <span class="text-sm font-medium">Skip country lookup for IPs</span>
+                                    {* Positive toggle over the inverted `banlist.nocountryfetch` key (1 = off). *}
+                                    <input type="checkbox" id="banlist_showcountryflags" name="banlist_showcountryflags"{if !$banlist_nocountryfetch} checked{/if}>
+                                    <span class="text-sm font-medium">Show player country flags</span>
                                 </label>
+                                <p class="text-xs text-muted m-0 mt-1">Looks up the player's country from the ban IP using the bundled GeoIP database. Shown on the ban list and in the player details.</p>
                             </div>
                             <div data-testid="setting-row" data-key="bans.customreasons">
                                 <label class="label">Custom ban reasons</label>

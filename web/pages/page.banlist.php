@@ -3,6 +3,7 @@
 // Licensed under the Elastic License 2.0.
 // See LICENSE.txt for the full license text and THIRD-PARTY-NOTICES.txt for attributions.
 
+use Sbpp\Util\CountryFlag;
 use Sbpp\View\BanListView;
 use Sbpp\View\Renderer;
 use SteamID\SteamID;
@@ -16,17 +17,8 @@ if (!defined("IN_SB")) {
 $BansPerPage = SB_BANS_PER_PAGE;
 $servers     = [];
 global $userbank;
-function setPostKey()
-{
-    if (isset($_SERVER['REMOTE_IP'])) {
-        $_SESSION['banlist_postkey'] = md5($_SERVER['REMOTE_IP'] . time() . rand(0, 100000));
-    } else {
-        $_SESSION['banlist_postkey'] = md5(time() . rand(0, 100000));
-    }
-}
-if (!isset($_SESSION['banlist_postkey']) || strlen((string) $_SESSION['banlist_postkey']) < 4) {
-    setPostKey();
-}
+// #57: CSPRNG key for the GET fallbacks below (see sbpp_list_action_key()).
+sbpp_list_action_key();
 
 $page     = 1;
 $pagelink = "";
@@ -38,7 +30,7 @@ if (isset($_GET['page']) && $_GET['page'] > 0) {
     $pagelink = "&page=" . $page;
 }
 if (isset($_GET['a']) && $_GET['a'] == "unban" && isset($_GET['id'])) {
-    if ($_GET['key'] != $_SESSION['banlist_postkey']) {
+    if (!sbpp_list_action_key_valid($_GET['key'] ?? null)) {
         die("Possible hacking attempt (URL Key mismatch)");
     }
     // #1301: legacy GET path for unban no longer accepts an empty
@@ -186,7 +178,7 @@ if (isset($_GET['a']) && $_GET['a'] == "unban" && isset($_GET['id'])) {
         );
     }
 } elseif (isset($_GET['a']) && $_GET['a'] == "delete") {
-    if ($_GET['key'] != $_SESSION['banlist_postkey']) {
+    if (!sbpp_list_action_key_valid($_GET['key'] ?? null)) {
         die("Possible hacking attempt (URL Key mismatch)");
     }
 
@@ -868,27 +860,30 @@ if ($viewCommentsEnabled && $banIds !== []) {
 // on `:prefix_bans` is queued here and flushed as ONE batched UPDATE
 // after the loop instead of one UPDATE per row.
 $pendingCountryUpdates = [];
+$countryFlagsEnabled   = CountryFlag::enabled();
 
 foreach ($res as $row) {
     $data = [];
 
     $data['ban_id'] = $row['ban_id'];
 
-    if (!empty($row['ban_ip']) && !Config::getBool('banlist.nocountryfetch')) {
-        if (!empty($row['ban_country']) && $row['ban_country'] != ' ') {
-            $data['country'] = '<img src="images/country/' . strtolower($row['ban_country']) . '.png" alt="' . $row['ban_country'] . '" border="0" align="absmiddle" />';
-        } elseif (!Config::getBool('banlist.nocountryfetch')) {
-            $country = FetchIp($row['ban_ip']);
-            $pendingCountryUpdates[(int) $row['ban_id']] = $country;
-
-            $countryFlag = empty($country) ? 'zz' : strtolower($country);
-            $data['country'] = '<img src="images/country/' . $countryFlag . '.png" alt="' . $country . '" border="0" align="absmiddle" />';
-        } else {
-            $data['country'] = '<img src="images/country/zz.png" alt="Unknown Country" border="0" align="absmiddle" />';
+    // Country-of-origin flag. `country_code` / `country_name` drive the
+    // flag in page_bans.tpl; `country` keeps the legacy `<img>` HTML for
+    // third-party themes. The stored column is written by the plugin
+    // too, so it only reaches HTML after CountryFlag::normalize().
+    $countryCode     = null;
+    $lookedUpCountry = null;
+    if ($countryFlagsEnabled) {
+        $countryCode = CountryFlag::resolve($row['ban_country'], $row['ban_ip'], $lookedUpCountry);
+        if ($lookedUpCountry !== null) {
+            $pendingCountryUpdates[(int) $row['ban_id']] = $lookedUpCountry;
         }
-    } else {
-        $data['country'] = '<img src="images/country/zz.png" alt="Unknown Country" border="0" align="absmiddle" />';
     }
+    $data['country_code'] = $countryCode ?? '';
+    $data['country_name'] = $countryCode !== null ? CountryFlag::name($countryCode) : '';
+    $data['country'] = $countryCode !== null
+        ? '<img src="' . CountryFlag::imageUrl($countryCode) . '" alt="' . strtoupper($countryCode) . '" border="0" align="absmiddle" />'
+        : '<img src="images/country/zz.png" alt="Unknown Country" border="0" align="absmiddle" />';
 
     $data['ban_date']    = Config::time($row['ban_created']);
 
@@ -1226,6 +1221,23 @@ foreach ($res as $row) {
     $data['can_edit_ban']   = (bool) $data['view_edit'];
     $data['can_unban']      = (bool) $data['view_unban'];
     $data['can_delete_ban'] = (bool) $data['view_delete'];
+
+    // Punishment history chip: total bans on record for this identity
+    // (Steam ID for Steam bans, IP for IP bans), this row included. The
+    // template only paints the chip when the count is above 1 and links
+    // it to a search for every ban on the same identity. IP-type rows
+    // get no link when IPs are hidden from the viewer: the search URL
+    // would leak the IP (and IP search is disabled for them anyway).
+    $historyNeedle = $rowBanType === BanType::Steam
+        ? (string) $data['steamid']
+        : (string) ($row['ban_ip'] ?? '');
+    $historyIpHidden = $rowBanType === BanType::Ip
+        && Config::getBool('banlist.hideplayerips')
+        && !$userbank->is_admin();
+    $data['history_total'] = (int) $row['history_count'];
+    $data['history_url']   = ($historyNeedle !== '' && !$historyIpHidden)
+        ? 'index.php?p=banlist&searchText=' . urlencode($historyNeedle)
+        : '';
 
     // Avatar metadata precomputed server-side so the template doesn't
     // have to lean on Smarty's `%` arithmetic operator (parses

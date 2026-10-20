@@ -276,6 +276,40 @@ function GetMapImage(string $map): string
     return is_file($candidate) ? $candidate : SB_MAP_LOCATION . '/nomap.jpg';
 }
 
+// ---------------------------------------------------------------------
+// GET-fallback action key
+// ---------------------------------------------------------------------
+
+/**
+ * Session-bound key that guards the ban / comm list GET fallbacks
+ * (unban, delete, ungag, unmute) and the two edit pages linked from
+ * those lists. Minted from a CSPRNG; the previous
+ * `md5(time() . rand(0, 100000))` had about 17 bits of entropy (#57).
+ * A key in any other shape (an old 32-hex md5 key included) is rotated.
+ */
+function sbpp_list_action_key(): string
+{
+    $key = $_SESSION['banlist_postkey'] ?? null;
+    if (!is_string($key) || strlen($key) !== 64 || !ctype_xdigit($key)) {
+        $key = bin2hex(random_bytes(32));
+        $_SESSION['banlist_postkey'] = $key;
+    }
+    return $key;
+}
+
+/**
+ * Timing-safe check of a caller-supplied key. Fails closed when the
+ * session has no key yet: the previous `$_GET['key'] != $_SESSION[…]`
+ * let `key=` through on a session that never visited a list page,
+ * since `'' != null` is false (#57).
+ */
+function sbpp_list_action_key_valid(mixed $candidate): bool
+{
+    $expected = $_SESSION['banlist_postkey'] ?? null;
+    return is_string($expected) && $expected !== ''
+        && is_string($candidate) && hash_equals($expected, $candidate);
+}
+
 /**
  * Case-insensitive extension allowlist check. `$validExts` is the
  * lowercased extension list (no leading dot).

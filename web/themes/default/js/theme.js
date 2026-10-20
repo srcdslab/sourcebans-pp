@@ -569,6 +569,21 @@
   }
 
   /**
+   * Localized country name for an ISO alpha-2 code ("FR" → "France").
+   * Falls back to the code on browsers without Intl.DisplayNames.
+   * @param {string} code
+   * @returns {string}
+   */
+  function countryDisplayName(code) {
+    try {
+      const names = new Intl.DisplayNames([navigator.language || 'en'], { type: 'region' });
+      return names.of(code) || code;
+    } catch (_e) {
+      return code;
+    }
+  }
+
+  /**
    * Cached `bans.detail` or `comms.detail` payload for the currently-
    * open drawer. Pane builders (`renderHistoryPane`, `renderCommsPane`,
    * `renderNotesPane`) read this for context (the player's steam_id to
@@ -749,13 +764,21 @@
     if (player.steam_id_3)   idRows.push(['Steam3',     String(player.steam_id_3)]);
     if (player.community_id) idRows.push(['Community',  String(player.community_id)]);
     if (player.ip)           idRows.push(['IP',         String(player.ip)]);
-    if (player.country)      idRows.push(['Country',    String(player.country)]);
+    // Country: server sends a validated ISO alpha-2 code (or null when
+    // banlist.nocountryfetch is on). Render flag + localized name.
+    const countryCode = typeof player.country === 'string' && /^[A-Z]{2}$/.test(player.country)
+      ? player.country : '';
+    if (countryCode) idRows.push(['Country', countryDisplayName(countryCode) + ' (' + countryCode + ')']);
 
     const idHtml = idRows.length === 0 ? '' :
       '<dl class="drawer__ids" data-testid="drawer-ids" style="display:grid;grid-template-columns:6rem 1fr;gap:0.25rem 0.75rem;margin:0;font-size:0.8125rem">'
       + idRows.map((row) =>
           '<dt class="text-faint">' + escapeHtml(row[0]) + '</dt>'
-          + '<dd class="font-mono" style="margin:0">' + escapeHtml(row[1])
+          + '<dd class="font-mono" style="margin:0">'
+          + (row[0] === 'Country'
+              ? '<img class="country-flag" src="images/country/' + countryCode.toLowerCase() + '.png" width="16" height="11" alt="" data-testid="drawer-country-flag" style="margin-right:0.375rem"> '
+              : '')
+          + escapeHtml(row[1])
           + '<button class="btn btn--ghost btn--icon btn--xs" type="button" data-copy="' + escapeHtml(row[1]) + '" title="Copy" style="margin-left:0.25rem">'
           +   '<i data-lucide="copy" style="width:12px;height:12px"></i>'
           + '</button>'
