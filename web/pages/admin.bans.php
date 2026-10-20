@@ -892,8 +892,8 @@ if ($section === 'submissions') {
 
             $demoFilename = $submissionDemoFilenameBySubid[(int) $sub['subid']] ?? null;
             $sub['demo'] = (!empty($demoFilename) && @file_exists(SB_DEMOS . "/" . $demoFilename))
-                ? '<a href="getdemo.php?id=' . urlencode($sub['subid']) . '&type=S"><i class=\'fas fa-video fa-lg\'></i> Get Demo</a>'
-                : "<a href=\"#\"><i class='fas fa-video-slash fa-lg'></i> No Demo</a>";
+                ? '<a href="getdemo.php?id=' . urlencode($sub['subid']) . '&amp;type=S"><i data-lucide="download" style="width:13px;height:13px" aria-hidden="true"></i> Get demo</a>'
+                : '<span class="text-muted"><i data-lucide="video-off" style="width:13px;height:13px" aria-hidden="true"></i> No demo</span>';
 
             $sub['submitted'] = Config::time($sub['submitted']);
 
@@ -1006,8 +1006,8 @@ if ($section === 'submissions') {
 
             $demoFilename = $submissionArchivDemoFilenameBySubid[(int) $sub['subid']] ?? null;
             $sub['demo'] = (!empty($demoFilename) && @file_exists(SB_DEMOS . "/" . $demoFilename))
-                ? '<a href="getdemo.php?id=' . urlencode($sub['subid']) . '&type=S"><i class=\'fas fa-video fa-lg\'></i> Get Demo</a>'
-                : "<a href=\"#\"><i class='fas fa-video-slash fa-lg'></i> No Demo</a>";
+                ? '<a href="getdemo.php?id=' . urlencode($sub['subid']) . '&amp;type=S"><i data-lucide="download" style="width:13px;height:13px" aria-hidden="true"></i> Get demo</a>'
+                : '<span class="text-muted"><i data-lucide="video-off" style="width:13px;height:13px" aria-hidden="true"></i> No demo</span>';
 
             $sub['submitted'] = Config::time($sub['submitted']);
 

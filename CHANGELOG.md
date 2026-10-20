@@ -10,7 +10,7 @@ Legend:
 ? = Other stuff
 ```
 
-(18/10/26): Version 2.1.4-srcdslab
+(20/10/26): Version 2.1.15-srcdslab
 -----------------------
 ```
 01. ! Security: admins with only "Edit own bans" or "Edit group bans"
@@ -23,6 +23,52 @@ Legend:
 04. ! The group editor requires ADMIN_EDIT_GROUPS (#55)
 05. + Admins with "Edit group bans" can reach comm block edits, like
         ban edits (#55)
+```
+
+(20/10/26): Version 2.1.14-srcdslab
+-----------------------
+```
+01. ! Security: `bans.send_message` no longer lets any web admin run
+        arbitrary RCON. It now requires ADMIN_ADD_BAN plus per-server
+        access, and control characters are stripped from the message (#53)
+02. ! Security: `bans.view_community`, `bans.setup_ban`,
+        `bans.prepare_reban`, `comms.prepare_reblock` and
+        `comms.prepare_block_from_ban` now require ADMIN_ADD_BAN (#53)
+```
+
+(20/10/26): Version 2.1.13-srcdslab
+-----------------------
+```
+01. ! Security: the ban / comm list GET-fallback key is now CSPRNG-minted
+        (256 bits) and checked with hash_equals; an empty `key=` no
+        longer passes on a session that never opened a list page (#57)
+```
+
+(20/10/26): Version 2.1.12-srcdslab
+-----------------------
+```
+01. ! Security: the login form no longer reveals whether a username
+        exists (same answer for an empty password, same bcrypt delay
+        for unknown users) (#59)
+```
+
+(20/10/26): Version 2.1.11-srcdslab
+-----------------------
+```
+01. ! Moderation queue: the submission "Get demo" link shows its icon
+        (Lucide instead of the missing Font Awesome); "No demo" is plain
+        text instead of a dead link (#60)
+02. ! `exportbans.php` serves `banned_user.cfg` / `banned_ip.cfg` as
+        text/plain, returns 400 for an unknown type and 403 when access
+        is denied (#60)
+```
+
+(19/10/26): Version 2.1.10-srcdslab
+-----------------------
+```
+01. + Ban list and comms list: repeat offenders get a history chip next
+        to their name with the number of punishments on record (bans, or
+        mutes, gags and silences). Click it to list them all
 ```
 
 (05/05/26): Version 2.0.0 (**Run updater required**)

@@ -10,7 +10,9 @@ namespace Sbpp\View;
  * banned_human|sname|can_edit_ban|can_unban` plus avatar metadata; the
  * page chrome reads `$total_bans`, `$can_export`, `$hidetext`,
  * `$searchlink`, `$ban_nav`, and the testid hooks reach the per-row
- * `state`. Add / Edit comments open the player drawer; there is no
+ * `state`. `history_total` (bans on record for the row's Steam ID / IP)
+ * and `history_url` (search link, '' when withheld because the IP is
+ * hidden from the viewer) drive the repeat-offender chip. Add / Edit comments open the player drawer; there is no
  * `?comment=` editor on this page.
  *
  * Each row also carries the legacy keys (`ban_id|player|class|
