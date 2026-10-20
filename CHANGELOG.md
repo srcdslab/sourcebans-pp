@@ -10,6 +10,20 @@ Legend:
 ? = Other stuff
 ```
 
+(20/10/26): Version 2.1.16-srcdslab
+-----------------------
+```
+01. ! Protest a ban: SteamID64, [U:1:N] and STEAM_1 IDs now find the ban
+        instead of "That Steam ID is not banned!" (#58)
+02. ! Protest a ban: an archived protest no longer blocks every future
+        appeal; the protest attaches to the newest active ban (#58)
+03. ! Submit a ban: IP-only reports are no longer rejected because a
+        permanent IP ban exists; the permanent-ban check matches every
+        Steam ID format (#58)
+04. ! Submission email: the Steam ID is filled in (was always "NA") and
+        the demo / queue links use the right scheme and subfolder (#58)
+```
+
 (20/10/26): Version 2.1.15-srcdslab
 -----------------------
 ```
