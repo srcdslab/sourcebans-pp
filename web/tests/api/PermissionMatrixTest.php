@@ -79,8 +79,8 @@ final class PermissionMatrixTest extends TestCase
             // ban-list reach. Admin-only fields (admin name, removed-by)
             // are gated inside the handler.
             'bans.player_history'         => ['perm' => 0, 'requireAdmin' => false, 'public' => true],
-            'bans.setup_ban'              => ['perm' => 0, 'requireAdmin' => true,  'public' => false],
-            'bans.prepare_reban'          => ['perm' => 0, 'requireAdmin' => true,  'public' => false],
+            'bans.setup_ban'              => ['perm' => ADMIN_OWNER | ADMIN_ADD_BAN, 'requireAdmin' => false, 'public' => false],
+            'bans.prepare_reban'          => ['perm' => ADMIN_OWNER | ADMIN_ADD_BAN, 'requireAdmin' => false, 'public' => false],
             'bans.paste'                  => ['perm' => ADMIN_OWNER | ADMIN_ADD_BAN, 'requireAdmin' => false, 'public' => false],
             'bans.add_comment'            => ['perm' => 0, 'requireAdmin' => true,  'public' => false],
             'bans.edit_comment'           => ['perm' => 0, 'requireAdmin' => true,  'public' => false],
@@ -91,8 +91,8 @@ final class PermissionMatrixTest extends TestCase
             'bans.ban_friends'            => ['perm' => ADMIN_OWNER | ADMIN_ADD_BAN, 'requireAdmin' => false, 'public' => false],
             'bans.get_groups'             => ['perm' => ADMIN_OWNER | ADMIN_ADD_BAN, 'requireAdmin' => false, 'public' => false],
             'bans.kick_player'            => ['perm' => ADMIN_OWNER | ADMIN_ADD_BAN, 'requireAdmin' => false, 'public' => false],
-            'bans.send_message'           => ['perm' => 0, 'requireAdmin' => true,  'public' => false],
-            'bans.view_community'         => ['perm' => 0, 'requireAdmin' => true,  'public' => false],
+            'bans.send_message'           => ['perm' => ADMIN_OWNER | ADMIN_ADD_BAN, 'requireAdmin' => false, 'public' => false],
+            'bans.view_community'         => ['perm' => ADMIN_OWNER | ADMIN_ADD_BAN, 'requireAdmin' => false, 'public' => false],
             'bans.search'                 => ['perm' => 0, 'requireAdmin' => true,  'public' => false],
             // bans.unban drives the visible row action on the public ban
             // list (#1301). Dispatcher gate is "any unban-ish flag"; the
@@ -110,9 +110,9 @@ final class PermissionMatrixTest extends TestCase
 
             // -- comms.
             'comms.add'                       => ['perm' => ADMIN_OWNER | ADMIN_ADD_BAN, 'requireAdmin' => false, 'public' => false],
-            'comms.prepare_reblock'           => ['perm' => 0, 'requireAdmin' => true,  'public' => false],
+            'comms.prepare_reblock'           => ['perm' => ADMIN_OWNER | ADMIN_ADD_BAN, 'requireAdmin' => false, 'public' => false],
             'comms.paste'                     => ['perm' => ADMIN_OWNER | ADMIN_ADD_BAN, 'requireAdmin' => false, 'public' => false],
-            'comms.prepare_block_from_ban'    => ['perm' => 0, 'requireAdmin' => true,  'public' => false],
+            'comms.prepare_block_from_ban'    => ['perm' => ADMIN_OWNER | ADMIN_ADD_BAN, 'requireAdmin' => false, 'public' => false],
             // comms.detail is intentionally public for the same reason
             // bans.detail is — same reach as the public commslist page,
             // hide-* gating enforced inside the handler. Powers the

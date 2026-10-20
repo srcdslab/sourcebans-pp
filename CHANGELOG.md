@@ -10,6 +10,17 @@ Legend:
 ? = Other stuff
 ```
 
+(20/10/26): Version 2.1.14-srcdslab
+-----------------------
+```
+01. ! Security: `bans.send_message` no longer lets any web admin run
+        arbitrary RCON. It now requires ADMIN_ADD_BAN plus per-server
+        access, and control characters are stripped from the message (#53)
+02. ! Security: `bans.view_community`, `bans.setup_ban`,
+        `bans.prepare_reban`, `comms.prepare_reblock` and
+        `comms.prepare_block_from_ban` now require ADMIN_ADD_BAN (#53)
+```
+
 (20/10/26): Version 2.1.13-srcdslab
 -----------------------
 ```
