@@ -10,12 +10,31 @@ Legend:
 ? = Other stuff
 ```
 
-(18/10/26): Version 2.1.8-srcdslab
+(20/10/26): Version 2.1.12-srcdslab
 -----------------------
 ```
 01. ! Security: the login form no longer reveals whether a username
         exists (same answer for an empty password, same bcrypt delay
         for unknown users) (#59)
+```
+
+(20/10/26): Version 2.1.11-srcdslab
+-----------------------
+```
+01. ! Moderation queue: the submission "Get demo" link shows its icon
+        (Lucide instead of the missing Font Awesome); "No demo" is plain
+        text instead of a dead link (#60)
+02. ! `exportbans.php` serves `banned_user.cfg` / `banned_ip.cfg` as
+        text/plain, returns 400 for an unknown type and 403 when access
+        is denied (#60)
+```
+
+(19/10/26): Version 2.1.10-srcdslab
+-----------------------
+```
+01. + Ban list and comms list: repeat offenders get a history chip next
+        to their name with the number of punishments on record (bans, or
+        mutes, gags and silences). Click it to list them all
 ```
 
 (05/05/26): Version 2.0.0 (**Run updater required**)
