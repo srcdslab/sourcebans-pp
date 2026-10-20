@@ -19,6 +19,15 @@ Legend:
 02. ? Default theme version 2.0.3
 ```
 
+(20/10/26): Version 2.1.20-srcdslab
+-----------------------
+```
+01. ! Password reset emails now link to the right place on panels
+        installed in a subfolder (the reset link used to 404) (#71)
+02. ! "Ban added", contact and SMTP test emails keep the install
+        subfolder in their panel links (#71)
+```
+
 (20/10/26): Version 2.1.19-srcdslab
 -----------------------
 ```

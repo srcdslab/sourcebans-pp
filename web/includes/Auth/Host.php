@@ -176,6 +176,20 @@ final class Host
 
         return self::protocol().self::domain() . ($withoutRequest ? '' : "/$request");
     }
+
+    /**
+     * Absolute URL of the panel root, without a trailing slash
+     * (`https://example.com/sb`, or `https://example.com` on a root install).
+     *
+     * Use this for every link the panel emails out. `complete(true)` drops
+     * the install subfolder, so its links 404 on subfolder installs (#71).
+     * Call it from `index.php` / `api.php` requests only: the path is taken
+     * from the current request, so a nested script would add its own path.
+     */
+    public static function panelUrl(): string
+    {
+        return rtrim(self::complete(), '/');
+    }
 }
 
 // Issue #1290 phase B: legacy global-name shim. Procedural code keeps
