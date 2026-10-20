@@ -376,10 +376,14 @@ test.describe('responsive: drawer', () => {
         // `dt + dd` selector lands on the <dd> immediately after
         // the matched <dt>. The <dd> contains the value text and a
         // copy button (`[data-copy]`) — the assertion is that there
-        // is NO `<a>` descendant (which would mean an auto-detected
-        // link slipped in).
+        // is NO `tel:` / `sms:` anchor (which would mean an auto-detected
+        // link slipped in). The value itself IS an anchor to the Steam
+        // Community profile, which must survive.
         const steam3Value = idGrid.locator('dt:has-text("Steam3") + dd');
         await expect(steam3Value).toBeVisible();
-        await expect(steam3Value.locator('a')).toHaveCount(0);
+        await expect(steam3Value.locator('a[href^="tel:"], a[href^="sms:"]')).toHaveCount(0);
+        await expect(
+            steam3Value.locator('[data-testid="drawer-steam-profile-link"]'),
+        ).toHaveAttribute('href', /^https:\/\/steamcommunity\.com\/profiles\/7\d{16}$/);
     });
 });

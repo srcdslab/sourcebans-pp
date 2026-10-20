@@ -10,6 +10,14 @@ Legend:
 ? = Other stuff
 ```
 
+(20/10/26): Version 2.1.22-srcdslab
+-----------------------
+```
+01. + Player drawer: the SteamID, Steam3 and Community values link to
+        the player's Steam Community profile
+02. ? Default theme version 2.0.4
+```
+
 (20/10/26): Version 2.1.21-srcdslab
 -----------------------
 ```
