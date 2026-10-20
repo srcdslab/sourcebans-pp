@@ -204,10 +204,10 @@ if (!isset($_POST['subban']) || $_POST['subban'] != 1) {
 
             if (count($mailDests) > 0)
             {
-                // #58: Host::complete() picks http/https and keeps the
+                // #58: Host::panelUrl() picks http/https and keeps the
                 // install subfolder; the old 'http://' . HTTP_HOST .
                 // <REQUEST_URI slice> was always plain http and fragile.
-                $panelUrl = rtrim(Host::complete(), '/');
+                $panelUrl = Host::panelUrl();
                 $demoLink = empty($_FILES['demo_file']['name']) ? 'no' : 'yes (' . $panelUrl . '/getdemo.php?type=S&id=' . $subid . ')';
 
                 $isEmailSent = Mail::send($mailDests, EmailType::BanSubmission, [

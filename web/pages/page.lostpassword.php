@@ -86,7 +86,7 @@ if (isset($_GET['email'], $_GET['validation']) && (!empty($_GET['email']) || !em
     $isEmailSent = Mail::send($email, EmailType::PasswordResetSuccess, [
         '{password}' => $password,
         '{name}'     => $result['user'],
-        '{home}'     => Host::complete(true)
+        '{home}'     => Host::panelUrl()
     ]);
 
     if (!$isEmailSent) {
