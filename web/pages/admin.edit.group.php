@@ -14,6 +14,16 @@ global $userbank, $theme;
 
 require_once __DIR__ . '/_admin_edit_helpers.php';
 
+// #55: the groups route admits any group flag (list / add / edit /
+// delete); the editor itself needs EditGroups.
+if (!$userbank->HasAccess(\WebPermission::mask(\WebPermission::Owner, \WebPermission::EditGroups))) {
+    sbpp_admin_edit_die_with_toast(
+        "You don't have access to edit groups.",
+        'index.php?p=admin&c=groups',
+    );
+    return;
+}
+
 $groupId = isset($_GET['id']) ? (int) $_GET['id'] : 0;
 if ($groupId <= 0) {
     sbpp_admin_edit_die_with_toast(
