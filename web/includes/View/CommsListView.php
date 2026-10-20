@@ -30,6 +30,14 @@ namespace Sbpp\View;
  *   - edit_url      string admin edit URL
  *   - unmute_url    string|null URL to unmute/ungag, null if N/A
  *   - delete_url    string admin delete URL
+ *   - history_mutes int    mutes on record for this Steam ID (row included)
+ *   - history_gags  int    gags on record for this Steam ID (row included)
+ *   - history_silences int type 3 silences on record for this Steam ID
+ *   - history_total int    mutes + gags + silences; the history chip
+ *                          renders when it is above 1
+ *   - history_label string tooltip text, e.g. "2 mutes, 1 gag on record"
+ *   - history_url   string search URL for every block on the Steam ID
+ *                          ('' when the row has no Steam ID)
  *
  * `$ban_nav`, `$hidetext`, `$hideadminname`, `$view_bans`,
  * `$view_comments` are preserved on this View for the same

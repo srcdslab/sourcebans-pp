@@ -404,6 +404,7 @@ if (isset($_GET['searchText'])) {
 		CAST(MID(CO.authid, 9, 1) AS UNSIGNED) + CAST('76561197960265728' AS UNSIGNED) + CAST(MID(CO.authid, 11, 10) * 2 AS UNSIGNED) AS community_id,
 		(SELECT count(*) FROM `:prefix_comms` as BH WHERE (BH.authid = CO.authid AND BH.authid != '' AND BH.authid IS NOT NULL AND BH.type = 1)) as mute_count,
 		(SELECT count(*) FROM `:prefix_comms` as BH WHERE (BH.authid = CO.authid AND BH.authid != '' AND BH.authid IS NOT NULL AND BH.type = 2)) as gag_count,
+		(SELECT count(*) FROM `:prefix_comms` as BH WHERE (BH.authid = CO.authid AND BH.authid != '' AND BH.authid IS NOT NULL AND BH.type = 3)) as silence_count,
 		UNIX_TIMESTAMP() as c_time
 		FROM `:prefix_comms` AS CO FORCE INDEX (created)
 		LEFT JOIN `:prefix_servers` AS SE ON SE.sid = CO.sid
@@ -448,6 +449,7 @@ if (isset($_GET['searchText'])) {
 		CAST(MID(CO.authid, 9, 1) AS UNSIGNED) + CAST('76561197960265728' AS UNSIGNED) + CAST(MID(CO.authid, 11, 10) * 2 AS UNSIGNED) AS community_id,
 		(SELECT count(*) FROM `:prefix_comms` as BH WHERE (BH.authid = CO.authid AND BH.authid != '' AND BH.authid IS NOT NULL AND BH.type = 1)) as mute_count,
 		(SELECT count(*) FROM `:prefix_comms` as BH WHERE (BH.authid = CO.authid AND BH.authid != '' AND BH.authid IS NOT NULL AND BH.type = 2)) as gag_count,
+		(SELECT count(*) FROM `:prefix_comms` as BH WHERE (BH.authid = CO.authid AND BH.authid != '' AND BH.authid IS NOT NULL AND BH.type = 3)) as silence_count,
 		UNIX_TIMESTAMP() as c_time
 		FROM `:prefix_comms` AS CO FORCE INDEX (created)
 		LEFT JOIN `:prefix_servers` AS SE ON SE.sid = CO.sid
@@ -586,6 +588,7 @@ if (isset($_GET['advSearch'])) {
 			CAST(MID(CO.authid, 9, 1) AS UNSIGNED) + CAST('76561197960265728' AS UNSIGNED) + CAST(MID(CO.authid, 11, 10) * 2 AS UNSIGNED) AS community_id,
 			(SELECT count(*) FROM `:prefix_comms` as BH WHERE (BH.authid = CO.authid AND BH.authid != '' AND BH.authid IS NOT NULL AND BH.type = 1)) as mute_count,
 			(SELECT count(*) FROM `:prefix_comms` as BH WHERE (BH.authid = CO.authid AND BH.authid != '' AND BH.authid IS NOT NULL AND BH.type = 2)) as gag_count,
+			(SELECT count(*) FROM `:prefix_comms` as BH WHERE (BH.authid = CO.authid AND BH.authid != '' AND BH.authid IS NOT NULL AND BH.type = 3)) as silence_count,
 			UNIX_TIMESTAMP() as c_time
 			FROM `:prefix_comms` AS CO FORCE INDEX (created)
 			LEFT JOIN `:prefix_servers` AS SE ON SE.sid = CO.sid
@@ -998,6 +1001,27 @@ foreach ($res as $row) {
     $data['started_iso']   = date('c', $startedTs);
     $data['state']         = $stateLabel;
     $data['sname']         = $snameLabel;
+    // Punishment history chip: every block on record for this Steam ID,
+    // this row included (raw SQL counts, not the legacy "previous
+    // blocks" values decremented above). The plugin stores a silence as
+    // a mute row plus a gag row, but forks and imports can write a
+    // single type 3 row, so those are counted too. The template paints
+    // the chip when the total is above 1 and links it to a search for
+    // every block on the same Steam ID.
+    $data['history_mutes']    = (int) $row['mute_count'];
+    $data['history_gags']     = (int) $row['gag_count'];
+    $data['history_silences'] = (int) $row['silence_count'];
+    $data['history_total']    = $data['history_mutes'] + $data['history_gags'] + $data['history_silences'];
+    $historyParts = [];
+    foreach (['mute' => $data['history_mutes'], 'gag' => $data['history_gags'], 'silence' => $data['history_silences']] as $kind => $n) {
+        if ($n > 0) {
+            $historyParts[] = $n . ' ' . $kind . ($n === 1 ? '' : 's');
+        }
+    }
+    $data['history_label'] = implode(', ', $historyParts) . ' on record';
+    $data['history_url']   = $data['steam'] !== ''
+        ? 'index.php?p=commslist&searchText=' . urlencode($data['steam'])
+        : '';
     $data['edit_url']      = 'index.php?p=admin&c=comms&o=edit&id=' . (int) $row['ban_id'] . '&key=' . urlencode($key);
     $data['delete_url']    = 'index.php?p=commslist&a=delete&id=' . (int) $row['ban_id'] . '&key=' . urlencode($key);
     if ($stateLabel === 'active' || $stateLabel === 'permanent') {
