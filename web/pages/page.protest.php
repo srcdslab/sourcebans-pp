@@ -170,9 +170,9 @@ if (!isset($_POST['subprotest']) || $_POST['subprotest'] != 1) {
                 // longer wired. Link directly to the protests section
                 // so the email recipient lands on the queue they're
                 // being asked to review.
-                // Host::complete() keeps the install subfolder (#58).
-                '{link}' => rtrim(Host::complete(), '/') . '/index.php?p=admin&c=bans&section=protests',
-                '{home}' => rtrim(Host::complete(), '/')
+                // Host::panelUrl() keeps the install subfolder (#58, #71).
+                '{link}' => Host::panelUrl() . '/index.php?p=admin&c=bans&section=protests',
+                '{home}' => Host::panelUrl()
             ]);
         }
 

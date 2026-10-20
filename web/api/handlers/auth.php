@@ -197,13 +197,13 @@ function api_auth_lost_password(array $params): array
     $GLOBALS['PDO']->bind(':email', $email);
     $GLOBALS['PDO']->execute();
 
-    $url = Host::complete(true) . '/index.php?p=lostpassword&email=' . urlencode($email)
+    $url = Host::panelUrl() . '/index.php?p=lostpassword&email=' . urlencode($email)
         . '&validation=' . urlencode($validation);
 
     $sent = Mail::send($email, EmailType::PasswordReset, [
         '{link}' => $url,
         '{name}' => $row['user'],
-        '{home}' => Host::complete(true),
+        '{home}' => Host::panelUrl(),
     ]);
 
     if (!$sent) {

@@ -230,7 +230,7 @@ function api_bans_add(array $params): array
         $sub = $GLOBALS['PDO']->single();
 
         if (!empty($sub['email'])) {
-            Mail::send($sub['email'], EmailType::BanAdded, ['{home}' => Host::complete(true)]);
+            Mail::send($sub['email'], EmailType::BanAdded, ['{home}' => Host::panelUrl()]);
         }
 
         $GLOBALS['PDO']->query("UPDATE `:prefix_submissions` SET archiv = '2', archivedby = ? WHERE subid = ?")

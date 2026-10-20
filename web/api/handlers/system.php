@@ -347,8 +347,8 @@ function api_system_send_mail(array $params): array
         '{message}' => $message,
         '{subject}' => $subject,
         '{admin}'   => $username,
-        '{link}'    => Host::complete(true),
-        '{home}'    => Host::complete(true),
+        '{link}'    => Host::panelUrl(),
+        '{home}'    => Host::panelUrl(),
     ], $subject);
 
     if (!$sent) {
@@ -572,8 +572,8 @@ function api_system_test_email(array $params): array
         '{message}' => $message,
         '{subject}' => $subject,
         '{admin}'   => $adminName,
-        '{link}'    => Host::complete(true),
-        '{home}'    => Host::complete(true),
+        '{link}'    => Host::panelUrl(),
+        '{home}'    => Host::panelUrl(),
     ], $subject);
 
     if (!$sent) {
