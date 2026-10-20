@@ -76,6 +76,7 @@ function api_admins_remove(array $params): array
 
     $allservers = [];
     if ($ok) {
+        Auth::revokeAllForAdmin($aid);
         $allservers = _api_admins_rehash_sids($aid);
 
         $GLOBALS['PDO']->query("DELETE FROM `:prefix_admins_servers_groups` WHERE admin_id = :aid");
@@ -146,6 +147,8 @@ function api_admins_deactivate(array $params): array
     if (!$GLOBALS['PDO']->execute()) {
         throw new ApiError('deactivate_failed', 'There was an error deactivating the admin.');
     }
+    // Reactivating must not revive old cookies (#54).
+    Auth::revokeAllForAdmin($aid);
 
     $allservers = _api_admins_rehash_sids($aid);
     $logBody = "Admin ({$admin['user']}) has been deactivated.";

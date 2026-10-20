@@ -88,6 +88,20 @@ directory has no such guard, so it's on you to remove it.
 
 ## Version-specific notes
 
+### Upgrading to 2.1.3-srcdslab or later
+
+Admin sessions are now stored server-side, so they can be revoked.
+Run the updater as usual. Every admin is logged out once after the
+upgrade and has to sign in again.
+
+From this version on:
+
+- Logging out ends the session on the server, not just in the browser.
+- Changing or resetting a password signs that admin out everywhere.
+- Deactivating or deleting an admin ends their sessions immediately.
+- A session past its configured sign-in lifetime is refused, even if a
+  browser kept the cookie.
+
 ### Upgrading from 1.8.x to 2.0.x
 
 The biggest jump SourceBans++ has shipped: PHP 8.5 requirement,

@@ -260,10 +260,12 @@ CREATE TABLE IF NOT EXISTS `{prefix}_comms` (
 
 CREATE TABLE IF NOT EXISTS `{prefix}_login_tokens` (
     `jti` varchar(16) NOT NULL,
+    `aid` int(6) NOT NULL DEFAULT 0,
     `secret` varchar(64) NOT NULL,
     `lastAccessed` int(11) NOT NULL,
     PRIMARY KEY (`jti`),
-    UNIQUE KEY `secret` (`secret`)
+    UNIQUE KEY `secret` (`secret`),
+    KEY `aid` (`aid`)
 ) ENGINE=InnoDB DEFAULT CHARSET={charset};
 
 -- Player notes scratchpad surfaced by the player-detail drawer (#1165).

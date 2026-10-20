@@ -10,6 +10,22 @@ Legend:
 ? = Other stuff
 ```
 
+(20/10/26): Version 2.1.18-srcdslab (**Run updater required**)
+-----------------------
+> [!IMPORTANT]
+> Every admin is logged out once after this upgrade.
+```
+01. ! Security: session cookies now expire server-side (`exp` / `nbf`
+        are validated) instead of staying valid forever (#54)
+02. ! Security: sessions are stored in `:prefix_login_tokens`; logout
+        revokes the session on the server (#54)
+03. + Changing or resetting a password, deactivating or deleting an
+        admin ends every session of that admin (#54)
+04. ! A cookie for a deleted or deactivated admin no longer counts as
+        logged in (#54)
+05. ? Updater migration 814 adds `:prefix_login_tokens.aid`
+```
+
 (20/10/26): Version 2.1.17-srcdslab
 -----------------------
 ```

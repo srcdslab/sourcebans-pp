@@ -178,6 +178,7 @@ if (isset($_POST['adminname'])) {
                 ':aid' => $adminId,
             ]);
             $pdo->execute();
+            Auth::revokeAllForAdmin((int) $adminId);
         }
 
         if ($serverPassChanged) {
