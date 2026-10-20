@@ -69,8 +69,8 @@ Api::register('admins.generate_password', 'api_admins_generate_password', 0, tru
 
 // ---- auth groups (SteamCommunity ban features) ------------------------
 Api::register('bans.add',                 'api_bans_add',                  ADMIN_OWNER | ADMIN_ADD_BAN);
-Api::register('bans.setup_ban',           'api_bans_setup_ban',            0, true);
-Api::register('bans.prepare_reban',       'api_bans_prepare_reban',        0, true);
+Api::register('bans.setup_ban',           'api_bans_setup_ban',            ADMIN_OWNER | ADMIN_ADD_BAN);
+Api::register('bans.prepare_reban',       'api_bans_prepare_reban',        ADMIN_OWNER | ADMIN_ADD_BAN);
 Api::register('bans.paste',               'api_bans_paste',                ADMIN_OWNER | ADMIN_ADD_BAN);
 Api::register('bans.add_comment',         'api_bans_add_comment',          0, true);
 Api::register('bans.edit_comment',        'api_bans_edit_comment',         0, true);
@@ -81,8 +81,8 @@ Api::register('bans.ban_member_of_group', 'api_bans_ban_member_of_group',  ADMIN
 Api::register('bans.ban_friends',         'api_bans_ban_friends',          ADMIN_OWNER | ADMIN_ADD_BAN);
 Api::register('bans.get_groups',          'api_bans_get_groups',           ADMIN_OWNER | ADMIN_ADD_BAN);
 Api::register('bans.kick_player',         'api_bans_kick_player',          ADMIN_OWNER | ADMIN_ADD_BAN);
-Api::register('bans.send_message',        'api_bans_send_message',         0, true);
-Api::register('bans.view_community',      'api_bans_view_community',       0, true);
+Api::register('bans.send_message',        'api_bans_send_message',         ADMIN_OWNER | ADMIN_ADD_BAN);
+Api::register('bans.view_community',      'api_bans_view_community',       ADMIN_OWNER | ADMIN_ADD_BAN);
 Api::register('bans.search',              'api_bans_search',               0, true);
 // bans.unban dispatcher gate matches the legacy GET handler: any of the
 // four "unban-ish" flags lets the request through; the handler then
@@ -97,9 +97,9 @@ Api::register('blockit.block_player', 'api_blockit_block_player', ADMIN_OWNER | 
 
 // ---- comms (block/mute/gag) ------------------------------------------
 Api::register('comms.add',                    'api_comms_add',                    ADMIN_OWNER | ADMIN_ADD_BAN);
-Api::register('comms.prepare_reblock',        'api_comms_prepare_reblock',        0, true);
+Api::register('comms.prepare_reblock',        'api_comms_prepare_reblock',        ADMIN_OWNER | ADMIN_ADD_BAN);
 Api::register('comms.paste',                  'api_comms_paste',                  ADMIN_OWNER | ADMIN_ADD_BAN);
-Api::register('comms.prepare_block_from_ban', 'api_comms_prepare_block_from_ban', 0, true);
+Api::register('comms.prepare_block_from_ban', 'api_comms_prepare_block_from_ban', ADMIN_OWNER | ADMIN_ADD_BAN);
 // comms.unblock dispatcher gate matches the legacy GET handler: any of the
 // four "lift-a-block" flags lets the request through; the handler then
 // does the precise per-row check (own/group bans). #1207 ADM-5/ADM-6.

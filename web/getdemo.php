@@ -45,6 +45,9 @@ declare(strict_types=1);
 
 require_once __DIR__ . '/init.php';
 
+/** @var \Sbpp\Auth\UserManager $userbank set up by init.php */
+global $userbank;
+
 const DEMO_TYPE_BAN        = 'B';
 const DEMO_TYPE_SUBMISSION = 'S';
 
@@ -86,6 +89,16 @@ if (!in_array($type, [DEMO_TYPE_BAN, DEMO_TYPE_SUBMISSION], true)) {
 }
 if ($id <= 0) {
     getdemo_die(400, 'Missing or invalid demo id.');
+}
+
+// Ban demos are linked from the public ban list and stay public.
+// Submission demos are evidence uploaded through the public "Submit a
+// ban" form and only shown in the admin moderation queue, so they need
+// the same flag as that queue (#55). Checked before the DB lookup so the
+// response doesn't reveal which submission ids carry a demo.
+if ($type === DEMO_TYPE_SUBMISSION
+    && !$userbank->HasAccess(WebPermission::mask(WebPermission::Owner, WebPermission::BanSubmissions))) {
+    getdemo_die(403, 'You do not have access to this demo.');
 }
 
 $row = $GLOBALS['PDO']

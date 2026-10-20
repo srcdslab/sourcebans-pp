@@ -6,6 +6,13 @@
 use Sbpp\Mail\EmailType;
 use Sbpp\Mail\Mail;
 
+/**
+ * bcrypt hash of a random throwaway value, at the cost
+ * `password_hash(PASSWORD_BCRYPT)` uses on PHP 8.4+ (12). Verifying
+ * against it gives unknown usernames the same delay as real ones (#59).
+ */
+const API_AUTH_TIMING_DUMMY_HASH = '$2y$12$gaS4ruZ8z1k15YBlZL8toev5T.l7Bs4RMkwPxh8aGwGyTCr/FMaiG';
+
 function _api_auth_get_user(string $username): ?array
 {
     $GLOBALS['PDO']->query("SELECT aid, password, attempts, lockout_until FROM `:prefix_admins` WHERE user = :user");
@@ -29,18 +36,24 @@ function api_auth_login(array $params): array
     $maxAttempts = 5;
     $lockoutTime = 10 * 60;
 
+    // Checked before the user lookup so known and unknown usernames get
+    // the same answer. Pre-#59 an empty password returned `empty_pwd` for
+    // existing accounts and `failed` for the rest: a one-request oracle.
+    if ($password === '') {
+        return Api::redirect('?p=login&m=empty_pwd');
+    }
+
     $user = _api_auth_get_user($username);
     if (!$user) {
+        // Pay the same bcrypt cost a known account does, so response time
+        // doesn't reveal whether the username exists (#59).
+        password_verify($password, API_AUTH_TIMING_DUMMY_HASH);
         return Api::redirect('?p=login&m=failed');
     }
 
     if (!empty($user['lockout_until']) && strtotime($user['lockout_until']) > time()) {
         $remaining = (strtotime($user['lockout_until']) - time()) / 60;
         return Api::redirect('?p=login&m=locked&time=' . round($remaining));
-    }
-
-    if ($password === '') {
-        return Api::redirect('?p=login&m=empty_pwd');
     }
 
     $auth = new NormalAuthHandler($GLOBALS['PDO'], $username, $password, $remember);

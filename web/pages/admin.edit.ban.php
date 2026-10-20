@@ -52,7 +52,7 @@ function emitEditBanToastAndRedirect(string $kind, string $title, string $body, 
 HTML;
 }
 
-if ($_GET['key'] != $_SESSION['banlist_postkey']) {
+if (!sbpp_list_action_key_valid($_GET['key'] ?? null)) {
     emitEditBanToastAndRedirect('red', 'Error', 'Possible hacking attempt (URL Key mismatch)!', 'index.php?p=admin&c=bans');
     PageDie();
 }
