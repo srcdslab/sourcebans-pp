@@ -1936,6 +1936,12 @@ dialog::backdrop {
    has been dropped (#1208 review finding 2). */
 .drawer .drawer__ids dd,
 .drawer .drawer__ban dd { min-width: 0; overflow-wrap: anywhere; }
+/* Steam identity values in the drawer link to the Steam Community
+   profile. Keep the mono value readable; the accent + underline only
+   show on hover / focus so the grid doesn't read as a wall of links. */
+.drawer .drawer__id-link { color: inherit; text-decoration: underline dotted; text-underline-offset: 2px; }
+.drawer .drawer__id-link:hover,
+.drawer .drawer__id-link:focus-visible { color: var(--accent); text-decoration: underline solid; }
 .drawer a[href^="tel:"],
 .drawer a[href^="sms:"] { color: inherit; text-decoration: none; pointer-events: none; }
 @media (max-width: 768px) {

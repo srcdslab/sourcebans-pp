@@ -770,6 +770,15 @@
       ? player.country : '';
     if (countryCode) idRows.push(['Country', countryDisplayName(countryCode) + ' (' + countryCode + ')']);
 
+    // The three Steam identity rows link to the player's Steam
+    // Community profile. Only a 17-digit Steam64 builds the URL, so a
+    // malformed authid (or an IP-only ban) renders as plain text.
+    const communityId = String(player.community_id || '');
+    const profileUrl = /^7\d{16}$/.test(communityId)
+      ? 'https://steamcommunity.com/profiles/' + communityId
+      : '';
+    const steamRows = ['SteamID', 'Steam3', 'Community'];
+
     const idHtml = idRows.length === 0 ? '' :
       '<dl class="drawer__ids" data-testid="drawer-ids" style="display:grid;grid-template-columns:6rem 1fr;gap:0.25rem 0.75rem;margin:0;font-size:0.8125rem">'
       + idRows.map((row) =>
@@ -778,7 +787,12 @@
           + (row[0] === 'Country'
               ? '<img class="country-flag" src="images/country/' + countryCode.toLowerCase() + '.png" width="16" height="11" alt="" data-testid="drawer-country-flag" style="margin-right:0.375rem"> '
               : '')
-          + escapeHtml(row[1])
+          + (profileUrl && steamRows.indexOf(row[0]) !== -1
+              ? '<a class="drawer__id-link" href="' + escapeHtml(profileUrl) + '" target="_blank" rel="noopener noreferrer"'
+                + ' data-testid="drawer-steam-profile-link" title="Open Steam profile">'
+                + escapeHtml(row[1])
+                + '</a>'
+              : escapeHtml(row[1]))
           + '<button class="btn btn--ghost btn--icon btn--xs" type="button" data-copy="' + escapeHtml(row[1]) + '" title="Copy" style="margin-left:0.25rem">'
           +   '<i data-lucide="copy" style="width:12px;height:12px"></i>'
           + '</button>'
