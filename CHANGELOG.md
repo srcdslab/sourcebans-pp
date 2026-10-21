@@ -10,6 +10,17 @@ Legend:
 ? = Other stuff
 ```
 
+(21/10/26): Version 2.1.23-srcdslab
+-----------------------
+```
+01. ! Security: the production Docker image refuses to build on PHP
+        below 8.5.12 (CVE-2026-109618, CVE-2026-109619, unauthenticated
+        RCE) and always pulls a fresh php:8.5 base image
+02. ! Security: production php.ini disables session upload progress and
+        fatal error backtraces (CVE-2026-109619 hardening)
+03. + Install wizard warns when PHP is older than 8.5.12
+```
+
 (20/10/26): Version 2.1.22-srcdslab
 -----------------------
 ```
