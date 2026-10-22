@@ -10,6 +10,14 @@ Legend:
 ? = Other stuff
 ```
 
+(22/10/26): Version 2.1.24-srcdslab
+-----------------------
+```
+01. ! sm_comms on a player without a mute or gag replied with a
+        missing-phrase error (CommandComms_nc added to sbpp_comms)
+02. ! German comms time help showed "\.n" instead of a line break
+```
+
 (21/10/26): Version 2.1.23-srcdslab
 -----------------------
 ```
