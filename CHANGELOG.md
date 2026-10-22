@@ -10,12 +10,19 @@ Legend:
 ? = Other stuff
 ```
 
-(22/10/26): Version 2.1.24-srcdslab
+(22/10/26): Version 2.1.26-srcdslab
 -----------------------
 ```
 01. ! sm_comms on a player without a mute or gag replied with a
         missing-phrase error (CommandComms_nc added to sbpp_comms)
 02. ! German comms time help showed "\.n" instead of a line break
+```
+
+(22/10/26): Version 2.1.25-srcdslab
+-----------------------
+```
+01. ? Dependabot no longer assigns the upstream maintainers to this
+        fork's dependency PRs
 ```
 
 (21/10/26): Version 2.1.23-srcdslab
