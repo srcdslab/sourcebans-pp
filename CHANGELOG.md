@@ -10,6 +10,13 @@ Legend:
 ? = Other stuff
 ```
 
+(22/10/26): Version 2.1.25-srcdslab
+-----------------------
+```
+01. ? Dependabot no longer assigns the upstream maintainers to this
+        fork's dependency PRs
+```
+
 (21/10/26): Version 2.1.23-srcdslab
 -----------------------
 ```
