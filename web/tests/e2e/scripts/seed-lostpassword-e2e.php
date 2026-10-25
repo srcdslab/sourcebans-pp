@@ -44,7 +44,10 @@
  * Usage (inside the web container):
  *
  *   php seed-lostpassword-e2e.php
- *   # → {"email":"admin@example.test","token":"<16-hex-chars>"}
+ *   # → {"email":"lostpw-happy@example.test","token":"<16-hex-chars>"}
+ *
+ *   php seed-lostpassword-e2e.php someone@example.test
+ *   # → same, against a dedicated admin row created for that address
  *
  * The output is JSON on stdout; consumed by `seedLostpasswordE2e`
  * in `web/tests/e2e/fixtures/db.ts`.
@@ -112,16 +115,19 @@ foreach ($settings as $key => $value) {
 $token = bin2hex(random_bytes(8));
 // A dedicated admin, not the seeded `admin@example.test`: completing a
 // reset revokes every session of the target admin (#54), and the shared
-// Playwright storage state belongs to the seeded admin. INSERT IGNORE
-// keeps re-runs idempotent (`user` is unique).
-$email = 'lostpw-happy@example.test';
+// Playwright storage state belongs to the seeded admin. A caller-supplied
+// address gets its own row too, so a spec can drive the reset branch
+// without racing other specs (or the other Playwright project) on a
+// shared token. INSERT IGNORE keeps re-runs idempotent (`user` is unique).
+$email = $argv[1] ?? 'lostpw-happy@example.test';
+$isDefault = $email === 'lostpw-happy@example.test';
 $pdo->query(
     'INSERT IGNORE INTO `:prefix_admins` (user, authid, password, gid, email, validate, extraflags, immunity)
      VALUES (:user, :authid, :password, -1, :email, NULL, 0, 0)'
 );
-$pdo->bind(':user', 'lostpw-happy');
-$pdo->bind(':authid', 'STEAM_0:0:9999998');
-$pdo->bind(':password', hash('sha256', bin2hex(random_bytes(16))));
+$pdo->bind(':user', $isDefault ? 'lostpw-happy' : $email);
+$pdo->bind(':authid', $isDefault ? 'STEAM_0:0:9999998' : '');
+$pdo->bind(':password', password_hash(bin2hex(random_bytes(16)), PASSWORD_BCRYPT));
 $pdo->bind(':email', $email);
 $pdo->execute();
 
