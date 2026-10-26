@@ -18,6 +18,28 @@ Legend:
         banlist and PruneBans() no longer scan the whole table there
 ```
 
+(26/10/26): Version 2.2.2-srcdslab
+-----------------------
+```
+01. ! Security: uploaded demos can no longer be fetched directly from
+        /demos/; getdemo.php is the only download path (Apache rules
+        in the Docker images + a shipped demos/.htaccess for tarball
+        installs, nginx / IIS rules in the quickstart docs)
+02. ! Security: uploaded demos are named from a CSPRNG instead of
+        md5(SteamID . time())
+03. ! Security: every response sends X-Content-Type-Options: nosniff
+04. ! Dev stack: demos/ is writable by the web container
+```
+
+(26/10/26): Version 2.2.1-srcdslab
+-----------------------
+```
+01. ! Security: password reset mails go to the address stored on the
+        admin row, never to a case- or accent-variant of it typed in
+        the form; the reset token is rolled by admin id
+02. ! Security: the reset token is compared byte-exact (hash_equals)
+```
+
 (22/10/26): Version 2.1.26-srcdslab
 -----------------------
 ```
