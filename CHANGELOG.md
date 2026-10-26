@@ -10,6 +10,14 @@ Legend:
 ? = Other stuff
 ```
 
+(26/10/26): Version 2.2.3-srcdslab (**Run updater required**)
+-----------------------
+```
+01. ! Upgraded installs missing the type_authid / type_ip indexes on
+        sb_bans get them back (updater migration 815); the ban check,
+        banlist and PruneBans() no longer scan the whole table there
+```
+
 (22/10/26): Version 2.1.26-srcdslab
 -----------------------
 ```
