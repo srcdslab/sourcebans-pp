@@ -333,6 +333,24 @@
 		"sv"			"\"{1}\" lade till en bannlysning (minuter: {2}) (ID/IP: {3}) (anledning: {4})."
 		"tr"			"\"{1}\" yasak ekledi (dakika: {2}) (ID/IP: {3}) (sebep: {4})."
 	}
+	"Cannot IP Ban No IP"
+	{
+		"#format"		"{1:N}"
+		"en"			"Cannot IP ban {1}: no IP address is available for this player (Steam Networking / SDR)."
+		"de"			"{1} kann nicht per IP gebannt werden: für diesen Spieler ist keine IP-Adresse verfügbar (Steam Networking / SDR)."
+		"ru"			"Невозможно забанить {1} по IP: у этого игрока нет доступного IP-адреса (Steam Networking / SDR)."
+		"fr"			"Impossible de bannir {1} par IP : aucune adresse IP n'est disponible pour ce joueur (Steam Networking / SDR)."
+		"pt"			"Não é possível banir {1} por IP: nenhum endereço IP está disponível para este jogador (Steam Networking / SDR)."
+		"chi"			"无法按 IP 封禁 {1}：该玩家没有可用的 IP 地址 (Steam Networking / SDR)。"
+		"da"			"Kan ikke IP-udelukke {1}: ingen IP-adresse er tilgængelig for denne spiller (Steam Networking / SDR)."
+		"es"			"No se puede banear por IP a {1}: no hay ninguna dirección IP disponible para este jugador (Steam Networking / SDR)."
+		"hu"			"{1} nem tiltható ki IP alapján: ehhez a játékoshoz nem érhető el IP-cím (Steam Networking / SDR)."
+		"nl"			"Kan {1} niet op IP bannen: er is geen IP-adres beschikbaar voor deze speler (Steam Networking / SDR)."
+		"no"			"Kan ikke IP-utestenge {1}: ingen IP-adresse er tilgjengelig for denne spilleren (Steam Networking / SDR)."
+		"pl"			"Nie można zbanować {1} po IP: brak dostępnego adresu IP dla tego gracza (Steam Networking / SDR)."
+		"sv"			"Kan inte IP-bannlysa {1}: ingen IP-adress finns tillgänglig för den här spelaren (Steam Networking / SDR)."
+		"tr"			"{1} IP ile yasaklanamıyor: bu oyuncu için kullanılabilir bir IP adresi yok (Steam Networking / SDR)."
+	}
 	"Ban Success Name"
 	{
 		"#format"		"{1:s}"
