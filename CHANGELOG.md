@@ -23,6 +23,15 @@ Legend:
 04. ! Dev stack: demos/ is writable by the web container
 ```
 
+(26/10/26): Version 2.2.1-srcdslab
+-----------------------
+```
+01. ! Security: password reset mails go to the address stored on the
+        admin row, never to a case- or accent-variant of it typed in
+        the form; the reset token is rolled by admin id
+02. ! Security: the reset token is compared byte-exact (hash_equals)
+```
+
 (22/10/26): Version 2.1.26-srcdslab
 -----------------------
 ```
