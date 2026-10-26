@@ -10,6 +10,20 @@ Legend:
 ? = Other stuff
 ```
 
+(26/10/26): Version 2.2.5-srcdslab (**Run updater required**)
+-----------------------
+```
+01. ! Players who joined before the database connected, hit a failed
+        ban query, or were online when sbpp_main late-loaded were never
+        checked for bans; the retry timer now re-queries
+02. ! Steam Networking (SDR / FakeIP) players: the shared 169.254.x.x
+        placeholder is no longer stored or matched as their IP; sm_banip
+        refuses them, SourceSleuth skips them, and updater migration
+        816 cleans placeholders stored by older plugins
+03. ! SourceSleuth no longer re-bans a player on their own ban (with
+        sm_sleuth_actions 3 the length doubled on every reconnect)
+```
+
 (26/10/26): Version 2.2.3-srcdslab (**Run updater required**)
 -----------------------
 ```

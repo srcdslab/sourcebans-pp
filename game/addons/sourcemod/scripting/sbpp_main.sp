@@ -28,6 +28,7 @@
 
 #include <sourcemod>
 #include <sourcebanspp>
+#include <sbpp_server_ip>
 
 #undef REQUIRE_PLUGIN
 #include <adminmenu>
@@ -99,7 +100,8 @@ bool
 	, backupConfig = true
 	, enableAdmins = true
 	, ConfigLoaded = false /* sourcebans.cfg has been parsed at least once */
-	, PlayerStatus[MAXPLAYERS + 1]; /* Player ban check status */
+	, PlayerStatus[MAXPLAYERS + 1] /* Player ban check status */
+	, PlayerCheckPending[MAXPLAYERS + 1]; /* Ban check query in flight */
 
 int
 	g_BanTarget[MAXPLAYERS + 1] =  { -1, ... }
@@ -309,6 +311,7 @@ public void OnClientDisconnect(int client)
 		PlayerRecheck[client] = INVALID_HANDLE;
 	}
 
+	PlayerCheckPending[client] = false;
 	FormatEx(g_sSteamIDs[client], sizeof(g_sSteamIDs[]), "\0");
 	FormatEx(g_sPlayerIP[client], sizeof(g_sPlayerIP[]), "\0");
 	FormatEx(g_sName[client], sizeof(g_sName[]), "\0");
@@ -319,13 +322,14 @@ public void OnClientDisconnect(int client)
 public bool OnClientConnect(int client, char[] rejectmsg, int maxlen)
 {
 	PlayerStatus[client] = false;
+	PlayerCheckPending[client] = false;
 	return true;
 }
 
 public void OnClientConnected(int client)
 {
 	char sIP[16], auth[MAX_AUTHID_LENGTH];
-	GetClientIP(client, sIP, sizeof(sIP));
+	SBPP_GetClientPublicIP(client, sIP, sizeof(sIP));
 	FormatEx(g_sPlayerIP[client], sizeof(g_sPlayerIP[]), "%s", sIP);
 
 	GetClientAuthId(client, AuthId_Steam2, auth, sizeof(auth));
@@ -341,7 +345,7 @@ public void OnClientConnected(int client)
 		GetClientAuthId(client, AuthId_Steam2, g_sSteamIDs[client], sizeof(g_sSteamIDs[]), false);
 
 	/* Do not check bots nor check player with lan steamid. */
-	if (auth[0] == 'B' || auth[9] == 'L' || DB == INVALID_HANDLE)
+	if (auth[0] == 'B' || auth[9] == 'L')
 	{
 		PlayerStatus[client] = true;
 		return;
@@ -350,13 +354,46 @@ public void OnClientConnected(int client)
 
 public void OnClientAuthorized(int client, const char[] auth)
 {
-	if (PlayerStatus[client])
+	CheckClientBan(client);
+}
+
+// Queries the ban tables for a connected, authorized client. Safe to call
+// repeatedly: it no-ops once the client passed a check, while a query is in
+// flight or a retry is scheduled, and while the database is unavailable
+// (GotDatabase re-runs it for everyone once the connection is up).
+void CheckClientBan(int client)
+{
+	if (PlayerStatus[client] || PlayerCheckPending[client] || PlayerRecheck[client] != INVALID_HANDLE || DB == INVALID_HANDLE)
 		return;
 
-	char Query[512];
-	if (DB.Format(Query, sizeof(Query), "SELECT bid, ip FROM %!s_bans WHERE ((type = 0 AND authid REGEXP '^STEAM_[0-9]:%s$') OR (type = 1 AND ip = '%s')) AND (length = '0' OR ends > UNIX_TIMESTAMP()) AND RemoveType IS NULL", DatabasePrefix, g_sSteamIDs[client][8], g_sPlayerIP[client]) >= sizeof(Query) - 1)
+	// The SteamID cached in OnClientConnected can still be STEAM_ID_PENDING.
+	char auth[MAX_AUTHID_LENGTH];
+	if (!GetClientAuthId(client, AuthId_Steam2, auth, sizeof(auth)))
+		return;
+
+	strcopy(g_sSteamIDs[client], sizeof(g_sSteamIDs[]), auth);
+
+	if (auth[0] == 'B' || auth[9] == 'L')
 	{
-		LogError("OnClientAuthorized query truncated for %L", client);
+		PlayerStatus[client] = true;
+		return;
+	}
+
+	char Query[512];
+	int written;
+	if (g_sPlayerIP[client][0] == '\0')
+	{
+		/* No usable IP (e.g. SDR client): only check by SteamID. */
+		written = DB.Format(Query, sizeof(Query), "SELECT bid, ip FROM %!s_bans WHERE (type = 0 AND authid REGEXP '^STEAM_[0-9]:%s$') AND (length = '0' OR ends > UNIX_TIMESTAMP()) AND RemoveType IS NULL", DatabasePrefix, g_sSteamIDs[client][8]);
+	}
+	else
+	{
+		written = DB.Format(Query, sizeof(Query), "SELECT bid, ip FROM %!s_bans WHERE ((type = 0 AND authid REGEXP '^STEAM_[0-9]:%s$') OR (type = 1 AND ip = '%s')) AND (length = '0' OR ends > UNIX_TIMESTAMP()) AND RemoveType IS NULL", DatabasePrefix, g_sSteamIDs[client][8], g_sPlayerIP[client]);
+	}
+
+	if (written >= sizeof(Query) - 1)
+	{
+		LogError("CheckClientBan query truncated for %L", client);
 		return;
 	}
 
@@ -364,7 +401,19 @@ public void OnClientAuthorized(int client, const char[] auth)
 	LogToFile(logFile, "Checking ban for: %s", g_sSteamIDs[client]);
 	#endif
 
-	DB.Query(VerifyBan, Query, g_iUserIDs[client], DBPrio_High);
+	PlayerCheckPending[client] = true;
+	DB.Query(VerifyBan, Query, GetClientUserId(client), DBPrio_High);
+}
+
+void CheckConnectedClientBans()
+{
+	for (int i = 1; i <= MaxClients; i++)
+	{
+		if (IsClientConnected(i) && IsClientAuthorized(i))
+		{
+			CheckClientBan(i);
+		}
+	}
 }
 
 public void OnRebuildAdminCache(AdminCachePart part)
@@ -462,7 +511,8 @@ public Action CommandBan(int client, int args)
 		return Plugin_Handled;
 	}
 
-	if (!PlayerStatus[target])
+	// Without a database the check can't run; the ban goes to the SQLite queue instead.
+	if (!PlayerStatus[target] && DB != INVALID_HANDLE)
 	{
 		// The target has not been banned verify. It must be completed before you can ban anyone.
 		ReplyToCommand(admin, "%s%t", Prefix, "Ban Not Verified");
@@ -565,6 +615,13 @@ public Action CommandBanIp(int client, int args)
 		ReplyToCommand(client, "You do not have Perm Ban Permission");
 		return Plugin_Handled;
 	}
+	if (g_sPlayerIP[target][0] == '\0')
+	{
+		// No usable IP (e.g. Steam Networking / SDR client): an IP ban can't work.
+		ReplyToCommand(client, "%s%t", Prefix, "Cannot IP Ban No IP", target);
+		return Plugin_Handled;
+	}
+
 	if (!client)
 	{
 		// setup dummy adminAuth and adminIp for server
@@ -1178,6 +1235,8 @@ public void GotDatabase(Database db, const char[] error, any data)
 		loadAdmins = false;
 	}
 	g_bConnecting = false;
+
+	CheckConnectedClientBans();
 }
 
 public void VerifyInsert(Database db, DBResultSet results, const char[] error, DataPack dataPack)
@@ -1385,7 +1444,7 @@ public void InsertBanIpCallback(Database db, DBResultSet results, const char[] e
 			if(!IsClientInGame(i) || IsFakeClient(i))
 				continue;
 
-			if(strcmp(targetIP, g_sPlayerIP[i], false) == 0)
+			if(targetIP[0] != '\0' && strcmp(targetIP, g_sPlayerIP[i], false) == 0)
 			{
 				target = i;
 				break;
@@ -1821,11 +1880,14 @@ public void VerifyBan(Database db, DBResultSet results, const char[] error, int 
 	if (!client)
 		return;
 
+	PlayerCheckPending[client] = false;
+
 	/* Failure happen. Do retry with delay */
 	if (results == null)
 	{
 		LogToFile(logFile, "Verify Ban Query Failed: %s", error);
-		PlayerRecheck[client] = CreateTimer(RetryTime, ClientRecheck, client);
+		if (PlayerRecheck[client] == INVALID_HANDLE)
+			PlayerRecheck[client] = CreateTimer(RetryTime, ClientRecheck, client);
 		return;
 	}
 
@@ -1844,7 +1906,7 @@ public void VerifyBan(Database db, DBResultSet results, const char[] error, int 
 			int iBid = results.FetchInt(0);
 			results.FetchString(1, sIP, sizeof sIP);
 
-			if (StrEqual(sIP, ""))
+			if (StrEqual(sIP, "") && clientIp[0] != '\0')
 			{
 				char sQuery[256];
 
@@ -1859,12 +1921,22 @@ public void VerifyBan(Database db, DBResultSet results, const char[] error, int 
 			}
 		}
 
+		// Without a usable IP (e.g. SDR client) never match IP bans: an empty
+		// address would otherwise match any type=1 row with a blank IP.
+		// clientIp comes from GetClientIP (dotted digits), so the condition
+		// is inserted unescaped (%!s) below.
+		char ipCondition[64];
+		if (clientIp[0] != '\0')
+			FormatEx(ipCondition, sizeof(ipCondition), "ip = '%s'", clientIp);
+		else
+			strcopy(ipCondition, sizeof(ipCondition), "1 = 0");
+
 		if (serverID == -1)
 		{
 			if (db.Format(Query, sizeof(Query), "INSERT INTO %!s_banlog (sid ,time ,name ,bid) VALUES  \
 				((SELECT sid FROM %!s_servers WHERE ip = '%s' AND port = '%s' LIMIT 0,1), UNIX_TIMESTAMP(), '%s', \
-				(SELECT bid FROM %!s_bans WHERE ((type = 0 AND authid REGEXP '^STEAM_[0-9]:%s$') OR (type = 1 AND ip = '%s')) AND RemoveType IS NULL LIMIT 0,1))",
-				DatabasePrefix, DatabasePrefix, ServerIp, ServerPort, g_sName[client], DatabasePrefix, clientAuth[8], clientIp) < sizeof(Query) - 1)
+				(SELECT bid FROM %!s_bans WHERE ((type = 0 AND authid REGEXP '^STEAM_[0-9]:%s$') OR (type = 1 AND %!s)) AND RemoveType IS NULL LIMIT 0,1))",
+				DatabasePrefix, DatabasePrefix, ServerIp, ServerPort, g_sName[client], DatabasePrefix, clientAuth[8], ipCondition) < sizeof(Query) - 1)
 			{
 				db.Query(ErrorCheckCallback, Query, client, DBPrio_High);
 			}
@@ -1877,8 +1949,8 @@ public void VerifyBan(Database db, DBResultSet results, const char[] error, int 
 		{
 			if (db.Format(Query, sizeof(Query), "INSERT INTO %!s_banlog (sid ,time ,name ,bid) VALUES  \
 				(%d, UNIX_TIMESTAMP(), '%s', \
-				(SELECT bid FROM %!s_bans WHERE ((type = 0 AND authid REGEXP '^STEAM_[0-9]:%s$') OR (type = 1 AND ip = '%s')) AND RemoveType IS NULL LIMIT 0,1))",
-				DatabasePrefix, serverID, g_sName[client], DatabasePrefix, clientAuth[8], clientIp) < sizeof(Query) - 1)
+				(SELECT bid FROM %!s_bans WHERE ((type = 0 AND authid REGEXP '^STEAM_[0-9]:%s$') OR (type = 1 AND %!s)) AND RemoveType IS NULL LIMIT 0,1))",
+				DatabasePrefix, serverID, g_sName[client], DatabasePrefix, clientAuth[8], ipCondition) < sizeof(Query) - 1)
 			{
 				db.Query(ErrorCheckCallback, Query, client, DBPrio_High);
 			}
@@ -2343,12 +2415,13 @@ public void OverridesDone(Database db, DBResultSet results, const char[] error, 
 
 public Action ClientRecheck(Handle timer, any client)
 {
-	if (!PlayerStatus[client] && IsClientConnected(client))
+	PlayerRecheck[client] = INVALID_HANDLE;
+
+	if (IsClientConnected(client) && IsClientAuthorized(client))
 	{
-		OnClientConnected(client);
+		CheckClientBan(client);
 	}
 
-	PlayerRecheck[client] = INVALID_HANDLE;
 	return Plugin_Stop;
 }
 
@@ -3363,14 +3436,14 @@ stock AdminFlag[] CreateFlagLetters()
 
 stock void AccountForLateLoading()
 {
+	// The database connects asynchronously, so the actual ban checks run from
+	// GotDatabase once it's up.
 	for (int i = 1; i <= MaxClients; i++)
 	{
-		if (IsClientConnected(i) && !IsFakeClient(i))
+		if (IsClientConnected(i))
 		{
 			PlayerStatus[i] = false;
-		}
-		if (IsClientInGame(i) && !IsFakeClient(i) && IsClientAuthorized(i))
-		{
+			PlayerCheckPending[i] = false;
 			OnClientConnected(i);
 		}
 	}
