@@ -10,6 +10,16 @@ Legend:
 ? = Other stuff
 ```
 
+(26/10/26): Version 2.2.4-srcdslab
+-----------------------
+```
+01. + Telemetry sends the fields the analytics Worker expects: shared-
+        hosting environment signals, 30-day activity, game mix,
+        permission shape, data-export usage and the continent of the
+        panel's timezone (still no hostnames, IPs, names or SteamIDs)
+02. ? The Docker dev / CI stack no longer sends telemetry pings
+```
+
 (26/10/26): Version 2.2.3-srcdslab (**Run updater required**)
 -----------------------
 ```

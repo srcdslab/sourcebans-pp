@@ -107,7 +107,7 @@ web/
 │   ├── Servers/              Sbpp\Servers\{SourceQueryCache, RconStatusCache} — per-(ip, port) cache around the xPaw A2S probe (#1311) + per-sid cache around the RCON `status` command (#PLAYER_CTX_MENU)
 │   ├── Upload/               Sbpp\Upload\UploadHandler — shared file-upload handler (perm + CSRF + extension allowlist + filename sanitiser + popup chrome) for the demo / icon / mapimage popup pages
 │   ├── Mail/                 Sbpp\Mail\{Mail,Mailer,EmailType} — Symfony Mailer wrapper + enum
-│   ├── Telemetry/            Sbpp\Telemetry\{Telemetry,Schema1} — anonymous opt-out daily ping (#1126); schema-1.lock.json is the vendored cross-repo contract
+│   ├── Telemetry/            Sbpp\Telemetry\{Telemetry,Schema1,HostFingerprint,Region} — anonymous opt-out daily ping (#1126); schema-1.lock.json is the vendored cross-repo contract
 │   ├── Announce/             Sbpp\Announce\{AnnouncementFetcher,Announcement} — anonymous opt-out daily fetch of project news / security advisories from https://sbpp.github.io/announcements.json (source of truth: docs/public/announcements.json); admin-only banner on the home dashboard
 │   ├── Export/               Sbpp\Export\{ManifestBuilder,EntityExporter,BundleWriter,S3PresignedUploader,ExportError,Manifest} — owner-only full data export feature; streamed one-shot ZIP bundle of every row + every uploaded demo; entry point web/export.php (binary wire format, sits at panel-root next to exportbans.php / getdemo.php)
 │   ├── SteamID/              SteamID parsing / vanity-URL resolution
@@ -801,13 +801,31 @@ The tick is the issue #1126 contract:
    calls without flipping the user-facing toggle.
 
 The whole `tickIfDue` body is wrapped in `try { … } catch (\Throwable)`
-so telemetry can NEVER hard-fail the request. Pings are never
+so telemetry can NEVER hard-fail the request. Defining
+`SBPP_SKIP_TELEMETRY` before `init.php` skips the tick for that
+request: `/health.php` does this, and so does the docker dev stack's
+`docker/php/dev-prepend.php` for every web request, which keeps local
+dev, E2E, and CI screenshot runs out of the production dataset. Pings are never
 audit-logged either — a flapping endpoint would otherwise generate
 `sb_log` noise that scares admins. Only the enable/disable
 **transitions** are audit-logged (in
 `web/pages/admin.settings.php`'s features POST handler).
 
 `Telemetry::collect()` is the side-effect-free payload builder. The
+shared-hosting signals in the `env` block (SAPI, ini limits,
+`open_basedir`, control-panel dirs, per-user FPM; sbpp/cf-analytics#3)
+come from `Sbpp\Telemetry\HostFingerprint`, which runs every probe
+behind a `Throwable` guard so a host that disables `ini_get` /
+`posix_*` degrades one field instead of losing the ping. Nullable
+fields stay as explicit `null` in `collect()` (stable key set for the
+parity test) and `send()` drops them via `Telemetry::withoutNulls()`,
+because the Worker's validator accepts an absent key but rejects a
+literal `null`. `panel.region` (sbpp/cf-analytics#6) comes from
+`Sbpp\Telemetry\Region`, a hardcoded IANA-zone → continent table fed
+by `config.timezone` (when it's a zone name; pre-2.0 upgrades can
+leave a bare UTC offset there) or else PHP's default timezone; it
+never reads the request. `panel.exported_30d` reads the `Data Export`
+success rows `web/export.php` writes to `:prefix_log`. The
 exact wire format is captured in
 `web/includes/Telemetry/schema-1.lock.json` — a Draft-7 JSON Schema
 vendored byte-for-byte from the [sbpp/cf-analytics](https://github.com/sbpp/cf-analytics)
