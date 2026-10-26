@@ -24,12 +24,44 @@ Legend:
         sm_sleuth_actions 3 the length doubled on every reconnect)
 ```
 
+(26/10/26): Version 2.2.4-srcdslab
+-----------------------
+```
+01. + Telemetry sends the fields the analytics Worker expects: shared-
+        hosting environment signals, 30-day activity, game mix,
+        permission shape, data-export usage and the continent of the
+        panel's timezone (still no hostnames, IPs, names or SteamIDs)
+02. ? The Docker dev / CI stack no longer sends telemetry pings
+```
+
 (26/10/26): Version 2.2.3-srcdslab (**Run updater required**)
 -----------------------
 ```
 01. ! Upgraded installs missing the type_authid / type_ip indexes on
         sb_bans get them back (updater migration 815); the ban check,
         banlist and PruneBans() no longer scan the whole table there
+```
+
+(26/10/26): Version 2.2.2-srcdslab
+-----------------------
+```
+01. ! Security: uploaded demos can no longer be fetched directly from
+        /demos/; getdemo.php is the only download path (Apache rules
+        in the Docker images + a shipped demos/.htaccess for tarball
+        installs, nginx / IIS rules in the quickstart docs)
+02. ! Security: uploaded demos are named from a CSPRNG instead of
+        md5(SteamID . time())
+03. ! Security: every response sends X-Content-Type-Options: nosniff
+04. ! Dev stack: demos/ is writable by the web container
+```
+
+(26/10/26): Version 2.2.1-srcdslab
+-----------------------
+```
+01. ! Security: password reset mails go to the address stored on the
+        admin row, never to a case- or accent-variant of it typed in
+        the form; the reset token is rolled by admin id
+02. ! Security: the reset token is compared byte-exact (hash_equals)
 ```
 
 (22/10/26): Version 2.1.26-srcdslab
