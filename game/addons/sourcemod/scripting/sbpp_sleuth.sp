@@ -161,8 +161,10 @@ public void SQL_OnConnect(Database db, const char[] error, any data)
 
 	if (db == null)
 	{
-		g_DatabaseState = DatabaseState_None;
 		LogError("SourceSleuth: Database connection error: %s", error);
+		// Nothing else triggers a reconnect: retry on a timer.
+		g_DatabaseState = DatabaseState_Wait;
+		CreateTimer(30.0, Timer_ReconnectDB);
 		return;
 	}
 
@@ -222,14 +224,16 @@ public void OnClientPostAdminCheck(int client)
 			 * player who is already banned is left to sbpp_main. Matching the
 			 * player's own ban would re-ban them on every reconnect. Oldest
 			 * ban first so length-based actions don't compound off bans
-			 * SourceSleuth issued itself. */
+			 * SourceSleuth issued itself. Both ban types (0 = SteamID, 1 = IP)
+			 * record an IP: "type IN (0, 1)" keeps that and lets MySQL use
+			 * the type_ip index. */
 			FormatEx(query, sizeof(query), "SELECT length FROM %s_bans \
-				WHERE ip = '%s' AND RemoveType IS NULL \
-				AND authid NOT REGEXP '^STEAM_[0-9]:%s$' \
+				WHERE type IN (0, 1) AND ip = '%s' AND RemoveType IS NULL \
+				AND authid NOT IN ('STEAM_0:%s', 'STEAM_1:%s') \
 				AND (ends > %d OR ((1 = %d AND length = 0 AND ends > %d) OR (0 = %d AND length = 0))) \
-				AND NOT EXISTS (SELECT 1 FROM %s_bans WHERE type = 0 AND authid REGEXP '^STEAM_[0-9]:%s$' AND (length = 0 OR ends > UNIX_TIMESTAMP()) AND RemoveType IS NULL) \
+				AND NOT EXISTS (SELECT 1 FROM %s_bans WHERE type = 0 AND authid IN ('STEAM_0:%s', 'STEAM_1:%s') AND (length = 0 OR ends > UNIX_TIMESTAMP()) AND RemoveType IS NULL) \
 				ORDER BY created ASC, bid ASC",
-				Prefix, IP, steamid[8], g_cVar_bantype.IntValue == 0 ? GetTime() : 0, g_cVar_excludeOld.IntValue, GetTime() - g_cVar_excludeTime.IntValue, g_cVar_excludeOld.IntValue, Prefix, steamid[8]);
+				Prefix, IP, steamid[8], steamid[8], g_cVar_bantype.IntValue == 0 ? GetTime() : 0, g_cVar_excludeOld.IntValue, GetTime() - g_cVar_excludeTime.IntValue, g_cVar_excludeOld.IntValue, Prefix, steamid[8], steamid[8]);
 
 			DataPack datapack = new DataPack();
 
@@ -255,7 +259,7 @@ public void SQL_CheckHim(Database db, DBResultSet results, const char[] error, D
 	int client;
 	char steamid[32], IP[32];
 
-	client = GetClientOfUserId(ReadPackCell(dataPack));
+	client = GetClientOfUserId(dataPack.ReadCell());
 	dataPack.ReadString(steamid, sizeof(steamid));
 	dataPack.ReadString(IP, sizeof(IP));
 	delete dataPack;
@@ -387,7 +391,7 @@ void CheckDBConnection(const char[] error)
 		if (g_DatabaseState != DatabaseState_Wait)
 		{
 			g_DatabaseState = DatabaseState_Wait;
-			CreateTimer(2.0, Timer_ReconnectDB, _, TIMER_FLAG_NO_MAPCHANGE);
+			CreateTimer(2.0, Timer_ReconnectDB);
 		}
 	}
 	else

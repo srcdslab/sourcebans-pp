@@ -10,6 +10,26 @@ Legend:
 ? = Other stuff
 ```
 
+(28/10/26): Version 2.2.7-srcdslab
+-----------------------
+```
+01. ! sbpp_comms: mutes / gags queued while the database was
+        unreachable were replayed against the local SQLite queue
+        instead of the main database, so they stayed queued and never
+        reached the web panel
+02. + sbpp_comms keeps its database connection across map changes
+        instead of reconnecting (and re-checking every player) on
+        each map; a plain SQL error or a failed SQLite queue query no
+        longer drops the main connection
+03. + SteamID lookups on player connect (bans, comms, SourceSleuth,
+        Bans Checker) and admin lookups no longer use REGEXP / LIKE,
+        so MySQL can use the authid indexes instead of a full scan
+04. ! sbpp_main, sbpp_checker and SourceSleuth retry a failed database
+        connection on a timer; sbpp_checker no longer unloads itself,
+        and sm_banip / sm_unban / sm_addban / reports reply with an
+        error instead of throwing when the database is unavailable
+```
+
 (26/10/26): Version 2.2.5-srcdslab (**Run updater required**)
 -----------------------
 ```
