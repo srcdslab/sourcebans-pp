@@ -1155,18 +1155,25 @@ public void GotDatabase(Database db, const char[] error, any data)
 		return;
 	}
 
-	DB = db;
-
 	char query[1024];
 
-	// Set character set to UTF8MB4 in the database
-	// Use SetCharset to ensure charset is set synchronously before any operations
-	if (!DB.SetCharset("utf8mb4"))
+	// OnRebuildAdminCache() calls this again with the current handle for every cache part.
+	// Only a new connection needs its charset set: SetCharset() is a blocking round trip on
+	// the main thread that also waits for any threaded query in flight, and the charset it
+	// sets stays on the handle (also across the driver's automatic reconnects).
+	if (db != DB)
 	{
-		LogToFile(logFile, "Failed to set database charset to utf8mb4, trying async method");
-		// Fallback to async method
-		Format(query, sizeof(query), "SET NAMES utf8mb4");
-		DB.Query(ErrorCheckCallback, query);
+		DB = db;
+
+		// Set character set to UTF8MB4 in the database
+		// Use SetCharset to ensure charset is set synchronously before any operations
+		if (!DB.SetCharset("utf8mb4"))
+		{
+			LogToFile(logFile, "Failed to set database charset to utf8mb4, trying async method");
+			// Fallback to async method
+			Format(query, sizeof(query), "SET NAMES utf8mb4");
+			DB.Query(ErrorCheckCallback, query);
+		}
 	}
 
 	// The database can be ready before the first ReadConfig() (OnMapStart), and every
