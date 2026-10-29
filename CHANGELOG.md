@@ -10,6 +10,13 @@ Legend:
 ? = Other stuff
 ```
 
+(29/10/26): Version 2.2.10-srcdslab
+-----------------------
+```
+01. + sbpp_main no longer re-sets the database charset (a blocking
+        round trip on the main thread) on every admin cache rebuild;
+        it is set once per connection
+
 (29/10/26): Version 2.2.9-srcdslab
 -----------------------
 ```
