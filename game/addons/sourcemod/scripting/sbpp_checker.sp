@@ -135,12 +135,18 @@ public void OnDatabaseConnected(Database db, const char[] error, any data)
 
 	if (db == null)
 	{
-		g_DatabaseState = DatabaseState_None;
-		SetFailState("Failed to connect to SourceBans DB, %s", error);
+		LogError("SourceChecker: Failed to connect to SourceBans DB, retrying: %s", error);
+		g_DatabaseState = DatabaseState_Wait;
+		CreateTimer(30.0, Timer_ReconnectDB);
+		return;
 	}
 
 	g_DatabaseState = DatabaseState_Connected;
 	g_DB = db;
+
+	// Check the players who connected while the database was unavailable
+	// (or before it connected on a late load).
+	LateLoading();
 }
 
 public APLRes AskPluginLoad2(Handle myself, bool late, char[] error, int err_max)
@@ -204,23 +210,23 @@ public void OnClientAuthorized(int client, const char[] auth)
 
 	// No usable IP (e.g. SDR client): never match IP bans, an empty address
 	// would match any type=1 row with a blank IP.
-	char query[512], ip[30], ipCondition[64];
+	char query[1024], ip[30], ipCondition[64];
 	if (SBPP_GetClientPublicIP(client, ip, sizeof(ip)))
 		FormatEx(ipCondition, sizeof(ipCondition), "ip = '%s'", ip);
 	else
 		strcopy(ipCondition, sizeof(ipCondition), "1 = 0");
 	FormatEx(query, sizeof(query), 
-		"SELECT COUNT(bid) FROM %s_bans WHERE (type = 0 AND authid LIKE 'STEAM_%%:%s') \
+		"SELECT COUNT(bid) FROM %s_bans WHERE (type = 0 AND authid IN ('STEAM_0:%s', 'STEAM_1:%s')) \
 		UNION ALL \
 		SELECT COUNT(bid) FROM %s_bans WHERE (type = 1 AND %s) \
 		UNION ALL \
-		SELECT COUNT(bid) FROM %s_comms WHERE authid LIKE 'STEAM_%%:%s' AND type = 1 \
+		SELECT COUNT(bid) FROM %s_comms WHERE authid IN ('STEAM_0:%s', 'STEAM_1:%s') AND type = 1 \
 		UNION ALL \
-		SELECT COUNT(bid) FROM %s_comms WHERE authid LIKE 'STEAM_%%:%s' AND type = 2",
-		g_DatabasePrefix, auth[8],
+		SELECT COUNT(bid) FROM %s_comms WHERE authid IN ('STEAM_0:%s', 'STEAM_1:%s') AND type = 2",
+		g_DatabasePrefix, auth[8], auth[8],
 		g_DatabasePrefix, ipCondition,
-		g_DatabasePrefix, auth[8],
-		g_DatabasePrefix, auth[8]
+		g_DatabasePrefix, auth[8], auth[8],
+		g_DatabasePrefix, auth[8], auth[8]
 	);
 
 	g_DB.Query(OnConnectBanCheck, query, GetClientUserId(client), DBPrio_Low);
@@ -315,7 +321,7 @@ public Action OnListSourceBansCmd(int client, int args)
 		FormatEx(ipCondition, sizeof(ipCondition), "ip = '%s'", ip);
 	else
 		strcopy(ipCondition, sizeof(ipCondition), "1 = 0");
-	FormatEx(query, sizeof(query), "SELECT created, %s_admins.user, ends, length, reason, RemoveType FROM %s_bans LEFT JOIN %s_admins ON %s_bans.aid = %s_admins.aid WHERE ((type = 0 AND %s_bans.authid REGEXP '^STEAM_[0-9]:%s$') OR (type = 1 AND %s)) AND ((length > '0' AND ends > UNIX_TIMESTAMP()) OR RemoveType IS NOT NULL)", g_DatabasePrefix, g_DatabasePrefix, g_DatabasePrefix, g_DatabasePrefix, g_DatabasePrefix, g_DatabasePrefix, auth[8], ipCondition);
+	FormatEx(query, sizeof(query), "SELECT created, %s_admins.user, ends, length, reason, RemoveType FROM %s_bans LEFT JOIN %s_admins ON %s_bans.aid = %s_admins.aid WHERE ((type = 0 AND %s_bans.authid IN ('STEAM_0:%s', 'STEAM_1:%s')) OR (type = 1 AND %s)) AND ((length > '0' AND ends > UNIX_TIMESTAMP()) OR RemoveType IS NOT NULL)", g_DatabasePrefix, g_DatabasePrefix, g_DatabasePrefix, g_DatabasePrefix, g_DatabasePrefix, g_DatabasePrefix, auth[8], auth[8], ipCondition);
 
 	char targetName[MAX_NAME_LENGTH];
 	GetClientName(target, targetName, sizeof(targetName));
@@ -481,7 +487,7 @@ public Action OnListSourceCommsCmd(int client, int args)
 	}
 
 	char query[1024];
-	FormatEx(query, sizeof(query), "SELECT created, %s_admins.user, ends, length, reason, RemoveType, type FROM %s_comms LEFT JOIN %s_admins ON %s_comms.aid = %s_admins.aid WHERE %s_comms.authid REGEXP '^STEAM_[0-9]:%s$' AND ((length > '0' AND ends > UNIX_TIMESTAMP()) OR RemoveType IS NOT NULL)", g_DatabasePrefix, g_DatabasePrefix, g_DatabasePrefix, g_DatabasePrefix, g_DatabasePrefix, g_DatabasePrefix, auth[8]);
+	FormatEx(query, sizeof(query), "SELECT created, %s_admins.user, ends, length, reason, RemoveType, type FROM %s_comms LEFT JOIN %s_admins ON %s_comms.aid = %s_admins.aid WHERE %s_comms.authid IN ('STEAM_0:%s', 'STEAM_1:%s') AND ((length > '0' AND ends > UNIX_TIMESTAMP()) OR RemoveType IS NOT NULL)", g_DatabasePrefix, g_DatabasePrefix, g_DatabasePrefix, g_DatabasePrefix, g_DatabasePrefix, g_DatabasePrefix, auth[8], auth[8]);
 
 	char targetName[MAX_NAME_LENGTH];
 	GetClientName(target, targetName, sizeof(targetName));
@@ -736,7 +742,13 @@ stock void LateLoading()
 	char sSteam32ID[64];
 	for (int i = 1; i <= MaxClients; i++)
 	{
-		if (!IsClientConnected(i) || !IsClientInGame(i) || IsFakeClient(i) || !IsClientAuthorized(i))
+		// No IsClientInGame(): a player authorized while the database was down can still be
+		// loading when it reconnects, and OnClientAuthorized() doesn't need them in game.
+		if (!IsClientConnected(i) || IsFakeClient(i) || !IsClientAuthorized(i))
+			continue;
+
+		// Already checked
+		if (g_iBanCounts[i] != -1)
 			continue;
 		
 		GetClientAuthId(i, AuthId_Steam2, sSteam32ID, sizeof(sSteam32ID));
@@ -764,7 +776,7 @@ void CheckDBConnection(const char[] error)
 		if (g_DatabaseState != DatabaseState_Wait)
 		{
 			g_DatabaseState = DatabaseState_Wait;
-			CreateTimer(2.0, Timer_ReconnectDB, _, TIMER_FLAG_NO_MAPCHANGE);
+			CreateTimer(2.0, Timer_ReconnectDB);
 		}
 	}
 	else
