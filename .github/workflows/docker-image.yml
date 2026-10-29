@@ -152,8 +152,11 @@ jobs:
       # form is the documented best-practice (signs the immutable digest,
       # not the mutable tag — so a future re-tag doesn't invalidate the
       # signature).
+      #
+      # cosign-installer publishes no floating `v4` tag (only v4.x.y),
+      # so pin the exact release. v4 still installs cosign v2.x.
       - name: Install cosign
-        uses: sigstore/cosign-installer@v4
+        uses: sigstore/cosign-installer@v4.1.2
         with:
           cosign-release: 'v2.4.1'
 
