@@ -22,7 +22,7 @@ jobs:
     needs: validate
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup SourcePawn compiler
         uses: rumblefrog/setup-sp@master
@@ -106,7 +106,7 @@ jobs:
               exit 1
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: plugin
           path: sourcebans-pp-${{ github.ref_name }}.plugin-only.tar.gz
@@ -117,7 +117,7 @@ jobs:
     needs: validate
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Composer is run against the staged tree (NOT the source checkout)
       # so the source checkout stays clean and the resulting vendor/
@@ -217,7 +217,7 @@ jobs:
               exit 1
           fi
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: webpanel
           path: sourcebans-pp-${{ github.ref_name }}.webpanel-only.zip
@@ -231,12 +231,12 @@ jobs:
       contents: write
       actions: read
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: assets
           merge-multiple: true
 
-      - uses: softprops/action-gh-release@v2
+      - uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.ref_name }}
           name: ${{ github.ref_name }}
