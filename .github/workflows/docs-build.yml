@@ -31,10 +31,10 @@ jobs:
         working-directory: docs
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           # Astro 6 requires Node >=22.12; 20 trips an EBADENGINE on `npm
           # ci` and a hard "Node.js v20 is not supported by Astro!" on
@@ -59,7 +59,7 @@ jobs:
       # because docs-deploy-trigger.yml is the production path.
       - name: Upload build artifact
         if: success()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: docs-dist
           path: docs/dist/
