@@ -10,6 +10,15 @@ Legend:
 ? = Other stuff
 ```
 
+(29/10/26): Version 2.2.9-srcdslab
+-----------------------
+```
+01. ! CI: the Docker image workflow failed on every push to main since
+        the Actions bump; cosign-installer is now pinned to v4.1.2
+02. ? E2E: the "bulk select → assign web group" test no longer races
+        the page reload that follows the bulk action
+```
+
 (29/10/26): Version 2.2.8-srcdslab
 -----------------------
 ```

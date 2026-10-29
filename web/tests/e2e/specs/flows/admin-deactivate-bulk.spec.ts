@@ -351,13 +351,32 @@ test.describe('flow: admin deactivate + bulk (#1509)', () => {
             .toBe('visible');
         await dialog.locator('[data-testid="admins-bulk-web-group-select"]').selectOption(String(group.gid));
 
-        const bulkResp = page.waitForResponse(
-            (r) => r.url().includes('api.php') && r.request().method() === 'POST' && r.status() === 200,
-        );
+        // The page reloads as soon as admins.bulk resolves (no rehash
+        // SIDs here), so a waitForResponse() body can be evicted before
+        // .json() reads it. Read the real response inside the route.
+        const bulk: { body: { ok?: boolean; data?: { op?: string; applied?: number[] } } | null } = {
+            body: null,
+        };
+        await page.route((url) => url.pathname.endsWith('/api.php'), async (route) => {
+            const req = route.request();
+            let action = '';
+            try {
+                action = JSON.parse(req.postData() ?? '{}').action ?? '';
+            } catch {
+                action = '';
+            }
+            if (req.method() !== 'POST' || action !== 'admins.bulk') {
+                await route.continue();
+                return;
+            }
+            const response = await route.fetch();
+            bulk.body = await response.json();
+            await route.fulfill({ response });
+        });
         await dialog.locator('[data-testid="admins-bulk-web-group-submit"]').click();
-        const body = await (await bulkResp).json();
-        expect(body.ok).toBe(true);
-        expect(body.data?.op).toBe('set_web_group');
-        expect(body.data?.applied).toEqual([aid]);
+        await expect.poll(() => bulk.body).not.toBeNull();
+        expect(bulk.body?.ok).toBe(true);
+        expect(bulk.body?.data?.op).toBe('set_web_group');
+        expect(bulk.body?.data?.applied).toEqual([aid]);
     });
 });
