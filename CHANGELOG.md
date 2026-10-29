@@ -25,7 +25,8 @@ Legend:
         Bans Checker) and admin lookups no longer use REGEXP / LIKE,
         so MySQL can use the authid indexes instead of a full scan
 04. ! sbpp_main, sbpp_checker and SourceSleuth retry a failed database
-        connection on a timer; sbpp_checker no longer unloads itself,
+        connection on a timer; sbpp_checker no longer unloads itself
+        and checks the players who joined while it was disconnected,
         and sm_banip / sm_unban / sm_addban / reports reply with an
         error instead of throwing when the database is unavailable
 ```

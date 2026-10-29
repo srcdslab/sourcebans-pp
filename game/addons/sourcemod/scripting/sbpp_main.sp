@@ -124,6 +124,7 @@ GlobalForward g_hFwd_OnBanAdded
 			, g_hFwd_OnClientPostAdminCheck;
 
 Handle PlayerRecheck[MAXPLAYERS + 1] =  { INVALID_HANDLE, ... }; /* Timer handle */
+Handle g_hRetryConnect = null; /* Pending connect retry timer, at most one */
 
 DataPack PlayerDataPack[MAXPLAYERS + 1] =  { null, ... };
 
@@ -1163,8 +1164,13 @@ public void GotDatabase(Database db, const char[] error, any data)
 		LogToFile(logFile, "Database failure: %s. See Docs: https://sbpp.github.io/docs/", error);
 		g_bConnecting = false;
 
-		// Retry on a timer instead of waiting for the next admin cache rebuild (map change)
-		CreateTimer(RetryTime, Timer_RetryConnect);
+		// Retry on a timer instead of waiting for the next admin cache rebuild (map change).
+		// A connect started by OnRebuildAdminCache can fail while a retry is already pending:
+		// keep a single timer so failed connects don't stack one retry chain per map change.
+		if (g_hRetryConnect == null)
+		{
+			g_hRetryConnect = CreateTimer(RetryTime, Timer_RetryConnect);
+		}
 
 		// Parse the overrides backup!
 		ParseBackupConfig_Overrides();
@@ -2448,6 +2454,8 @@ public Action ClientRecheck(Handle timer, int userid)
 
 public Action Timer_RetryConnect(Handle timer)
 {
+	g_hRetryConnect = null;
+
 	if (DB == INVALID_HANDLE && !g_bConnecting)
 	{
 		g_bConnecting = true;

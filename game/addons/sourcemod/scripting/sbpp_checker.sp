@@ -742,7 +742,9 @@ stock void LateLoading()
 	char sSteam32ID[64];
 	for (int i = 1; i <= MaxClients; i++)
 	{
-		if (!IsClientConnected(i) || !IsClientInGame(i) || IsFakeClient(i) || !IsClientAuthorized(i))
+		// No IsClientInGame(): a player authorized while the database was down can still be
+		// loading when it reconnects, and OnClientAuthorized() doesn't need them in game.
+		if (!IsClientConnected(i) || IsFakeClient(i) || !IsClientAuthorized(i))
 			continue;
 
 		// Already checked
