@@ -348,19 +348,50 @@ if ($isActiveOnly) {
     $hideinactiven = "";
 }
 
-// Chip TYPE filter — additional WHERE fragment + bind. `:prefix_comms.type`
-// is `1=mute, 2=gag, 3=silence` per the existing render logic at
-// ~line 750 (`$typeLabel` switch). `_Co` is for queries that alias
-// the table as CO; `_Bare` is for the count query that uses the
-// unaliased table name.
-$typeMap            = ['mute' => 1, 'gag' => 2, 'silence' => 3];
-$chipTypeWhereCo    = '';
-$chipTypeWhereBare  = '';
-$chipTypeBind       = [];
+// Filter bar predicates: chip TYPE plus the ?server=<sid> /
+// ?time=<1d|7d|30d> selects. The selects shipped with the v2.0 filter
+// bar but the handler never read them, so picking a server or a time
+// range changed nothing. Same shape as page.banlist.php's
+// $publicFilterAnd / $publicFilterWheren: `_And` appends to a query
+// that already opened a WHERE, `_Wheren` opens one. Every query below
+// aliases the table as CO. `:prefix_comms.type` is
+// `1=mute, 2=gag, 3=silence` per the `$typeLabel` switch below.
+//
+// $publicFilterLink carries server + time only; the chip type is
+// appended to $searchlink after the branches (#1274).
+$typeMap      = ['mute' => 1, 'gag' => 2, 'silence' => 3];
+$serverFilter = isset($_GET['server']) ? trim((string) $_GET['server']) : '';
+$timeFilter   = isset($_GET['time'])   ? trim((string) $_GET['time'])   : '';
+$publicFilterTimeMap = [
+    '1d'  => 86400,
+    '7d'  => 7 * 86400,
+    '30d' => 30 * 86400,
+];
+
+$publicFilterClauses = [];
+$publicFilterArgs    = [];
+$publicFilterLink    = '';
 if ($chipType !== '') {
-    $chipTypeWhereCo   = ' AND CO.type = ?';
-    $chipTypeWhereBare = ' AND type = ?';
-    $chipTypeBind      = [$typeMap[$chipType]];
+    $publicFilterClauses[] = 'CO.type = ?';
+    $publicFilterArgs[]    = $typeMap[$chipType];
+}
+if ($serverFilter !== '' && ctype_digit($serverFilter)) {
+    $publicFilterClauses[] = 'CO.sid = ?';
+    $publicFilterArgs[]    = (int) $serverFilter;
+    $publicFilterLink     .= '&server=' . urlencode($serverFilter);
+}
+if ($timeFilter !== '' && isset($publicFilterTimeMap[$timeFilter])) {
+    $publicFilterClauses[] = 'CO.created >= ?';
+    $publicFilterArgs[]    = time() - $publicFilterTimeMap[$timeFilter];
+    $publicFilterLink     .= '&time=' . urlencode($timeFilter);
+}
+
+$publicFilterAnd    = '';
+$publicFilterWheren = '';
+if ($publicFilterClauses) {
+    $joined             = implode(' AND ', $publicFilterClauses);
+    $publicFilterAnd    = ' AND ' . $joined;
+    $publicFilterWheren = ' WHERE ' . $joined;
 }
 
 if (isset($_GET['searchText'])) {
@@ -410,39 +441,32 @@ if (isset($_GET['searchText'])) {
 		LEFT JOIN `:prefix_servers` AS SE ON SE.sid = CO.sid
 		LEFT JOIN `:prefix_mods` AS MO on SE.modid = MO.mid
 		LEFT JOIN `:prefix_admins` AS AD ON CO.aid = AD.aid
-      	WHERE (" . $authidClause . " or CO.name LIKE ? or CO.reason LIKE ?)" . $hideinactive . $chipTypeWhereCo . "
+      	WHERE (" . $authidClause . " or CO.name LIKE ? or CO.reason LIKE ?)" . $hideinactive . $publicFilterAnd . "
    		ORDER BY CO.created DESC LIMIT ?,?")->resultset(array_merge([
         $authidParam,
         $search,
         $search,
-    ], $chipTypeBind, [
+    ], $publicFilterArgs, [
         (int) $BansStart,
         (int) $BansPerPage
     ]));
 
 
-    $res_count  = $GLOBALS['PDO']->query("SELECT count(CO.bid) AS cnt FROM `:prefix_comms` AS CO WHERE (" . $authidClause . " OR CO.name LIKE ? OR CO.reason LIKE ?)" . $hideinactive . $chipTypeWhereCo)->resultset(array_merge([
+    $res_count  = $GLOBALS['PDO']->query("SELECT count(CO.bid) AS cnt FROM `:prefix_comms` AS CO WHERE (" . $authidClause . " OR CO.name LIKE ? OR CO.reason LIKE ?)" . $hideinactive . $publicFilterAnd)->resultset(array_merge([
         $authidParam,
         $search,
         $search,
-    ], $chipTypeBind));
-    $searchlink = "&searchText=" . urlencode($_GET["searchText"]);
+    ], $publicFilterArgs));
+    $searchlink = "&searchText=" . urlencode($_GET["searchText"]) . $publicFilterLink;
 } elseif (!isset($_GET['advSearch'])) {
     // #1274: this branch has no upper-level WHERE; if hideinactive
     // already opened one ($hideinactiven = " WHERE …") we append the
-    // chip type filter as " AND CO.type = ?", otherwise the chip
-    // opens the WHERE itself. Mirrors the $publicFilterAnd /
-    // $publicFilterWheren shape in page.banlist.php.
-    if ($hideinactiven !== '') {
-        $branchWhereSuffix = $hideinactiven . $chipTypeWhereCo;
-        $branchCountSuffix = $hideinactiven . $chipTypeWhereBare;
-    } elseif ($chipType !== '') {
-        $branchWhereSuffix = ' WHERE CO.type = ?';
-        $branchCountSuffix = ' WHERE type = ?';
-    } else {
-        $branchWhereSuffix = '';
-        $branchCountSuffix = '';
-    }
+    // filter bar predicates as " AND …", otherwise they open the
+    // WHERE themselves via $publicFilterWheren. Mirrors
+    // page.banlist.php.
+    $branchWhereSuffix = $hideinactiven !== ''
+        ? $hideinactiven . $publicFilterAnd
+        : $publicFilterWheren;
 
     $res = $GLOBALS['PDO']->query("SELECT bid ban_id, CO.type, CO.authid, CO.name player_name, created ban_created, ends ban_ends, length ban_length, reason ban_reason, CO.ureason unban_reason, CO.aid, AD.gid AS gid, adminIp, CO.sid ban_server, RemovedOn, RemovedBy, RemoveType row_type,
 		SE.ip server_ip, COALESCE(NULLIF(CO.admin_name, ''), AD.user) AS admin_name, MO.icon as mod_icon,
@@ -457,13 +481,13 @@ if (isset($_GET['searchText'])) {
 		LEFT JOIN `:prefix_admins` AS AD ON CO.aid = AD.aid
 		" . $branchWhereSuffix . "
 		ORDER BY created DESC
-		LIMIT ?,?")->resultset(array_merge($chipTypeBind, [
+		LIMIT ?,?")->resultset(array_merge($publicFilterArgs, [
         (int) $BansStart,
         (int) $BansPerPage
     ]));
 
-    $res_count  = $GLOBALS['PDO']->query("SELECT count(bid) AS cnt FROM `:prefix_comms`" . $branchCountSuffix)->resultset($chipTypeBind);
-    $searchlink = "";
+    $res_count  = $GLOBALS['PDO']->query("SELECT count(CO.bid) AS cnt FROM `:prefix_comms` AS CO" . $branchWhereSuffix)->resultset($publicFilterArgs);
+    $searchlink = $publicFilterLink;
 }
 
 $advcrit = [];
@@ -569,19 +593,17 @@ if (isset($_GET['advSearch'])) {
             break;
     }
 
-    // #1274: chip type composes onto the advSearch WHERE. If $where
-    // is empty (advType resolved to a no-op) AND hideinactive is on,
-    // promote $hideinactive to its WHERE form so the trailing chip
-    // predicate can append cleanly. Otherwise we may be left with
-    // " AND CO.type = ?" as the only WHERE clause, which is invalid
-    // SQL ("AND" with no leading WHERE). Mirrors the
-    // `if (empty($where) && hide_inactive) $hideinactive = $hideinactiven`
-    // shape page.banlist.php uses for the same composition.
-    if (empty($where) && $hideinactive === '' && $chipType !== '') {
-        $advChipType = ' WHERE CO.type = ?';
-    } else {
-        $advChipType = $chipTypeWhereCo;
+    // #1274: hideinactive and the filter bar predicates compose onto
+    // the advSearch WHERE. If $where is empty (advType resolved to a
+    // no-op, or the viewer may not search that field) the first
+    // predicate has to open the WHERE itself; a bare " AND …" with no
+    // leading WHERE is invalid SQL. Mirrors page.banlist.php's
+    // `if (empty($where) && hide_inactive)` promotion + $branch3HasWhere.
+    if (empty($where) && $hideinactive !== '') {
+        $hideinactive = ' WHERE ' . $activePredicateCo;
     }
+    $advHasWhere  = !empty($where) || $hideinactive !== '';
+    $advFilterSql = $advHasWhere ? $publicFilterAnd : $publicFilterWheren;
 
     $res = $GLOBALS['PDO']->query("SELECT CO.bid ban_id, CO.type, CO.authid, CO.name player_name, created ban_created, ends ban_ends, length ban_length, reason ban_reason, CO.ureason unban_reason, CO.aid, AD.gid AS gid, adminIp, CO.sid ban_server, RemovedOn, RemovedBy, RemoveType row_type,
 			SE.ip server_ip, COALESCE(NULLIF(CO.admin_name, ''), AD.user) AS admin_name, MO.icon as mod_icon,
@@ -595,16 +617,16 @@ if (isset($_GET['advSearch'])) {
 			LEFT JOIN `:prefix_mods` AS MO on SE.modid = MO.mid
 			LEFT JOIN `:prefix_admins` AS AD ON CO.aid = AD.aid
   			" . ($type == "comment" && $userbank->is_admin() ? "LEFT JOIN `:prefix_comments` AS CM ON CO.bid = CM.bid" : "") . "
-      " . $where . $hideinactive . $advChipType . "
+      " . $where . $hideinactive . $advFilterSql . "
    ORDER BY CO.created DESC
-   LIMIT ?,?")->resultset(array_merge($advcrit, $chipTypeBind, [
+   LIMIT ?,?")->resultset(array_merge($advcrit, $publicFilterArgs, [
         (int) $BansStart,
         (int) $BansPerPage
     ]));
 
     $res_count  = $GLOBALS['PDO']->query("SELECT count(CO.bid) AS cnt FROM `:prefix_comms` AS CO
-										  " . ($type == "comment" && $userbank->is_admin() ? "LEFT JOIN `:prefix_comments` AS CM ON CO.bid = CM.bid" : "") . " " . $where . $hideinactive . $advChipType)->resultset(array_merge($advcrit, $chipTypeBind));
-    $searchlink = "&advSearch=" . urlencode($_GET['advSearch']) . "&advType=" . urlencode($_GET['advType']);
+										  " . ($type == "comment" && $userbank->is_admin() ? "LEFT JOIN `:prefix_comments` AS CM ON CO.bid = CM.bid" : "") . " " . $where . $hideinactive . $advFilterSql)->resultset(array_merge($advcrit, $publicFilterArgs));
+    $searchlink = "&advSearch=" . urlencode($_GET['advSearch']) . "&advType=" . urlencode($_GET['advType']) . $publicFilterLink;
 }
 
 $BanCount = isset($res_count[0]['cnt']) ? (int) $res_count[0]['cnt'] : 0;
@@ -1149,8 +1171,8 @@ foreach ($serverRows as $sr) {
 
 $filters = [
     'search' => isset($_GET['searchText']) ? (string) $_GET['searchText'] : '',
-    'server' => isset($_GET['server']) ? (string) $_GET['server'] : '',
-    'time'   => isset($_GET['time']) ? (string) $_GET['time'] : '',
+    'server' => $serverFilter,
+    'time'   => (isset($publicFilterTimeMap[$timeFilter]) ? $timeFilter : ''),
     'state'  => $chipStateActive ? 'active' : '',
     'type'   => $chipType,
 ];

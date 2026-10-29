@@ -10,6 +10,18 @@ Legend:
 ? = Other stuff
 ```
 
+(29/10/26): Version 2.2.8-srcdslab
+-----------------------
+```
+01. ! Ban list: the server and time filters (and the status chips /
+        Hide inactive) did nothing after clicking Apply; the search
+        clauses now wrap in parentheses so every filter applies
+02. ! Comm blocks list: the server and time filters were never applied
+        to the query; they now narrow the list and survive pagination
+03. ! Comm blocks list: Hide inactive combined with an advanced search
+        the viewer can't run no longer fails with a SQL error
+```
+
 (28/10/26): Version 2.2.7-srcdslab
 -----------------------
 ```

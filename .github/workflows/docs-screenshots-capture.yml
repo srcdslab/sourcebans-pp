@@ -129,7 +129,7 @@ jobs:
       # PR's base branch (effectively `main`). All `npm ci` postinstall
       # hooks run against this tree, NEVER against the PR head.
       - name: Checkout trusted code from base branch
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.event.pull_request.base.sha || github.sha }}
           path: trusted
@@ -150,7 +150,7 @@ jobs:
       # canonical shape means a future change to the gate (e.g. opt-in
       # fork support) doesn't silently break the push.
       - name: Checkout PR head (docker stack + screenshot output dir)
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name || github.repository }}
           ref: ${{ github.head_ref || github.ref_name }}
@@ -158,7 +158,7 @@ jobs:
           persist-credentials: true
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           # Astro 6 requires Node >=22.12; mirrors the bump in
           # docs-build.yml that landed with the docs astro+starlight
@@ -316,7 +316,7 @@ jobs:
       # changed under the file_pattern.
       - name: Commit captured screenshots back to PR branch
         if: github.event_name != 'workflow_dispatch'
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           repository: pr-head
           commit_message: |
