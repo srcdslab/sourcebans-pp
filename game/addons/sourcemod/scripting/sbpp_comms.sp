@@ -125,6 +125,7 @@ int
 	, g_iPeskyPanels[MAXPLAYERS + 1][PeskyPanels]
 	, g_iConnectLock = 0
 	, g_iSequence = 0
+	, g_iQueueInFlight = 0 // Queue SELECT + its pending MySQL inserts
 	, DefaultTime = 30
 	, DisUBImCheck = 0
 	, ConsoleImmunity = 0
@@ -263,16 +264,12 @@ public void OnConfigsExecuted()
 public void OnMapStart()
 {
 	ReadConfig();
-}
 
-public void OnMapEnd()
-{
-	// Clean up on map end just so we can start a fresh connection when we need it later.
-	// Also it is necessary for using SQL_SetCharset
+	// The connection is kept across map changes (the charset set in GotDatabase stays on it,
+	// also across the driver's automatic reconnects), so flush the blocks queued by failed
+	// inserts here: before, this only happened because the handle was reopened every map.
 	if (g_hDatabase)
-		delete g_hDatabase;
-
-	g_hDatabase = null;
+		ProcessQueue();
 }
 
 
@@ -365,9 +362,9 @@ public void VerifyBlock(int client)
 		LEFT JOIN	%!s_admins	AS a  ON a.aid = c.aid \
 		LEFT JOIN	%!s_srvgroups AS g  ON g.name = a.srv_group \
 		WHERE		RemoveType IS NULL \
-						AND c.authid REGEXP '^STEAM_[0-9]:%s$' \
+						AND c.authid IN ('STEAM_0:%s', 'STEAM_1:%s') \
 						AND (length = '0' OR ends > UNIX_TIMESTAMP())",
-		DatabasePrefix, DatabasePrefix, DatabasePrefix, g_sSteamIDs[client][8]) >= sizeof(Query) - 1)
+		DatabasePrefix, DatabasePrefix, DatabasePrefix, g_sSteamIDs[client][8], g_sSteamIDs[client][8]) >= sizeof(Query) - 1)
 	{
 		LogError("VerifyBlock query truncated for %L", client);
 		return;
@@ -1371,16 +1368,19 @@ public void GotDatabase(Database db, const char[] error, any data)
 	}
 
 	g_iConnectLock = 0;
-	g_DatabaseState = DatabaseState_Connected;
-	g_hDatabase = db;
 
-	// See if the connection is valid. If not, don't un-mark the caches
-	// as needing rebuilding, in case the next connection request works.
-	if (!g_hDatabase)
+	// See if the connection is valid. If not, retry after a delay instead of
+	// reconnecting on every block check while the database is down.
+	if (!db)
 	{
 		LogError("Connecting to database failed: %s", error);
+		g_DatabaseState = DatabaseState_Wait;
+		CreateTimer(RetryTime, Timer_StopWait);
 		return;
 	}
+
+	g_DatabaseState = DatabaseState_Connected;
+	g_hDatabase = db;
 
 	// Set character set to UTF8MB4 in the database
 	// Use SQL_SetCharset to ensure charset is set synchronously before any operations
@@ -1394,9 +1394,7 @@ public void GotDatabase(Database db, const char[] error, any data)
 	}
 
 	// Process queue
-	SQLiteDB.Query(Query_ProcessQueue,
-		"SELECT	id, steam_id, time, start_time, reason, name, admin_id, admin_ip, type \
-		FROM	queue2");
+	ProcessQueue();
 
 	// Force recheck players
 	ForcePlayersRecheck();
@@ -1417,7 +1415,7 @@ public void Query_AddBlockInsert(Database db, DBResultSet results, const char[] 
 	int type = dataPack.ReadCell();
 	dataPack.ReadString(reason, sizeof(reason));
 
-	if (DB_Conn_Lost(results) || error[0])
+	if (DB_Conn_Lost(results, error) || error[0])
 	{
 		LogError("Query_AddBlockInsert failed: %s", error);
 
@@ -1459,7 +1457,7 @@ public void Query_UnBlockSelect(Database db, DBResultSet results, const char[] e
 
 	bool hasErrors = false;
 	// If error is not an empty string the query failed
-	if (DB_Conn_Lost(results) || error[0] != '\0')
+	if (DB_Conn_Lost(results, error) || error[0] != '\0')
 	{
 		LogError("Query_UnBlockSelect failed: %s", error);
 		if (admin && IsClientInGame(admin))
@@ -1475,7 +1473,7 @@ public void Query_UnBlockSelect(Database db, DBResultSet results, const char[] e
 	}
 
 	// If there was no results then a ban does not exist for that id
-	if (!DB_Conn_Lost(results) && !results.RowCount)
+	if (!DB_Conn_Lost(results, error) && !results.RowCount)
 	{
 		if (admin && IsClientInGame(admin))
 		{
@@ -1657,7 +1655,7 @@ public void Query_UnBlockUpdate(Database db, DBResultSet results, const char[] e
 	dataPack.ReadString(targetAuth, sizeof(targetAuth));
 	delete dataPack;
 
-	if (DB_Conn_Lost(results) || error[0] != '\0')
+	if (DB_Conn_Lost(results, error) || error[0] != '\0')
 	{
 		LogError("Query_UnBlockUpdate failed: %s", error);
 		if (admin && IsClientInGame(admin))
@@ -1705,6 +1703,16 @@ public void Query_ProcessQueue(Database db, DBResultSet results, const char[] er
 	if (results == null || error[0])
 	{
 		LogError("Query_ProcessQueue failed: %s", error);
+		g_iQueueInFlight--;
+		return;
+	}
+
+	// db is the local SQLite queue this SELECT ran on: the blocks have to be
+	// inserted into the main database (g_hDatabase), which is also the handle
+	// whose escaping rules the INSERT must be built with.
+	if (!DB_Connect())
+	{
+		g_iQueueInFlight--;
 		return;
 	}
 
@@ -1732,16 +1740,14 @@ public void Query_ProcessQueue(Database db, DBResultSet results, const char[] er
 		results.FetchString(7, adminIp, sizeof(adminIp));
 		int type = results.FetchInt(8);
 
-		if (!DB_Connect())
-			continue;
 		// all blocks should be entered into db!
 
-		if (db.Format(query, sizeof(query),
+		if (g_hDatabase.Format(query, sizeof(query),
 			"INSERT INTO	 %!s_comms (authid, name, created, ends, length, reason, aid, adminIp, admin_name, sid, type) \
 				VALUES		 ('%s', '%s', %d, %d, %d, '%s', \
-								IFNULL((SELECT aid FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), '0'), \
-								'%s', IFNULL((SELECT user FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), ''), %d, %d)",
-			DatabasePrefix, auth, name, startTime, (startTime + (time * 60)), (time * 60), reason, DatabasePrefix, adminAuth, adminAuth[8], adminIp, DatabasePrefix, adminAuth, adminAuth[8], serverID, type) >= sizeof(query) - 1)
+								IFNULL((SELECT aid FROM %!s_admins WHERE authid IN ('%s', 'STEAM_0:%s', 'STEAM_1:%s')), '0'), \
+								'%s', IFNULL((SELECT user FROM %!s_admins WHERE authid IN ('%s', 'STEAM_0:%s', 'STEAM_1:%s')), ''), %d, %d)",
+			DatabasePrefix, auth, name, startTime, (startTime + (time * 60)), (time * 60), reason, DatabasePrefix, adminAuth, adminAuth[8], adminAuth[8], adminIp, DatabasePrefix, adminAuth, adminAuth[8], adminAuth[8], serverID, type) >= sizeof(query) - 1)
 		{
 			LogError("Query_ProcessQueue insert query truncated");
 			continue;
@@ -1749,14 +1755,19 @@ public void Query_ProcessQueue(Database db, DBResultSet results, const char[] er
 		#if defined LOG_QUERIES
 		LogToFile(logQuery, "Query_ProcessQueue. QUERY: %s", query);
 		#endif
-		db.Query(Query_AddBlockFromQueue, query, id);
+		g_iQueueInFlight++;
+		g_hDatabase.Query(Query_AddBlockFromQueue, query, id);
 	}
+
+	g_iQueueInFlight--;
 }
 
 public void Query_AddBlockFromQueue(Database db, DBResultSet results, const char[] error, any data)
 {
+	g_iQueueInFlight--;
+
 	char query[512];
-	if (error[0] == '\0')
+	if (!DB_Conn_Lost(results, error) && error[0] == '\0')
 	{
 		// The insert was successful so delete the record from the queue
 		if (SQLiteDB.Format(query, sizeof(query),
@@ -1770,13 +1781,24 @@ public void Query_AddBlockFromQueue(Database db, DBResultSet results, const char
 		#if defined LOG_QUERIES
 		LogToFile(logQuery, "Query_AddBlockFromQueue. QUERY: %s", query);
 		#endif
-		SQLiteDB.Query(Query_ErrorCheck, query);
+		SQLiteDB.Query(Query_QueueErrorCheck, query);
 	}
+	else
+	{
+		LogError("Query_AddBlockFromQueue failed: %s", error);
+	}
+}
+
+// Errors of queries on the local SQLite queue: never touch the MySQL connection.
+public void Query_QueueErrorCheck(Database db, DBResultSet results, const char[] error, any data)
+{
+	if (results == null)
+		LogError("%T (%s)", "Failed to query database", LANG_SERVER, error);
 }
 
 public void Query_ErrorCheck(Database db, DBResultSet results, const char[] error, any data)
 {
-	if (DB_Conn_Lost(results) || error[0])
+	if (DB_Conn_Lost(results, error) || error[0])
 		LogError("%T (%s)", "Failed to query database", LANG_SERVER, error);
 }
 
@@ -1791,18 +1813,18 @@ public void Query_VerifyBlock(Database db, DBResultSet results, const char[] err
 	if (!client)
 		return;
 
-	/* Failure happen. Do retry with delay */
-	if (DB_Conn_Lost(results))
+	/* Failure happen. Do retry with delay (longer if the connection is still up, i.e. a plain SQL error) */
+	if (DB_Conn_Lost(results, error))
 	{
 		LogError("Query_VerifyBlock failed: %s", error);
-		ClientRecheck(client);
+		ClientRecheck(client, g_hDatabase ? RetryTime : 1.0);
 		return;
 	}
 
 	//SELECT (c.ends - UNIX_TIMESTAMP()) as remaining, c.length, c.type, c.created, c.reason, a.user,
 	//IF (a.immunity>=g.immunity, a.immunity, IFNULL(g.immunity,0)) as immunity, c.aid, c.sid, c.authid
 	//FROM %s_comms c LEFT JOIN %s_admins a ON a.aid=c.aid LEFT JOIN %s_srvgroups g ON g.name = a.srv_group
-	//WHERE c.authid REGEXP '^STEAM_[0-9]:%s$' AND (length = '0' OR ends > UNIX_TIMESTAMP()) AND RemoveType IS NULL",
+	//WHERE c.authid IN ('STEAM_0:%s', 'STEAM_1:%s') AND (length = '0' OR ends > UNIX_TIMESTAMP()) AND RemoveType IS NULL",
 	if (results.RowCount > 0)
 	{
 		while (results.FetchRow())
@@ -2172,9 +2194,9 @@ stock void setMute(int client, int length, const char[] clientAuth)
 	}
 }
 
-stock void ClientRecheck(int client)
+stock void ClientRecheck(int client, float delay = 1.0)
 {
-	CreateTimer(1.0, Timer_ClientRecheck, g_iUserIDs[client], TIMER_FLAG_NO_MAPCHANGE);
+	CreateTimer(delay, Timer_ClientRecheck, g_iUserIDs[client], TIMER_FLAG_NO_MAPCHANGE);
 }
 
 stock bool IsInvalidSteamID(int client)
@@ -2212,10 +2234,16 @@ stock bool DB_Connect()
 	return false;
 }
 
-stock bool DB_Conn_Lost(DBResultSet db)
+// Returns true when the MySQL query failed. The handle is only dropped (and a
+// reconnect scheduled) when the error says the connection itself is gone: a
+// plain SQL error must not tear down the connection every other query shares.
+stock bool DB_Conn_Lost(DBResultSet db, const char[] error)
 {
 	if (db == null)
 	{
+		if (!IsConnectionError(error))
+			return true;
+
 		if (g_hDatabase != null)
 		{
 			LogError("Lost connection to DB. Reconnect after delay.");
@@ -2223,16 +2251,38 @@ stock bool DB_Conn_Lost(DBResultSet db)
 			g_hDatabase = null;
 		}
 
+		// No TIMER_FLAG_NO_MAPCHANGE: a map change must not leave the state stuck on Wait.
 		if (g_DatabaseState != DatabaseState_Wait)
 		{
 			g_DatabaseState = DatabaseState_Wait;
-			CreateTimer(RetryTime, Timer_StopWait, _, TIMER_FLAG_NO_MAPCHANGE);
+			CreateTimer(RetryTime, Timer_StopWait);
 		}
 
 		return true;
 	}
 
 	return false;
+}
+
+stock bool IsConnectionError(const char[] error)
+{
+	return StrContains(error, "Lost connection", false) != -1
+		|| StrContains(error, "gone away", false) != -1
+		|| StrContains(error, "Can't connect", false) != -1
+		|| StrContains(error, "Broken pipe", false) != -1;
+}
+
+stock void ProcessQueue()
+{
+	// Don't read the queue again while rows from the previous pass are still
+	// being inserted, or they would be sent twice.
+	if (g_iQueueInFlight > 0)
+		return;
+
+	g_iQueueInFlight = 1;
+	SQLiteDB.Query(Query_ProcessQueue,
+		"SELECT	id, steam_id, time, start_time, reason, name, admin_id, admin_ip, type \
+		FROM	queue2");
 }
 
 stock void InitializeBackupDB()
@@ -2244,7 +2294,7 @@ stock void InitializeBackupDB()
 		SetFailState(error);
 	}
 
-	SQLiteDB.Query(Query_ErrorCheck,
+	SQLiteDB.Query(Query_QueueErrorCheck,
 		"CREATE TABLE IF NOT EXISTS queue2 ( \
 			id INTEGER PRIMARY KEY, \
 			steam_id TEXT, \
@@ -2621,7 +2671,7 @@ stock void ProcessUnBlock(int client, int targetId = 0, int type, char[] sReason
 			char query[4096];
 			if (g_hDatabase.Format(query, sizeof(query),
 				"SELECT		c.bid, \
-							IFNULL((SELECT aid FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), '0') as iaid, \
+							IFNULL((SELECT aid FROM %!s_admins WHERE authid IN ('%s', 'STEAM_0:%s', 'STEAM_1:%s')), '0') as iaid, \
 							c.aid, \
 							IF (a.immunity>=g.immunity, a.immunity, IFNULL(g.immunity,0)) as immunity, \
 							c.type \
@@ -2629,10 +2679,10 @@ stock void ProcessUnBlock(int client, int targetId = 0, int type, char[] sReason
 				LEFT JOIN	%!s_admins	AS a ON a.aid = c.aid \
 				LEFT JOIN	%!s_srvgroups AS g ON g.name = a.srv_group \
 				WHERE		RemoveType IS NULL \
-								AND (c.authid = '%s' OR c.authid REGEXP '^STEAM_[0-9]:%s$') \
+								AND c.authid IN ('%s', 'STEAM_0:%s', 'STEAM_1:%s') \
 								AND (length = '0' OR ends > UNIX_TIMESTAMP()) \
 								AND %!s",
-				DatabasePrefix, adminAuth, adminAuth[8], DatabasePrefix, DatabasePrefix, DatabasePrefix, targetAuth, targetAuth[8], typeWHERE) >= sizeof(query) - 1)
+				DatabasePrefix, adminAuth, adminAuth[8], adminAuth[8], DatabasePrefix, DatabasePrefix, DatabasePrefix, targetAuth, targetAuth[8], targetAuth[8], typeWHERE) >= sizeof(query) - 1)
 			{
 				LogError("ProcessUnBlock select query truncated");
 				return;
@@ -2813,7 +2863,7 @@ stock void InsertTempBlock(int length, int type, const char[] name, const char[]
 	LogToFile(logQuery, "InsertTempBlock. QUERY: %s", sQuery);
 	#endif
 
-	SQLiteDB.Query(Query_ErrorCheck, sQuery);
+	SQLiteDB.Query(Query_QueueErrorCheck, sQuery);
 }
 
 /**
@@ -3125,14 +3175,12 @@ stock void MarkClientAsGagged(int target, int time = NOW, int length = -1, const
 
 stock void CloseMuteExpireTimer(int target)
 {
-	if (g_hMuteExpireTimer[target] != INVALID_HANDLE && CloseHandle(g_hMuteExpireTimer[target]))
-		g_hMuteExpireTimer[target] = INVALID_HANDLE;
+	delete g_hMuteExpireTimer[target];
 }
 
 stock void CloseGagExpireTimer(int target)
 {
-	if (g_hGagExpireTimer[target] != INVALID_HANDLE && CloseHandle(g_hGagExpireTimer[target]))
-		g_hGagExpireTimer[target] = INVALID_HANDLE;
+	delete g_hGagExpireTimer[target];
 }
 
 stock void CreateMuteExpireTimer(int target, int remainingTime = 0)
@@ -3249,8 +3297,8 @@ stock void SavePunishment(int admin = 0, int target, int type, int length = -1, 
 
 		// bid	authid	name	created ends lenght reason aid adminip	sid	removedBy removedType removedon type ureason
 		if (g_hDatabase.Format(sQueryAdm, sizeof(sQueryAdm),
-			"IFNULL((SELECT aid FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), 0)",
-			DatabasePrefix, adminAuth, adminAuth[8]) >= sizeof(sQueryAdm) - 1)
+			"IFNULL((SELECT aid FROM %!s_admins WHERE authid IN ('%s', 'STEAM_0:%s', 'STEAM_1:%s')), 0)",
+			DatabasePrefix, adminAuth, adminAuth[8], adminAuth[8]) >= sizeof(sQueryAdm) - 1)
 		{
 			LogError("SavePunishment admin subquery truncated");
 			return;
@@ -3258,8 +3306,8 @@ stock void SavePunishment(int admin = 0, int target, int type, int length = -1, 
 
 		char sQueryAdmName[512];
 		if (g_hDatabase.Format(sQueryAdmName, sizeof(sQueryAdmName),
-			"IFNULL((SELECT user FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), '')",
-			DatabasePrefix, adminAuth, adminAuth[8]) >= sizeof(sQueryAdmName) - 1)
+			"IFNULL((SELECT user FROM %!s_admins WHERE authid IN ('%s', 'STEAM_0:%s', 'STEAM_1:%s')), '')",
+			DatabasePrefix, adminAuth, adminAuth[8], adminAuth[8]) >= sizeof(sQueryAdmName) - 1)
 		{
 			LogError("SavePunishment admin name subquery truncated");
 			return;

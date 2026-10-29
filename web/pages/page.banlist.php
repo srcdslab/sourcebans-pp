@@ -534,6 +534,14 @@ if (isset($_GET['searchText'])) {
         $search_array[] = $search;
     }
 
+    // Wrap the OR-search clauses in parens before appending the AND
+    // predicates (hideinactive, server, time, state). Without them SQL
+    // precedence parses `WHERE A OR B OR C OR D AND E` as
+    // `WHERE A OR B OR C OR (D AND E)`, so the filters only narrowed
+    // the reason arm. The filter bar always submits `searchText=`
+    // (empty, so every arm matches), which made server / time / state
+    // / hideinactive no-ops after clicking Apply. Same fix #1274 made
+    // in page.commslist.php.
     $res = $GLOBALS['PDO']->query("SELECT BA.bid ban_id, BA.type, BA.ip ban_ip, BA.authid, BA.name player_name, created ban_created, ends ban_ends, length ban_length, reason ban_reason, BA.ureason unban_reason, BA.aid, AD.gid AS gid, adminIp, BA.sid ban_server, country ban_country, RemovedOn, RemovedBy, RemoveType row_type,
 			SE.ip server_ip, COALESCE(NULLIF(BA.admin_name, ''), AD.user) AS admin_name, AD.gid, MO.icon as mod_icon,
 			CAST(MID(BA.authid, 9, 1) AS UNSIGNED) + CAST('76561197960265728' AS UNSIGNED) + CAST(MID(BA.authid, 11, 10) * 2 AS UNSIGNED) AS community_id,
@@ -543,7 +551,7 @@ if (isset($_GET['searchText'])) {
   LEFT JOIN `:prefix_servers` AS SE ON SE.sid = BA.sid
   LEFT JOIN `:prefix_mods` AS MO on SE.modid = MO.mid
   LEFT JOIN `:prefix_admins` AS AD ON BA.aid = AD.aid
-      WHERE " . $search_ips . $authidClause . " or BA.name LIKE ? or BA.reason LIKE ?" . $hideinactive . $publicFilterAnd . "
+      WHERE (" . $search_ips . $authidClause . " or BA.name LIKE ? or BA.reason LIKE ?)" . $hideinactive . $publicFilterAnd . "
    ORDER BY BA.created DESC
    LIMIT ?,?")->resultset(array_merge(
         $search_array,
@@ -553,7 +561,7 @@ if (isset($_GET['searchText'])) {
     ));
 
 
-    $res_count  = $GLOBALS['PDO']->query("SELECT count(BA.bid) AS cnt FROM `:prefix_bans` AS BA WHERE " . $search_ips . $authidClause . " OR BA.name LIKE ? OR BA.reason LIKE ?" . $hideinactive . $publicFilterAnd)->resultset(array_merge(
+    $res_count  = $GLOBALS['PDO']->query("SELECT count(BA.bid) AS cnt FROM `:prefix_bans` AS BA WHERE (" . $search_ips . $authidClause . " OR BA.name LIKE ? OR BA.reason LIKE ?)" . $hideinactive . $publicFilterAnd)->resultset(array_merge(
         $search_array,
         [$authidParam, $search, $search],
         $publicFilterArgs

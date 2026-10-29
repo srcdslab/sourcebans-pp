@@ -124,6 +124,7 @@ GlobalForward g_hFwd_OnBanAdded
 			, g_hFwd_OnClientPostAdminCheck;
 
 Handle PlayerRecheck[MAXPLAYERS + 1] =  { INVALID_HANDLE, ... }; /* Timer handle */
+Handle g_hRetryConnect = null; /* Pending connect retry timer, at most one */
 
 DataPack PlayerDataPack[MAXPLAYERS + 1] =  { null, ... };
 
@@ -214,10 +215,8 @@ public void OnPluginStart()
 	// Catch config error and show link to FAQ
 	if (!SQL_CheckConfig("sourcebans"))
 	{
-		if (ReasonMenuHandle != INVALID_HANDLE)
-			CloseHandle(ReasonMenuHandle);
-		if (HackingMenuHandle != INVALID_HANDLE)
-			CloseHandle(HackingMenuHandle);
+		delete ReasonMenuHandle;
+		delete HackingMenuHandle;
 		LogToFile(logFile, "Database failure: Could not find Database conf \"sourcebans\". See Docs: https://sbpp.github.io/docs/");
 		SetFailState("Database failure: Could not find Database conf \"sourcebans\"");
 		return;
@@ -384,11 +383,11 @@ void CheckClientBan(int client)
 	if (g_sPlayerIP[client][0] == '\0')
 	{
 		/* No usable IP (e.g. SDR client): only check by SteamID. */
-		written = DB.Format(Query, sizeof(Query), "SELECT bid, ip FROM %!s_bans WHERE (type = 0 AND authid REGEXP '^STEAM_[0-9]:%s$') AND (length = '0' OR ends > UNIX_TIMESTAMP()) AND RemoveType IS NULL", DatabasePrefix, g_sSteamIDs[client][8]);
+		written = DB.Format(Query, sizeof(Query), "SELECT bid, ip FROM %!s_bans WHERE (type = 0 AND authid IN ('STEAM_0:%s', 'STEAM_1:%s')) AND (length = '0' OR ends > UNIX_TIMESTAMP()) AND RemoveType IS NULL", DatabasePrefix, g_sSteamIDs[client][8], g_sSteamIDs[client][8]);
 	}
 	else
 	{
-		written = DB.Format(Query, sizeof(Query), "SELECT bid, ip FROM %!s_bans WHERE ((type = 0 AND authid REGEXP '^STEAM_[0-9]:%s$') OR (type = 1 AND ip = '%s')) AND (length = '0' OR ends > UNIX_TIMESTAMP()) AND RemoveType IS NULL", DatabasePrefix, g_sSteamIDs[client][8], g_sPlayerIP[client]);
+		written = DB.Format(Query, sizeof(Query), "SELECT bid, ip FROM %!s_bans WHERE ((type = 0 AND authid IN ('STEAM_0:%s', 'STEAM_1:%s')) OR (type = 1 AND ip = '%s')) AND (length = '0' OR ends > UNIX_TIMESTAMP()) AND RemoveType IS NULL", DatabasePrefix, g_sSteamIDs[client][8], g_sSteamIDs[client][8], g_sPlayerIP[client]);
 	}
 
 	if (written >= sizeof(Query) - 1)
@@ -632,6 +631,12 @@ public Action CommandBanIp(int client, int args)
 		strcopy(adminIp, sizeof(adminIp), g_sPlayerIP[client]);
 	}
 
+	if (DB == INVALID_HANDLE)
+	{
+		ReplyToCommand(client, "%sThe SourceBans database is not available, try again later.", Prefix);
+		return Plugin_Handled;
+	}
+
 	char sQuery[256];
 	if (DB.Format(sQuery, sizeof(sQuery), "SELECT bid FROM %!s_bans WHERE type = 1 AND ip = '%s' AND (length = 0 OR ends > UNIX_TIMESTAMP()) AND RemoveType IS NULL",
 		DatabasePrefix, arg) >= sizeof(sQuery) - 1)
@@ -691,6 +696,12 @@ public Action CommandUnban(int client, int args)
 		strcopy(adminAuth, sizeof(adminAuth), "STEAM_ID_SERVER");
 	} else {
 		strcopy(adminAuth, sizeof(adminAuth), g_sSteamIDs[client]);
+	}
+
+	if (DB == INVALID_HANDLE)
+	{
+		ReplyToCommand(client, "%sThe SourceBans database is not available, try again later.", Prefix);
+		return Plugin_Handled;
 	}
 
 	char query[256];
@@ -786,6 +797,12 @@ public Action CommandAddBan(int client, int args)
 	} else {
 		strcopy(adminAuth, sizeof(adminAuth), g_sSteamIDs[client]);
 		strcopy(adminIp, sizeof(adminIp), g_sPlayerIP[client]);
+	}
+
+	if (DB == INVALID_HANDLE)
+	{
+		ReplyToCommand(client, "%sThe SourceBans database is not available, try again later.", Prefix);
+		return Plugin_Handled;
 	}
 
 	char sQuery[256];
@@ -981,10 +998,7 @@ public int HackingSelected(Menu menu, MenuAction action, int param1, int param2)
 
 					DataPack ReasonPack = Pack.ReadCell();
 
-					if (ReasonPack != INVALID_HANDLE)
-					{
-						CloseHandle(ReasonPack);
-					}
+					delete ReasonPack;
 
 					delete Pack;
 					PlayerDataPack[param1] = null;
@@ -1149,6 +1163,14 @@ public void GotDatabase(Database db, const char[] error, any data)
 	{
 		LogToFile(logFile, "Database failure: %s. See Docs: https://sbpp.github.io/docs/", error);
 		g_bConnecting = false;
+
+		// Retry on a timer instead of waiting for the next admin cache rebuild (map change).
+		// A connect started by OnRebuildAdminCache can fail while a retry is already pending:
+		// keep a single timer so failed connects don't stack one retry chain per map change.
+		if (g_hRetryConnect == null)
+		{
+			g_hRetryConnect = CreateTimer(RetryTime, Timer_RetryConnect);
+		}
 
 		// Parse the overrides backup!
 		ParseBackupConfig_Overrides();
@@ -1404,10 +1426,10 @@ public void SelectBanIpCallback(Database db, DBResultSet results, const char[] e
 	if (serverID == -1)
 	{
 		if (db.Format(Query, sizeof(Query), "INSERT INTO %!s_bans (type, ip, authid, name, created, ends, length, reason, aid, adminIp, admin_name, sid, country) VALUES \
-						(1, '%s', '%s', '%s', UNIX_TIMESTAMP(), UNIX_TIMESTAMP() + %d, %d, '%s', (SELECT aid FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), '%s', \
-						IFNULL((SELECT user FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), ''), \
+						(1, '%s', '%s', '%s', UNIX_TIMESTAMP(), UNIX_TIMESTAMP() + %d, %d, '%s', (SELECT aid FROM %!s_admins WHERE authid IN ('%s', 'STEAM_0:%s', 'STEAM_1:%s')), '%s', \
+						IFNULL((SELECT user FROM %!s_admins WHERE authid IN ('%s', 'STEAM_0:%s', 'STEAM_1:%s')), ''), \
 						(SELECT sid FROM %!s_servers WHERE ip = '%s' AND port = '%s' LIMIT 0,1), ' ')",
-			DatabasePrefix, ip, targetAuth, targetName, (minutes * 60), (minutes * 60), reason, DatabasePrefix, adminAuth, adminAuth[8], adminIp, DatabasePrefix, adminAuth, adminAuth[8], DatabasePrefix, ServerIp, ServerPort) >= sizeof(Query) - 1)
+			DatabasePrefix, ip, targetAuth, targetName, (minutes * 60), (minutes * 60), reason, DatabasePrefix, adminAuth, adminAuth[8], adminAuth[8], adminIp, DatabasePrefix, adminAuth, adminAuth[8], adminAuth[8], DatabasePrefix, ServerIp, ServerPort) >= sizeof(Query) - 1)
 		{
 			LogError("SelectBanIpCallback insert query truncated");
 			delete dataPack;
@@ -1415,10 +1437,10 @@ public void SelectBanIpCallback(Database db, DBResultSet results, const char[] e
 		}
 	} else {
 		if (db.Format(Query, sizeof(Query), "INSERT INTO %!s_bans (type, ip, authid, name, created, ends, length, reason, aid, adminIp, admin_name, sid, country) VALUES \
-						(1, '%s', '%s', '%s', UNIX_TIMESTAMP(), UNIX_TIMESTAMP() + %d, %d, '%s', (SELECT aid FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), '%s', \
-						IFNULL((SELECT user FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), ''), \
+						(1, '%s', '%s', '%s', UNIX_TIMESTAMP(), UNIX_TIMESTAMP() + %d, %d, '%s', (SELECT aid FROM %!s_admins WHERE authid IN ('%s', 'STEAM_0:%s', 'STEAM_1:%s')), '%s', \
+						IFNULL((SELECT user FROM %!s_admins WHERE authid IN ('%s', 'STEAM_0:%s', 'STEAM_1:%s')), ''), \
 						%d, ' ')",
-			DatabasePrefix, ip, targetAuth, targetName, (minutes * 60), (minutes * 60), reason, DatabasePrefix, adminAuth, adminAuth[8], adminIp, DatabasePrefix, adminAuth, adminAuth[8], serverID) >= sizeof(Query) - 1)
+			DatabasePrefix, ip, targetAuth, targetName, (minutes * 60), (minutes * 60), reason, DatabasePrefix, adminAuth, adminAuth[8], adminAuth[8], adminIp, DatabasePrefix, adminAuth, adminAuth[8], adminAuth[8], serverID) >= sizeof(Query) - 1)
 		{
 			LogError("SelectBanIpCallback insert query truncated");
 			delete dataPack;
@@ -1539,8 +1561,8 @@ public void SelectUnbanCallback(Database db, DBResultSet results, const char[] e
 		int bid = results.FetchInt(0);
 
 		char query[1024];
-		if (db.Format(query, sizeof(query), "UPDATE %!s_bans SET RemovedBy = (SELECT aid FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), RemoveType = 'U', RemovedOn = UNIX_TIMESTAMP(), ureason = '%s' WHERE bid = %d",
-			DatabasePrefix, DatabasePrefix, adminAuth, adminAuth[8], reason, bid) >= sizeof(query) - 1)
+		if (db.Format(query, sizeof(query), "UPDATE %!s_bans SET RemovedBy = (SELECT aid FROM %!s_admins WHERE authid IN ('%s', 'STEAM_0:%s', 'STEAM_1:%s')), RemoveType = 'U', RemovedOn = UNIX_TIMESTAMP(), ureason = '%s' WHERE bid = %d",
+			DatabasePrefix, DatabasePrefix, adminAuth, adminAuth[8], adminAuth[8], reason, bid) >= sizeof(query) - 1)
 		{
 			LogError("SelectUnbanCallback update query truncated");
 			delete dataPack;
@@ -1635,10 +1657,10 @@ public void SelectAddbanCallback(Database db, DBResultSet results, const char[] 
 	if (serverID == -1)
 	{
 		if (db.Format(Query, sizeof(Query), "INSERT INTO %!s_bans (authid, name, created, ends, length, reason, aid, adminIp, admin_name, sid, country) VALUES \
-						('%s', '', UNIX_TIMESTAMP(), UNIX_TIMESTAMP() + %d, %d, '%s', (SELECT aid FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), '%s', \
-						IFNULL((SELECT user FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), ''), \
+						('%s', '', UNIX_TIMESTAMP(), UNIX_TIMESTAMP() + %d, %d, '%s', (SELECT aid FROM %!s_admins WHERE authid IN ('%s', 'STEAM_0:%s', 'STEAM_1:%s')), '%s', \
+						IFNULL((SELECT user FROM %!s_admins WHERE authid IN ('%s', 'STEAM_0:%s', 'STEAM_1:%s')), ''), \
 						(SELECT sid FROM %!s_servers WHERE ip = '%s' AND port = '%s' LIMIT 0,1), ' ')",
-			DatabasePrefix, authid, (minutes * 60), (minutes * 60), reason, DatabasePrefix, adminAuth, adminAuth[8], adminIp, DatabasePrefix, adminAuth, adminAuth[8], DatabasePrefix, ServerIp, ServerPort) >= sizeof(Query) - 1)
+			DatabasePrefix, authid, (minutes * 60), (minutes * 60), reason, DatabasePrefix, adminAuth, adminAuth[8], adminAuth[8], adminIp, DatabasePrefix, adminAuth, adminAuth[8], adminAuth[8], DatabasePrefix, ServerIp, ServerPort) >= sizeof(Query) - 1)
 		{
 			LogError("SelectAddbanCallback insert query truncated");
 			delete dataPack;
@@ -1646,10 +1668,10 @@ public void SelectAddbanCallback(Database db, DBResultSet results, const char[] 
 		}
 	} else {
 		if (db.Format(Query, sizeof(Query), "INSERT INTO %!s_bans (authid, name, created, ends, length, reason, aid, adminIp, admin_name, sid, country) VALUES \
-						('%s', '', UNIX_TIMESTAMP(), UNIX_TIMESTAMP() + %d, %d, '%s', (SELECT aid FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), '%s', \
-						IFNULL((SELECT user FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), ''), \
+						('%s', '', UNIX_TIMESTAMP(), UNIX_TIMESTAMP() + %d, %d, '%s', (SELECT aid FROM %!s_admins WHERE authid IN ('%s', 'STEAM_0:%s', 'STEAM_1:%s')), '%s', \
+						IFNULL((SELECT user FROM %!s_admins WHERE authid IN ('%s', 'STEAM_0:%s', 'STEAM_1:%s')), ''), \
 						%d, ' ')",
-			DatabasePrefix, authid, (minutes * 60), (minutes * 60), reason, DatabasePrefix, adminAuth, adminAuth[8], adminIp, DatabasePrefix, adminAuth, adminAuth[8], serverID) >= sizeof(Query) - 1)
+			DatabasePrefix, authid, (minutes * 60), (minutes * 60), reason, DatabasePrefix, adminAuth, adminAuth[8], adminAuth[8], adminIp, DatabasePrefix, adminAuth, adminAuth[8], adminAuth[8], serverID) >= sizeof(Query) - 1)
 		{
 			LogError("SelectAddbanCallback insert query truncated");
 			delete dataPack;
@@ -1751,10 +1773,10 @@ public void ProcessQueueCallback(Database db, DBResultSet results, const char[] 
 			{
 				if (DB.Format(query, sizeof(query),
 					"INSERT INTO %!s_bans (ip, authid, name, created, ends, length, reason, aid, adminIp, admin_name, sid) VALUES  \
-						('%s', '%s', '%s', %d, %d, %d, '%s', (SELECT aid FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), '%s', \
-						IFNULL((SELECT user FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), ''), \
+						('%s', '%s', '%s', %d, %d, %d, '%s', (SELECT aid FROM %!s_admins WHERE authid IN ('%s', 'STEAM_0:%s', 'STEAM_1:%s')), '%s', \
+						IFNULL((SELECT user FROM %!s_admins WHERE authid IN ('%s', 'STEAM_0:%s', 'STEAM_1:%s')), ''), \
 						(SELECT sid FROM %!s_servers WHERE ip = '%s' AND port = '%s' LIMIT 0,1))",
-					DatabasePrefix, ip, auth, name, startTime, startTime + time * 60, time * 60, reason, DatabasePrefix, adminAuth, adminAuth[8], adminIp, DatabasePrefix, adminAuth, adminAuth[8], DatabasePrefix, ServerIp, ServerPort) >= sizeof(query) - 1)
+					DatabasePrefix, ip, auth, name, startTime, startTime + time * 60, time * 60, reason, DatabasePrefix, adminAuth, adminAuth[8], adminAuth[8], adminIp, DatabasePrefix, adminAuth, adminAuth[8], adminAuth[8], DatabasePrefix, ServerIp, ServerPort) >= sizeof(query) - 1)
 				{
 					LogError("ProcessQueueCallback insert query truncated");
 					continue;
@@ -1764,10 +1786,10 @@ public void ProcessQueueCallback(Database db, DBResultSet results, const char[] 
 			{
 				if (DB.Format(query, sizeof(query),
 					"INSERT INTO %!s_bans (ip, authid, name, created, ends, length, reason, aid, adminIp, admin_name, sid) VALUES  \
-						('%s', '%s', '%s', %d, %d, %d, '%s', (SELECT aid FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), '%s', \
-						IFNULL((SELECT user FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), ''), \
+						('%s', '%s', '%s', %d, %d, %d, '%s', (SELECT aid FROM %!s_admins WHERE authid IN ('%s', 'STEAM_0:%s', 'STEAM_1:%s')), '%s', \
+						IFNULL((SELECT user FROM %!s_admins WHERE authid IN ('%s', 'STEAM_0:%s', 'STEAM_1:%s')), ''), \
 						%d)",
-					DatabasePrefix, ip, auth, name, startTime, startTime + time * 60, time * 60, reason, DatabasePrefix, adminAuth, adminAuth[8], adminIp, DatabasePrefix, adminAuth, adminAuth[8], serverID) >= sizeof(query) - 1)
+					DatabasePrefix, ip, auth, name, startTime, startTime + time * 60, time * 60, reason, DatabasePrefix, adminAuth, adminAuth[8], adminAuth[8], adminIp, DatabasePrefix, adminAuth, adminAuth[8], adminAuth[8], serverID) >= sizeof(query) - 1)
 				{
 					LogError("ProcessQueueCallback insert query truncated");
 					continue;
@@ -1894,7 +1916,7 @@ public void VerifyBan(Database db, DBResultSet results, const char[] error, int 
 	{
 		LogToFile(logFile, "Verify Ban Query Failed: %s", error);
 		if (PlayerRecheck[client] == INVALID_HANDLE)
-			PlayerRecheck[client] = CreateTimer(RetryTime, ClientRecheck, client);
+			PlayerRecheck[client] = CreateTimer(RetryTime, ClientRecheck, userid);
 		return;
 	}
 
@@ -1904,13 +1926,14 @@ public void VerifyBan(Database db, DBResultSet results, const char[] error, int 
 	if (results.RowCount > 0)
 	{
 		char Query[512];
+		int iBid = 0;
 
 		// Amending to ban record's IP field
 		if (results.FetchRow())
 		{
 			char sIP[16];
 
-			int iBid = results.FetchInt(0);
+			iBid = results.FetchInt(0);
 			results.FetchString(1, sIP, sizeof sIP);
 
 			if (StrEqual(sIP, "") && clientIp[0] != '\0')
@@ -1919,7 +1942,7 @@ public void VerifyBan(Database db, DBResultSet results, const char[] error, int 
 
 				if (DB.Format(sQuery, sizeof sQuery, "UPDATE %!s_bans SET `ip` = '%s' WHERE `bid` = '%d'", DatabasePrefix, clientIp, iBid) < sizeof(sQuery) - 1)
 				{
-					DB.Query(SQL_OnIPMend, sQuery, client);
+					DB.Query(SQL_OnIPMend, sQuery, userid);
 				}
 				else
 				{
@@ -1928,22 +1951,13 @@ public void VerifyBan(Database db, DBResultSet results, const char[] error, int 
 			}
 		}
 
-		// Without a usable IP (e.g. SDR client) never match IP bans: an empty
-		// address would otherwise match any type=1 row with a blank IP.
-		// clientIp comes from GetClientIP (dotted digits), so the condition
-		// is inserted unescaped (%!s) below.
-		char ipCondition[64];
-		if (clientIp[0] != '\0')
-			FormatEx(ipCondition, sizeof(ipCondition), "ip = '%s'", clientIp);
-		else
-			strcopy(ipCondition, sizeof(ipCondition), "1 = 0");
-
+		// iBid is the active ban VerifyBan just matched: no need to look it up
+		// again with a sub-select on %!s_bans.
 		if (serverID == -1)
 		{
 			if (db.Format(Query, sizeof(Query), "INSERT INTO %!s_banlog (sid ,time ,name ,bid) VALUES  \
-				((SELECT sid FROM %!s_servers WHERE ip = '%s' AND port = '%s' LIMIT 0,1), UNIX_TIMESTAMP(), '%s', \
-				(SELECT bid FROM %!s_bans WHERE ((type = 0 AND authid REGEXP '^STEAM_[0-9]:%s$') OR (type = 1 AND %!s)) AND RemoveType IS NULL LIMIT 0,1))",
-				DatabasePrefix, DatabasePrefix, ServerIp, ServerPort, g_sName[client], DatabasePrefix, clientAuth[8], ipCondition) < sizeof(Query) - 1)
+				((SELECT sid FROM %!s_servers WHERE ip = '%s' AND port = '%s' LIMIT 0,1), UNIX_TIMESTAMP(), '%s', %d)",
+				DatabasePrefix, DatabasePrefix, ServerIp, ServerPort, g_sName[client], iBid) < sizeof(Query) - 1)
 			{
 				db.Query(ErrorCheckCallback, Query, client, DBPrio_High);
 			}
@@ -1955,9 +1969,8 @@ public void VerifyBan(Database db, DBResultSet results, const char[] error, int 
 		else
 		{
 			if (db.Format(Query, sizeof(Query), "INSERT INTO %!s_banlog (sid ,time ,name ,bid) VALUES  \
-				(%d, UNIX_TIMESTAMP(), '%s', \
-				(SELECT bid FROM %!s_bans WHERE ((type = 0 AND authid REGEXP '^STEAM_[0-9]:%s$') OR (type = 1 AND %!s)) AND RemoveType IS NULL LIMIT 0,1))",
-				DatabasePrefix, serverID, g_sName[client], DatabasePrefix, clientAuth[8], ipCondition) < sizeof(Query) - 1)
+				(%d, UNIX_TIMESTAMP(), '%s', %d)",
+				DatabasePrefix, serverID, g_sName[client], iBid) < sizeof(Query) - 1)
 			{
 				db.Query(ErrorCheckCallback, Query, client, DBPrio_High);
 			}
@@ -2003,12 +2016,20 @@ public void VerifyBan(Database db, DBResultSet results, const char[] error, int 
 	PlayerStatus[client] = true;
 }
 
-public void SQL_OnIPMend(Database db, DBResultSet results, const char[] error, int client)
+public void SQL_OnIPMend(Database db, DBResultSet results, const char[] error, int userid)
 {
 	if (results == null)
 	{
-		// We now using SteamID Format2
-		LogToFile(logFile, "Failed to mend IP address for %s (%s): %s", g_sSteamIDs[client], g_sPlayerIP[client], error);
+		int client = GetClientOfUserId(userid);
+		if (client)
+		{
+			// We now using SteamID Format2
+			LogToFile(logFile, "Failed to mend IP address for %s (%s): %s", g_sSteamIDs[client], g_sPlayerIP[client], error);
+		}
+		else
+		{
+			LogToFile(logFile, "Failed to mend IP address (player left): %s", error);
+		}
 	}
 }
 
@@ -2420,13 +2441,32 @@ public void OverridesDone(Database db, DBResultSet results, const char[] error, 
 
 // TIMER CALL BACKS //
 
-public Action ClientRecheck(Handle timer, any client)
+public Action ClientRecheck(Handle timer, int userid)
 {
+	// OnClientDisconnect kills this timer, but resolve the userid anyway
+	// rather than trusting a raw client index.
+	int client = GetClientOfUserId(userid);
+	if (!client)
+		return Plugin_Stop;
+
 	PlayerRecheck[client] = INVALID_HANDLE;
 
 	if (IsClientConnected(client) && IsClientAuthorized(client))
 	{
 		CheckClientBan(client);
+	}
+
+	return Plugin_Stop;
+}
+
+public Action Timer_RetryConnect(Handle timer)
+{
+	g_hRetryConnect = null;
+
+	if (DB == INVALID_HANDLE && !g_bConnecting)
+	{
+		g_bConnecting = true;
+		Database.Connect(GotDatabase, "sourcebans");
 	}
 
 	return Plugin_Stop;
@@ -2672,7 +2712,7 @@ public int Native_SBBanPlayer(Handle plugin, int numParams)
 // Validates a SteamID2 authid ("STEAM_X:Y:Z" with X/Y single digits and Z a
 // non-empty run of digits). A prefix-only check would let malformed strings
 // such as "STEAM_junk" through, and the INSERT below slices authid[8] to build
-// the '^STEAM_[0-9]:%s$' REGEXP, so a bad tail silently produces a garbage row.
+// the 'STEAM_0:%s' / 'STEAM_1:%s' lookups, so a bad tail silently produces a garbage row.
 static bool UTIL_IsValidSteamID2(const char[] authid)
 {
 	if (strncmp(authid, "STEAM_", 6, false) != 0)
@@ -2827,24 +2867,24 @@ public void DB_OnBanBySteamIdSelect(Database db, DBResultSet results, const char
 	{
 		FormatEx(query, sizeof(query), "INSERT INTO %s_bans (authid, name, created, ends, length, reason, aid, adminIp, admin_name, sid, country) VALUES \
 			('%s', '%s', UNIX_TIMESTAMP(), UNIX_TIMESTAMP() + %d, %d, '%s', \
-			IFNULL((SELECT aid FROM %s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'),'0'), '%s', \
-			IFNULL((SELECT user FROM %s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), ''), \
+			IFNULL((SELECT aid FROM %s_admins WHERE authid IN ('%s', 'STEAM_0:%s', 'STEAM_1:%s')),'0'), '%s', \
+			IFNULL((SELECT user FROM %s_admins WHERE authid IN ('%s', 'STEAM_0:%s', 'STEAM_1:%s')), ''), \
 			(SELECT sid FROM %s_servers WHERE ip = '%s' AND port = '%s' LIMIT 0,1), ' ')",
 			DatabasePrefix, steamIdEscaped, nameEscaped, (iTime * 60), (iTime * 60), reasonEscaped,
-			DatabasePrefix, adminAuth, adminAuth[8], adminIp,
-			DatabasePrefix, adminAuth, adminAuth[8],
+			DatabasePrefix, adminAuth, adminAuth[8], adminAuth[8], adminIp,
+			DatabasePrefix, adminAuth, adminAuth[8], adminAuth[8],
 			DatabasePrefix, ServerIp, ServerPort);
 	}
 	else
 	{
 		FormatEx(query, sizeof(query), "INSERT INTO %s_bans (authid, name, created, ends, length, reason, aid, adminIp, admin_name, sid, country) VALUES \
 			('%s', '%s', UNIX_TIMESTAMP(), UNIX_TIMESTAMP() + %d, %d, '%s', \
-			IFNULL((SELECT aid FROM %s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'),'0'), '%s', \
-			IFNULL((SELECT user FROM %s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), ''), \
+			IFNULL((SELECT aid FROM %s_admins WHERE authid IN ('%s', 'STEAM_0:%s', 'STEAM_1:%s')),'0'), '%s', \
+			IFNULL((SELECT user FROM %s_admins WHERE authid IN ('%s', 'STEAM_0:%s', 'STEAM_1:%s')), ''), \
 			%d, ' ')",
 			DatabasePrefix, steamIdEscaped, nameEscaped, (iTime * 60), (iTime * 60), reasonEscaped,
-			DatabasePrefix, adminAuth, adminAuth[8], adminIp,
-			DatabasePrefix, adminAuth, adminAuth[8],
+			DatabasePrefix, adminAuth, adminAuth[8], adminAuth[8], adminIp,
+			DatabasePrefix, adminAuth, adminAuth[8], adminAuth[8],
 			serverID);
 	}
 
@@ -2890,6 +2930,14 @@ public int Native_SBReportPlayer(Handle plugin, int numParams)
 	int iReporter = GetNativeCell(1)
 	  , iTarget = GetNativeCell(2)
 	  , iReasonLen;
+
+	if (DB == INVALID_HANDLE)
+	{
+		LogToFile(logFile, "Failed to submit report: the database is not available");
+		if (iReporter > 0 && iReporter <= MaxClients && IsClientInGame(iReporter))
+			PrintToChat(iReporter, "%sThe report could not be sent, the SourceBans database is not available.", Prefix);
+		return 0;
+	}
 
 	int iTime = GetTime();
 
@@ -3002,7 +3050,7 @@ public bool CreateBan(int client, int target, int time, const char[] reason)
 	DataPack dataPack = new DataPack();
 	DataPack reasonPack = new DataPack();
 
-	WritePackString(reasonPack, reason);
+	reasonPack.WriteString(reason);
 
 	dataPack.WriteCell(admin);
 	dataPack.WriteCell(target);
@@ -3083,10 +3131,10 @@ stock void UTIL_InsertBan(int time, const char[] Name, const char[] Authid, cons
 	if (serverID == -1)
 	{
 		if (DB.Format(Query, sizeof(Query), "INSERT INTO %!s_bans (ip, authid, name, created, ends, length, reason, aid, adminIp, admin_name, sid, country) VALUES \
-						('%s', '%s', '%s', UNIX_TIMESTAMP(), UNIX_TIMESTAMP() + %d, %d, '%s', IFNULL((SELECT aid FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'),'0'), '%s', \
-						IFNULL((SELECT user FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), ''), \
+						('%s', '%s', '%s', UNIX_TIMESTAMP(), UNIX_TIMESTAMP() + %d, %d, '%s', IFNULL((SELECT aid FROM %!s_admins WHERE authid IN ('%s', 'STEAM_0:%s', 'STEAM_1:%s')),'0'), '%s', \
+						IFNULL((SELECT user FROM %!s_admins WHERE authid IN ('%s', 'STEAM_0:%s', 'STEAM_1:%s')), ''), \
 						(SELECT sid FROM %!s_servers WHERE ip = '%s' AND port = '%s' LIMIT 0,1), ' ')",
-			DatabasePrefix, Ip, Authid, Name, (time * 60), (time * 60), Reason, DatabasePrefix, AdminAuthid, AdminAuthid[8], AdminIp, DatabasePrefix, AdminAuthid, AdminAuthid[8], DatabasePrefix, ServerIp, ServerPort) >= sizeof(Query) - 1)
+			DatabasePrefix, Ip, Authid, Name, (time * 60), (time * 60), Reason, DatabasePrefix, AdminAuthid, AdminAuthid[8], AdminAuthid[8], AdminIp, DatabasePrefix, AdminAuthid, AdminAuthid[8], AdminAuthid[8], DatabasePrefix, ServerIp, ServerPort) >= sizeof(Query) - 1)
 		{
 			LogError("UTIL_InsertBan query truncated");
 			CleanupBanDataPack(dataPack);
@@ -3094,10 +3142,10 @@ stock void UTIL_InsertBan(int time, const char[] Name, const char[] Authid, cons
 		}
 	} else {
 		if (DB.Format(Query, sizeof(Query), "INSERT INTO %!s_bans (ip, authid, name, created, ends, length, reason, aid, adminIp, admin_name, sid, country) VALUES \
-						('%s', '%s', '%s', UNIX_TIMESTAMP(), UNIX_TIMESTAMP() + %d, %d, '%s', IFNULL((SELECT aid FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'),'0'), '%s', \
-						IFNULL((SELECT user FROM %!s_admins WHERE authid = '%s' OR authid REGEXP '^STEAM_[0-9]:%s$'), ''), \
+						('%s', '%s', '%s', UNIX_TIMESTAMP(), UNIX_TIMESTAMP() + %d, %d, '%s', IFNULL((SELECT aid FROM %!s_admins WHERE authid IN ('%s', 'STEAM_0:%s', 'STEAM_1:%s')),'0'), '%s', \
+						IFNULL((SELECT user FROM %!s_admins WHERE authid IN ('%s', 'STEAM_0:%s', 'STEAM_1:%s')), ''), \
 						%d, ' ')",
-			DatabasePrefix, Ip, Authid, Name, (time * 60), (time * 60), Reason, DatabasePrefix, AdminAuthid, AdminAuthid[8], AdminIp, DatabasePrefix, AdminAuthid, AdminAuthid[8], serverID) >= sizeof(Query) - 1)
+			DatabasePrefix, Ip, Authid, Name, (time * 60), (time * 60), Reason, DatabasePrefix, AdminAuthid, AdminAuthid[8], AdminAuthid[8], AdminIp, DatabasePrefix, AdminAuthid, AdminAuthid[8], AdminAuthid[8], serverID) >= sizeof(Query) - 1)
 		{
 			LogError("UTIL_InsertBan query truncated");
 			CleanupBanDataPack(dataPack);

@@ -10,12 +10,53 @@ Legend:
 ? = Other stuff
 ```
 
-(28/10/26): Version 2.2.6-srcdslab
+(29/10/26): Version 2.2.10-srcdslab
 -----------------------
 ```
 01. + sbpp_main no longer re-sets the database charset (a blocking
         round trip on the main thread) on every admin cache rebuild;
         it is set once per connection
+
+(29/10/26): Version 2.2.9-srcdslab
+-----------------------
+```
+01. ! CI: the Docker image workflow failed on every push to main since
+        the Actions bump; cosign-installer is now pinned to v4.1.2
+02. ? E2E: the "bulk select → assign web group" test no longer races
+        the page reload that follows the bulk action
+```
+
+(29/10/26): Version 2.2.8-srcdslab
+-----------------------
+```
+01. ! Ban list: the server and time filters (and the status chips /
+        Hide inactive) did nothing after clicking Apply; the search
+        clauses now wrap in parentheses so every filter applies
+02. ! Comm blocks list: the server and time filters were never applied
+        to the query; they now narrow the list and survive pagination
+03. ! Comm blocks list: Hide inactive combined with an advanced search
+        the viewer can't run no longer fails with a SQL error
+```
+
+(28/10/26): Version 2.2.7-srcdslab
+-----------------------
+```
+01. ! sbpp_comms: mutes / gags queued while the database was
+        unreachable were replayed against the local SQLite queue
+        instead of the main database, so they stayed queued and never
+        reached the web panel
+02. + sbpp_comms keeps its database connection across map changes
+        instead of reconnecting (and re-checking every player) on
+        each map; a plain SQL error or a failed SQLite queue query no
+        longer drops the main connection
+03. + SteamID lookups on player connect (bans, comms, SourceSleuth,
+        Bans Checker) and admin lookups no longer use REGEXP / LIKE,
+        so MySQL can use the authid indexes instead of a full scan
+04. ! sbpp_main, sbpp_checker and SourceSleuth retry a failed database
+        connection on a timer; sbpp_checker no longer unloads itself
+        and checks the players who joined while it was disconnected,
+        and sm_banip / sm_unban / sm_addban / reports reply with an
+        error instead of throwing when the database is unavailable
 ```
 
 (26/10/26): Version 2.2.5-srcdslab (**Run updater required**)
