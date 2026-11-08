@@ -134,4 +134,32 @@ final class RestSettingsTest extends RestTestCase
         $this->assertRestError($response, 400, 'validation');
         $this->assertSame('auth.maxlife', $response->payload['error']['field'] ?? null);
     }
+    public function testPatchRejectsUnknownTheme(): void
+    {
+        $token = $this->mintToken();
+        foreach (['<img src=x onerror=alert(1)>', '../default', 'does-not-exist', '.'] as $theme) {
+            $response = $this->rest('PATCH', '/settings', ['config.theme' => $theme], $token);
+            $this->assertRestError($response, 400, 'validation');
+            $this->assertSame('config.theme', $response->payload['error']['field'] ?? null);
+        }
+        $after = $this->rest('GET', '/settings', token: $token);
+        $this->assertSame('default', $after->payload['data']['config.theme']);
+    }
+
+    public function testPatchAcceptsAnInstalledTheme(): void
+    {
+        $token = $this->mintToken();
+        $response = $this->rest('PATCH', '/settings', ['config.theme' => 'default'], $token);
+        $this->assertSame(200, $response->status, json_encode($response->payload));
+    }
+
+    public function testTelemetryEndpointIsReadOnly(): void
+    {
+        $token = $this->mintToken();
+        foreach (['telemetry.endpoint' => 'gopher://127.0.0.1:6379/_x', 'telemetry.last_ping' => 0] as $key => $value) {
+            $response = $this->rest('PATCH', '/settings', [$key => $value], $token);
+            $this->assertRestError($response, 400, 'validation');
+            $this->assertSame($key, $response->payload['error']['field'] ?? null);
+        }
+    }
 }

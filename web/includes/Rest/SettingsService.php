@@ -30,6 +30,31 @@ final class SettingsService
     }
 
     /**
+     * Readable but not writable over REST. `telemetry.endpoint` is the
+     * URL the panel POSTs to (writable = SSRF); `telemetry.last_ping` is
+     * the slot that throttles that POST.
+     */
+    private const READ_ONLY_KEYS = ['telemetry.endpoint', 'telemetry.last_ping'];
+
+    /**
+     * `config.theme` must name an installed theme directory. Any other
+     * value made init.php die on every request (panel-wide outage that
+     * the API itself could no longer undo).
+     */
+    public static function isInstalledTheme(string $theme): bool
+    {
+        if ($theme === '' || $theme[0] === '.' || $theme !== basename($theme)
+            || str_contains($theme, '\\') || str_contains($theme, "\0")) {
+            return false;
+        }
+        $entries = scandir(SB_THEMES);
+        return is_array($entries)
+            && in_array($theme, $entries, true)
+            && is_dir(SB_THEMES . $theme)
+            && is_file(SB_THEMES . $theme . '/theme.conf.php');
+    }
+
+    /**
      * @param array<string|int, mixed> $body
      * @return array<string, string>
      */
@@ -59,7 +84,13 @@ final class SettingsService
             if (!isset($known[$key])) {
                 throw new ApiError('validation', 'Unknown setting.', $key, 400);
             }
+            if (in_array($key, self::READ_ONLY_KEYS, true)) {
+                throw new ApiError('validation', 'That setting is read-only over the API.', $key, 400);
+            }
             $pending[$key] = $this->stringify($value, $key);
+            if ($key === 'config.theme' && !self::isInstalledTheme($pending[$key])) {
+                throw new ApiError('validation', 'Unknown theme.', $key, 400);
+            }
         }
 
         $pdo->beginTransaction();
