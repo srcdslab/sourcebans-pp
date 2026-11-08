@@ -130,6 +130,29 @@ final class OwnerEscalationTest extends ApiTestCase
         $this->assertNotNull($this->row('groups', ['gid' => $ownerGroup]));
     }
 
+    public function testGroupsRemoveRefusesOwnerGroupThroughServerType(): void
+    {
+        // `type` is client-controlled; the server branch also deletes from
+        // :prefix_groups, so it must not be a way around the guard.
+        $ownerGroup = $this->createWebGroup('Owners2b', ADMIN_OWNER);
+        $this->loginAs($this->createAdmin('group-deleter2', ADMIN_DELETE_GROUPS));
+
+        $env = $this->api('groups.remove', ['gid' => $ownerGroup, 'type' => 'server']);
+
+        $this->assertEnvelopeError($env, 'forbidden');
+        $this->assertNotNull($this->row('groups', ['gid' => $ownerGroup]));
+    }
+
+    public function testGroupsRemoveServerTypeNeverDeletesAWebGroup(): void
+    {
+        $webGroup = $this->createWebGroup('PlainWeb', ADMIN_LIST_ADMINS);
+        $this->loginAsAdmin();
+
+        $this->api('groups.remove', ['gid' => $webGroup, 'type' => 'server']);
+
+        $this->assertNotNull($this->row('groups', ['gid' => $webGroup]));
+    }
+
     public function testAdminsAddRefusesExistingOwnerGroupForNonOwner(): void
     {
         $ownerGroup = $this->createWebGroup('Owners3', ADMIN_OWNER);

@@ -77,7 +77,9 @@ function api_groups_remove(array $params): array
     $rehashing = false;
     $allservers = [];
 
-    if ($type === 'web' && \Sbpp\Security\OwnerGuard::isOwnerGroup($gid)
+    // Both `web` and `server` delete from :prefix_groups, so both must be
+    // guarded: `type` is client-controlled.
+    if (($type === 'web' || $type === 'server') && \Sbpp\Security\OwnerGuard::isOwnerGroup($gid)
         && !\Sbpp\Security\OwnerGuard::callerIsOwner()) {
         throw new ApiError('forbidden', 'Only an owner can delete a group with owner permissions.');
     }
@@ -95,7 +97,8 @@ function api_groups_remove(array $params): array
         $GLOBALS['PDO']->bind(':gid', $gid);
         $GLOBALS['PDO']->execute();
 
-        $GLOBALS['PDO']->query("DELETE FROM `:prefix_groups` WHERE gid = :gid");
+        // Only server groups (type 3) may be removed through this branch.
+        $GLOBALS['PDO']->query("DELETE FROM `:prefix_groups` WHERE gid = :gid AND type = 3");
         $GLOBALS['PDO']->bind(':gid', $gid);
         $ok = $GLOBALS['PDO']->execute();
     } else {
