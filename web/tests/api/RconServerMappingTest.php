@@ -44,4 +44,29 @@ final class RconServerMappingTest extends ApiTestCase
         $this->loginAsUnmappedBanAdmin();
         $this->assertEnvelopeError($this->api($action, $params), 'forbidden');
     }
+
+    public function testBanModeWithoutAnActiveBanIsRefused(): void
+    {
+        // `mode` is client-controlled: mode=ban must not be a way around
+        // the per-server mapping when no ban exists for the target.
+        $this->loginAsUnmappedBanAdmin();
+        $env = $this->api('kickit.kick_player', ['sid' => 1, 'check' => 'STEAM_0:1:123', 'type' => 0, 'mode' => 'ban']);
+        $this->assertEnvelopeError($env, 'forbidden');
+    }
+
+    public function testBanModeFansOutForAnActivelyBannedTarget(): void
+    {
+        Fixture::rawPdo()->prepare(sprintf(
+            'INSERT INTO `%s_bans` (created, type, ip, authid, name, ends, length, reason, aid, adminIp)
+             VALUES (UNIX_TIMESTAMP(), 0, \'\', ?, ?, 0, 0, ?, ?, \'127.0.0.1\')',
+            DB_PREFIX,
+        ))->execute(['STEAM_1:1:123', 'cheater', 'aimbot', Fixture::adminAid()]);
+
+        $this->loginAsUnmappedBanAdmin();
+        $env = $this->api('kickit.kick_player', ['sid' => 1, 'check' => 'STEAM_0:1:123', 'type' => 0, 'mode' => 'ban']);
+
+        // Not refused: the call reaches the RCON step (no game server in
+        // the test stack, so it reports no_connect).
+        $this->assertTrue($env['ok'], json_encode($env));
+    }
 }

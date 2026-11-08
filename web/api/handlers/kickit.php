@@ -85,12 +85,6 @@ function api_kickit_kick_player(array $params): array
         // working without a paired ban-side flip.
         $mode = 'ban';
     }
-    // A plain kick (no ban behind it) is an RCON action like any other:
-    // it needs the per-server mapping. Ban mode fans out to every server
-    // because the ban itself is global.
-    if ($mode === 'kick') {
-        _api_servers_require_rcon_access($sid, 'kick a player');
-    }
 
     // #1423 follow-up #4 — gate the `check` shape BEFORE we reach the
     // `SteamID::compare()` call below. For `type === 0` (Steam-ID
@@ -124,6 +118,16 @@ function api_kickit_kick_player(array $params): array
             'ip'     => '',
             'port'   => '',
         ];
+    }
+
+    // Kicking is an RCON action: it needs the per-server mapping, like
+    // servers.send_rcon. The one exception is the post-ban fan-out
+    // (mode=ban), which kicks a just-banned player from every server
+    // because the ban itself is global. `mode` is client-controlled, so
+    // the exception only applies when the target really has an active
+    // ban; otherwise mode=ban would be a way around the mapping.
+    if ($mode === 'kick' || !_api_kickit_target_has_active_ban($type, $check)) {
+        _api_servers_require_rcon_access($sid, 'kick a player');
     }
 
     $serverInfo = $GLOBALS['PDO']->query("SELECT ip, port FROM `:prefix_servers` WHERE sid = :sid");
@@ -186,6 +190,28 @@ function api_kickit_kick_player(array $params): array
     }
 
     return ['status' => 'not_found', 'sid' => $sid, 'num' => $num, 'hostname' => $hostname, 'ip' => $sdata['ip'], 'port' => $sdata['port']];
+}
+
+/**
+ * True when `$check` (a validated SteamID for type 0, an IP for type 1)
+ * has an active ban: not lifted, and permanent or not yet expired. The
+ * SteamID comparison ignores the `STEAM_X:` universe prefix, which the
+ * plugin and the panel do not store consistently.
+ */
+function _api_kickit_target_has_active_ban(int $type, string $check): bool
+{
+    $active = "RemoveType IS NULL AND RemovedBy IS NULL AND (length = 0 OR ends > UNIX_TIMESTAMP())";
+    if ($type === 0) {
+        $steam2 = SteamID::toSteam2($check);
+        $row = $GLOBALS['PDO']->query(
+            "SELECT bid FROM `:prefix_bans` WHERE type = 0 AND SUBSTRING(authid, 9) = SUBSTRING(?, 9) AND $active LIMIT 1"
+        )->single([$steam2]);
+    } else {
+        $row = $GLOBALS['PDO']->query(
+            "SELECT bid FROM `:prefix_bans` WHERE type = 1 AND ip = ? AND $active LIMIT 1"
+        )->single([$check]);
+    }
+    return is_array($row) && $row !== [];
 }
 
 /**
