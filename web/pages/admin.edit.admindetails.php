@@ -31,7 +31,7 @@ $isOwnerEditor = $userbank->HasAccess(\WebPermission::Owner);
 $isSelfEdit    = $adminId === $userbank->GetAid();
 $canEditTarget = $isOwnerEditor
     || ($userbank->HasAccess(\WebPermission::EditAdmins)
-        && (!$userbank->HasAccess(\WebPermission::Owner, $adminId) || $isSelfEdit));
+        && (\Sbpp\Security\OwnerGuard::canModifyAdmin($adminId) || $isSelfEdit));
 
 if (!$canEditTarget) {
     \Sbpp\Log::add(

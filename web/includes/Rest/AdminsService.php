@@ -257,7 +257,7 @@ final class AdminsService
         $isSelfEdit = $aid === $userbank->GetAid();
         $canEditTarget = $isOwnerEditor
             || ($userbank->HasAccess(WebPermission::EditAdmins)
-                && (!$userbank->HasAccess(WebPermission::Owner, $aid) || $isSelfEdit));
+                && (\Sbpp\Security\OwnerGuard::canModifyAdmin($aid) || $isSelfEdit));
         if (!$canEditTarget) {
             throw new ApiError('forbidden', 'No access', null, 403);
         }

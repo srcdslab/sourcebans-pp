@@ -226,4 +226,32 @@ final class OwnerEscalationTest extends ApiTestCase
         $this->assertEnvelopeError($this->api('admins.remove', ['aid' => $groupOwner]), 'cannot_delete_owner');
         $this->assertNotNull($this->row('admins', ['aid' => $groupOwner]));
     }
+    public function testReactivateRefusesADeactivatedOwnerForNonOwner(): void
+    {
+        // HasAccess() reads a disabled account as flag-less, so a
+        // deactivated Owner must be protected by OwnerGuard, not by it.
+        $ownerGroup = $this->createWebGroup('Owners7', ADMIN_OWNER);
+        $retired = $this->createAdmin('retired-owner', 0, $ownerGroup);
+        Fixture::rawPdo()->prepare(sprintf('UPDATE `%s_admins` SET enabled = 0 WHERE aid = ?', DB_PREFIX))
+            ->execute([$retired]);
+        $this->loginAs($this->createAdmin('admin-deleter', ADMIN_DELETE_ADMINS));
+
+        $env = $this->api('admins.reactivate', ['aid' => $retired]);
+
+        $this->assertEnvelopeError($env, 'forbidden');
+        $this->assertSame(0, (int) $this->adminRow($retired)['enabled']);
+    }
+
+    public function testOwnerCanStillReactivateAnOwner(): void
+    {
+        $retired = $this->createAdmin('retired-owner2', ADMIN_OWNER);
+        Fixture::rawPdo()->prepare(sprintf('UPDATE `%s_admins` SET enabled = 0 WHERE aid = ?', DB_PREFIX))
+            ->execute([$retired]);
+        $this->loginAsAdmin();
+
+        $env = $this->api('admins.reactivate', ['aid' => $retired]);
+
+        $this->assertTrue($env['ok'], json_encode($env));
+        $this->assertSame(1, (int) $this->adminRow($retired)['enabled']);
+    }
 }

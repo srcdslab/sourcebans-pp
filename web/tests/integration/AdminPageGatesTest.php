@@ -51,4 +51,13 @@ final class AdminPageGatesTest extends TestCase
         $tpl = (string) file_get_contents(self::WEB . 'themes/default/page_admin_settings_logs.tpl');
         $this->assertStringContainsString('log_clear=true&csrf_token=', $tpl);
     }
+
+    public function testAdminDetailsPageUsesOwnerGuardForTheTarget(): void
+    {
+        // HasAccess(Owner, $aid) is false for a deactivated Owner, so the
+        // page let a non-owner change that Owner's password and email.
+        $src = php_strip_whitespace(self::WEB . 'pages/admin.edit.admindetails.php');
+        $this->assertStringContainsString('OwnerGuard::canModifyAdmin($adminId)', $src);
+        $this->assertStringNotContainsString('HasAccess(\\WebPermission::Owner, $adminId)', $src);
+    }
 }

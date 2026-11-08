@@ -192,6 +192,11 @@ function api_admins_reactivate(array $params): array
     if ((int) ($admin['enabled'] ?? 1) === 1) {
         throw new ApiError('already_active', 'That admin is already active.');
     }
+    // A deactivated Owner keeps the Owner flag on disk; only an Owner may
+    // bring them back (HasAccess() reads a disabled account as flag-less).
+    if (!\Sbpp\Security\OwnerGuard::canModifyAdmin($aid)) {
+        throw new ApiError('forbidden', 'Only an owner can reactivate an owner.');
+    }
 
     $GLOBALS['PDO']->query("UPDATE `:prefix_admins` SET enabled = 1 WHERE aid = :aid LIMIT 1");
     $GLOBALS['PDO']->bind(':aid', $aid);
