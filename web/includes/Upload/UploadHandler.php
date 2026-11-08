@@ -198,6 +198,46 @@ final class UploadHandler
     }
 
     /**
+     * True when `$name` is a plain file name that can be joined to an
+     * upload directory: no directory part, no backslash, no NUL byte,
+     * no leading dot. Use it to validate a stored file name (mod icon,
+     * map image) that came back from a form or an API call.
+     */
+    public static function isSafeStoredName(string $name): bool
+    {
+        return $name !== ''
+            && !str_contains($name, "\0")
+            && !str_contains($name, '\\')
+            && $name === self::sanitiseName($name);
+    }
+
+    /**
+     * Delete `$dir/$name` only when `$name` is a safe stored name and the
+     * resolved path is a regular file inside `$dir`. Every `unlink()` of a
+     * file name read from the database goes through here, so a tampered
+     * row (`../config.php`) can never delete a file outside the upload
+     * directory.
+     */
+    public static function unlinkInside(string $dir, string $name): bool
+    {
+        if (!self::isSafeStoredName($name)) {
+            return false;
+        }
+        $root = realpath($dir);
+        $path = rtrim($dir, '/\\') . DIRECTORY_SEPARATOR . $name;
+        if ($root === false || is_link($path)) {
+            return false;
+        }
+        $resolved = realpath($path);
+        if ($resolved === false
+            || !str_starts_with($resolved, $root . DIRECTORY_SEPARATOR)
+            || !is_file($resolved)) {
+            return false;
+        }
+        return @unlink($resolved);
+    }
+
+    /**
      * Strip directory-traversal characters from an admin-uploaded
      * filename. The legacy `move_uploaded_file($_, SB_X . '/' . $name)`
      * trusted `$name` verbatim, which let a `name=../../../etc/passwd`

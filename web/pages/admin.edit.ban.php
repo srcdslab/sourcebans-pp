@@ -207,6 +207,19 @@ if (isset($_POST['name'])) {
         $validationErrors['reason'] = 'You must type a reason';
     }
 
+    // A demo attachment must reference a file the uploader created: a
+    // 32-char lowercase hex name that exists as a regular file inside
+    // SB_DEMOS. The stored name is later passed to unlink(), so an
+    // unchecked `did` (`../config.php`) was an arbitrary file delete.
+    if (!empty($_POST['dname'])) {
+        $did = (string) ($_POST['did'] ?? '');
+        $didPath = SB_DEMOS . DIRECTORY_SEPARATOR . $did;
+        if (!preg_match('/^[a-f0-9]{32}$/D', $did) || is_link($didPath) || !is_file($didPath)) {
+            $error++;
+            $validationErrors['demo'] = 'The demo upload reference is invalid. Please upload the demo again.';
+        }
+    }
+
     // prune any old bans
     PruneBans();
 
@@ -315,7 +328,9 @@ if (isset($_POST['name'])) {
             $GLOBALS['PDO']->query("SELECT filename FROM `:prefix_demos` WHERE demid = :id");
             $GLOBALS['PDO']->bind(':id', $_GET['id']);
             $demoid = $GLOBALS['PDO']->single();
-            @unlink(SB_DEMOS . "/" . $demoid['filename']);
+            if (is_array($demoid)) {
+                \Sbpp\Upload\UploadHandler::unlinkInside(SB_DEMOS, (string) $demoid['filename']);
+            }
             $GLOBALS['PDO']->query(
                 "REPLACE INTO `:prefix_demos`
                 (`demid`, `demtype`, `filename`, `origname`)
