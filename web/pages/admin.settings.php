@@ -35,6 +35,9 @@ if (!in_array($section, $validSections, true)) {
 }
 
 if (isset($_GET['log_clear']) && $_GET['log_clear'] === 'true') {
+    // Wiping the audit trail is destructive: a plain GET link must not do
+    // it on behalf of a logged-in owner (CSRF). The button sends the token.
+    \CSRF::rejectIfInvalid();
     if ($userbank->HasAccess(WebPermission::Owner)) {
         $GLOBALS['PDO']->query("TRUNCATE TABLE `:prefix_log`")->execute();
     } else {

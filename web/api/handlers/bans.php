@@ -309,6 +309,7 @@ function api_bans_paste(array $params): array
 {
     $sid  = (int)($params['sid']  ?? 0);
     $name = (string)($params['name'] ?? '');
+    _api_servers_require_rcon_access($sid, 'read the player list');
 
     $ret = rcon('status', $sid);
     if (!$ret) {
@@ -862,6 +863,7 @@ function api_bans_kick_player(array $params): array
     global $userbank, $username;
     $sid  = (int)($params['sid'] ?? 0);
     $name = (string)($params['name'] ?? '');
+    _api_servers_require_rcon_access($sid, 'kick a player');
 
     $ret = rcon('status', $sid);
     if (!$ret) {

@@ -328,6 +328,7 @@ function api_comms_paste(array $params): array
 {
     $sid  = (int)($params['sid']  ?? 0);
     $name = (string)($params['name'] ?? '');
+    _api_servers_require_rcon_access($sid, 'read the player list');
 
     $ret = rcon('status', $sid);
     if (!$ret) {

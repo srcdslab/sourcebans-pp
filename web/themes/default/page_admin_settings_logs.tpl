@@ -295,7 +295,10 @@
             danger: true,
         }).then(function (ok) {
             if (!ok) return;
-            window.location.href = 'index.php?p=admin&c=settings&section=logs&log_clear=true';
+            var meta = document.querySelector('meta[name="csrf-token"]');
+            var token = meta ? meta.getAttribute('content') || '' : '';
+            window.location.href = 'index.php?p=admin&c=settings&section=logs&log_clear=true&csrf_token='
+                + encodeURIComponent(token);
         });
     };
 })();

@@ -85,6 +85,12 @@ function api_kickit_kick_player(array $params): array
         // working without a paired ban-side flip.
         $mode = 'ban';
     }
+    // A plain kick (no ban behind it) is an RCON action like any other:
+    // it needs the per-server mapping. Ban mode fans out to every server
+    // because the ban itself is global.
+    if ($mode === 'kick') {
+        _api_servers_require_rcon_access($sid, 'kick a player');
+    }
 
     // #1423 follow-up #4 — gate the `check` shape BEFORE we reach the
     // `SteamID::compare()` call below. For `type === 0` (Steam-ID

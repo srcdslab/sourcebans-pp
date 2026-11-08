@@ -38,6 +38,23 @@ function _api_servers_admin_can_rcon(int $aid, int $sid): bool
     return false;
 }
 
+/**
+ * Refuse an RCON-backed action on server `$sid` unless the caller is an
+ * Owner or is mapped to that server (directly or through a server group).
+ * Same rule `servers.send_rcon` and `bans.send_message` enforce (#53).
+ */
+function _api_servers_require_rcon_access(int $sid, string $what): void
+{
+    global $userbank;
+    if ($userbank->HasAccess(WebPermission::Owner)
+        || _api_servers_admin_can_rcon($userbank->GetAid(), $sid)) {
+        return;
+    }
+    Log::add(LogType::Warning, 'Hacking Attempt',
+        $userbank->GetProperty('user') . " tried to $what on server $sid without per-server access.");
+    throw new ApiError('forbidden', 'No access to that server', null, 403);
+}
+
 function api_servers_add(array $params): array
 {
     $ip      = (string)($params['ip'] ?? '');
