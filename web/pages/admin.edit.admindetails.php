@@ -152,6 +152,8 @@ if (isset($_POST['adminname'])) {
         } elseif ($newServerPass !== '' && strlen($newServerPass) < MIN_PASS_LENGTH) {
             $validationErrors['a_serverpass'] = 'Your password must be at least '
                 . MIN_PASS_LENGTH . ' characters long.';
+        } elseif ($newServerPass !== '' && !\Sbpp\Security\PasswordGenerator::isSafeServerPassword($newServerPass)) {
+            $validationErrors['a_serverpass'] = 'The server password cannot contain quotes, backslashes or control characters.';
         }
     }
 

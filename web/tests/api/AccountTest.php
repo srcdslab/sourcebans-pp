@@ -102,6 +102,33 @@ final class AccountTest extends ApiTestCase
         $this->assertSnapshot('account/change_srv_password_success', $env);
     }
 
+    /**
+     * Security audit 2026-11: the plugin writes srv_password into
+     * sb_admins.cfg (KeyValues) and sbpp_admcfg re-reads it as SMC, which
+     * treats `\\` differently. `\" } x { ... flags z }` could append a
+     * root admin. Quotes, backslashes, control chars and over-long values
+     * are refused.
+     */
+    public function testChangeSrvPasswordRejectsConfigBreakingCharacters(): void
+    {
+        $this->loginAsAdmin();
+        foreach ([
+            '\\" } x { auth steam identity STEAM_0:1:1 flags z }',
+            'has"quote',
+            'back\\slash',
+            "new\nline",
+            str_repeat('a', 65),
+        ] as $hostile) {
+            $env = $this->api('account.change_srv_password', [
+                'aid'          => Fixture::adminAid(),
+                'srv_password' => $hostile,
+            ]);
+            $this->assertEnvelopeError($env, 'validation');
+        }
+        $row = $this->row('admins', ['aid' => Fixture::adminAid()]);
+        $this->assertNull($row['srv_password']);
+    }
+
     public function testChangeSrvPasswordClearsValueWhenSentEmpty(): void
     {
         // Set a password first so we can confirm the empty-value path

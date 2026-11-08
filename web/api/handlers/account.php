@@ -97,6 +97,12 @@ function api_account_change_srv_password(array $params): array
         return Api::redirect('index.php?p=login&m=no_access');
     }
 
+    if ($pass !== 'NULL' && $pass !== '' && !\Sbpp\Security\PasswordGenerator::isSafeServerPassword($pass)) {
+        throw new ApiError('validation',
+            'The server password cannot contain quotes, backslashes or control characters, and is limited to '
+            . \Sbpp\Security\PasswordGenerator::SERVER_PASSWORD_MAX_BYTES . ' characters.', 'srv_password');
+    }
+
     if ($pass === 'NULL' || $pass === '') {
         $GLOBALS['PDO']->query("UPDATE `:prefix_admins` SET srv_password = NULL WHERE aid = :aid");
         $GLOBALS['PDO']->bind(':aid', $aid);

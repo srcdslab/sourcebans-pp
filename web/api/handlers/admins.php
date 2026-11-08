@@ -609,6 +609,10 @@ function api_admins_add(array $params): array
         if (strlen($serverPass) < MIN_PASS_LENGTH) {
             throw new ApiError('validation', 'Your password must be at-least ' . MIN_PASS_LENGTH . ' characters long.', 'a_serverpass');
         }
+        if (!\Sbpp\Security\PasswordGenerator::isSafeServerPassword($serverPass)) {
+            throw new ApiError('validation',
+                'The server password cannot contain quotes, backslashes or control characters.', 'a_serverpass');
+        }
     } else {
         $serverPass = '';
     }

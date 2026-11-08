@@ -71,6 +71,23 @@ final class PasswordGenerator
      * absolute floor and the panel's `config.password.minlength`, so a
      * generated password always passes the panel's own validation.
      */
+    /** Longest server password the SourceMod plugin stores (`char password[66]`). */
+    public const SERVER_PASSWORD_MAX_BYTES = 64;
+
+    /**
+     * A server password is written by the plugin into `sb_admins.cfg`
+     * (Valve KeyValues) and read back by sbpp_admcfg (SMC). KeyValues
+     * escapes `"` but not `\`, so `\"` closes the string early and the
+     * rest of the value becomes config: a non-root admin could append a
+     * root admin entry. Refuse quotes, backslashes, control characters
+     * and anything the plugin would truncate.
+     */
+    public static function isSafeServerPassword(string $value): bool
+    {
+        return strlen($value) <= self::SERVER_PASSWORD_MAX_BYTES
+            && preg_match('/["\\\\\x00-\x1F\x7F]/', $value) === 0;
+    }
+
     public static function minLength(): int
     {
         $panelMin = defined('MIN_PASS_LENGTH') ? (int) MIN_PASS_LENGTH : 0;
