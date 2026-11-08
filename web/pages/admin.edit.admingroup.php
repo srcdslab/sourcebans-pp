@@ -34,6 +34,16 @@ if (!$userbank->HasAccess(\WebPermission::mask(\WebPermission::Owner, \WebPermis
     return;
 }
 
+if (!\Sbpp\Security\OwnerGuard::canModifyAdmin($adminId)) {
+    \Sbpp\Log::add(
+        \LogType::Warning,
+        'Hacking Attempt',
+        $userbank->GetProperty('user') . ' tried to edit the groups of an owner, but doesn\'t have access.',
+    );
+    sbpp_admin_edit_die_with_toast('Only an owner can edit the groups of an owner.', 'index.php?p=admin&c=admins');
+    return;
+}
+
 if (!$userbank->GetProperty('user', $adminId)) {
     \Sbpp\Log::add(
         \LogType::Error,
@@ -65,7 +75,10 @@ if ($incomingWg !== null || $incomingSg !== null) {
     $existingPassword = (string) $userbank->GetProperty('password', $adminId);
     $existingEmail    = (string) $userbank->GetProperty('email', $adminId);
 
-    if ($newWg > 0 && ($existingPassword === '' || $existingEmail === '')) {
+    if ($newWg > 0 && \Sbpp\Security\OwnerGuard::isOwnerGroup($newWg)
+        && !\Sbpp\Security\OwnerGuard::callerIsOwner()) {
+        $validationErrors['wgroup'] = 'Only an owner can assign a group with owner permissions.';
+    } elseif ($newWg > 0 && ($existingPassword === '' || $existingEmail === '')) {
         $validationErrors['wgroup'] = 'Admins need a password and email before you can give them web permissions. '
             . 'Set the details first and try again.';
     } else {

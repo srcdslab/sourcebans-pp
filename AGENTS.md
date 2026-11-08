@@ -437,6 +437,7 @@ matching its directory. PSR-4 autoloads from `web/includes/` →
 | `Sbpp\Security\CSRF`                     | CSRF token helpers                    |
 | `Sbpp\Security\Crypto`                   | password / token crypto               |
 | `Sbpp\Security\PasswordGenerator`        | configurable random password generator (owner defaults in `config.password.generator.*`) |
+| `Sbpp\Security\OwnerGuard`               | who may grant, hold or modify the Owner flag (groups.*, admins.*, admin edit pages) |
 | `Sbpp\Log`                               | audit log                             |
 | `Sbpp\Config`                            | settings cache                        |
 | `Sbpp\Api\Api`                           | JSON API dispatcher                   |

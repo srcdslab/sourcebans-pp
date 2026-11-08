@@ -26,6 +26,12 @@ function api_groups_add(array $params): array
     if ($type === '0') {
         throw new ApiError('validation', 'Please choose a type for the group.', 'type');
     }
+    if ($type === '1' && \Sbpp\Security\OwnerGuard::maskHasOwner($bitmask)
+        && !\Sbpp\Security\OwnerGuard::callerIsOwner()) {
+        Log::add(LogType::Warning, 'Hacking Attempt',
+            $userbank->GetProperty('user') . ' tried to create a group with OWNER permissions, but doesnt have access.');
+        throw new ApiError('forbidden', 'Only an owner can create a group with owner permissions.');
+    }
 
     $next = (int)($GLOBALS['PDO']->query("SELECT MAX(gid) AS next_gid FROM `:prefix_groups`")->single()['next_gid'] ?? 0) + 1;
 
@@ -70,6 +76,11 @@ function api_groups_remove(array $params): array
 
     $rehashing = false;
     $allservers = [];
+
+    if ($type === 'web' && \Sbpp\Security\OwnerGuard::isOwnerGroup($gid)
+        && !\Sbpp\Security\OwnerGuard::callerIsOwner()) {
+        throw new ApiError('forbidden', 'Only an owner can delete a group with owner permissions.');
+    }
 
     if ($type === 'web') {
         $GLOBALS['PDO']->query("UPDATE `:prefix_admins` SET gid = -1 WHERE gid = :gid");
@@ -141,6 +152,12 @@ function api_groups_edit(array $params): array
 
     if ($name === '') {
         throw new ApiError('validation', 'Group name is required.', 'name');
+    }
+    if (($type === 'web' || $type === 'server') && !\Sbpp\Security\OwnerGuard::callerIsOwner()
+        && (\Sbpp\Security\OwnerGuard::maskHasOwner($webFlags) || \Sbpp\Security\OwnerGuard::isOwnerGroup($gid))) {
+        Log::add(LogType::Warning, 'Hacking Attempt',
+            $GLOBALS['userbank']->GetProperty('user') . ' tried to edit an OWNER group or grant OWNER to a group, but doesnt have access.');
+        throw new ApiError('forbidden', 'Only an owner can grant owner permissions or edit an owner group.');
     }
 
     if ($type === 'web' || $type === 'server') {

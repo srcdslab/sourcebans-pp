@@ -47,6 +47,16 @@ if (!$userbank->HasAccess(\WebPermission::mask(\WebPermission::Owner, \WebPermis
     return;
 }
 
+if (!\Sbpp\Security\OwnerGuard::canModifyAdmin($adminId)) {
+    \Sbpp\Log::add(
+        \LogType::Warning,
+        'Hacking Attempt',
+        $userbank->GetProperty('user') . ' tried to edit an owner, but doesn\'t have access.',
+    );
+    sbpp_admin_edit_die_with_toast('Only an owner can edit an owner.', 'index.php?p=admin&c=admins');
+    return;
+}
+
 $pdo = $GLOBALS['PDO'];
 
 /**

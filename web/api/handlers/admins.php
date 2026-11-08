@@ -47,7 +47,7 @@ function api_admins_remove(array $params): array
     $GLOBALS['PDO']->bind(':aid', $aid);
     $admin = $GLOBALS['PDO']->single();
 
-    if ($admin && ((int) $admin['extraflags'] & ADMIN_OWNER) !== 0) {
+    if ($admin && \Sbpp\Security\OwnerGuard::isOwnerAdmin($aid)) {
         throw new ApiError('cannot_delete_owner', 'Error: You cannot delete the owner.');
     }
 
@@ -135,7 +135,7 @@ function api_admins_deactivate(array $params): array
     if (!$admin) {
         throw new ApiError('not_found', 'Admin not found.');
     }
-    if (((int) $admin['extraflags'] & ADMIN_OWNER) !== 0) {
+    if (\Sbpp\Security\OwnerGuard::isOwnerAdmin($aid)) {
         throw new ApiError('cannot_deactivate_owner', 'Error: You cannot deactivate the owner.');
     }
     if ((int) ($admin['enabled'] ?? 1) === 0) {
@@ -308,6 +308,10 @@ function api_admins_bulk(array $params): array
             $skipped[] = ['aid' => $aid, 'reason' => 'self'];
             continue;
         }
+        if (!\Sbpp\Security\OwnerGuard::canModifyAdmin($aid)) {
+            $skipped[] = ['aid' => $aid, 'reason' => 'owner'];
+            continue;
+        }
 
         try {
             $result = match ($op) {
@@ -387,6 +391,9 @@ function _api_admins_set_web_group(int $aid, int $gid): array
         $GLOBALS['PDO']->bind(':gid', $gid);
         if (!$GLOBALS['PDO']->single()) {
             throw new ApiError('validation', 'Unknown web group.', 'gid');
+        }
+        if (\Sbpp\Security\OwnerGuard::isOwnerGroup($gid) && !\Sbpp\Security\OwnerGuard::callerIsOwner()) {
+            throw new ApiError('forbidden', 'Only an owner can assign a group with owner permissions.');
         }
         $password = (string) ($admin['password'] ?? '');
         $email = (string) ($admin['email'] ?? '');
@@ -529,11 +536,10 @@ function api_admins_add(array $params): array
     //      → baked into the new `:prefix_groups.flags`, after which any
     //      future admin assigned to that group inherits it.
     // Both shapes carry the OWNER bit in the inbound `mask` param, so a
-    // single check on `$mask & ADMIN_OWNER` covers both. The bare check
-    // does NOT close the existing-group escalation surface (assigning a
-    // pre-existing OWNER-bearing group to a new admin via `web_group` =
-    // an integer > 0); that path was pre-existing pre-#1402 and is
-    // tracked separately. The UI side mirrors this by gating the OWNER
+    // single check on `$mask & ADMIN_OWNER` covers both. The third shape
+    // (assigning a pre-existing OWNER-bearing group via `web_group` = an
+    // integer > 0) is refused further down through
+    // `Sbpp\Security\OwnerGuard::isOwnerGroup()`. The UI side mirrors this by gating the OWNER
     // checkbox itself on `can_grant_owner` so non-owners don't see the
     // affordance — defense in depth.
     if (!$userbank->HasAccess(WebPermission::Owner) && ($mask & ADMIN_OWNER)) {
@@ -645,6 +651,11 @@ function api_admins_add(array $params): array
         $mask = 0;
     } elseif ($wg !== 'c' && (int)$wg > 0) {
         $webGroup = (int)$wg;
+        if (\Sbpp\Security\OwnerGuard::isOwnerGroup($webGroup) && !\Sbpp\Security\OwnerGuard::callerIsOwner()) {
+            Log::add(LogType::Warning, 'Hacking Attempt',
+                $userbank->GetProperty('user') . ' tried to add an admin to an OWNER group, but doesnt have access.');
+            throw new ApiError('forbidden', 'Only an owner can assign a group with owner permissions.');
+        }
     } else {
         $webGroup = -1;
     }
@@ -724,6 +735,11 @@ function api_admins_edit_perms(array $params): array
 
     if ($aid === 0) {
         throw new ApiError('bad_request', 'aid is required');
+    }
+    if (!\Sbpp\Security\OwnerGuard::canModifyAdmin($aid)) {
+        Log::add(LogType::Warning, 'Hacking Attempt',
+            $userbank->GetProperty('user') . ' tried to edit the permissions of an OWNER, but doesnt have access.');
+        throw new ApiError('forbidden', 'Only an owner can edit the permissions of an owner.');
     }
     if (!$userbank->HasAccess(WebPermission::Owner) && ($webFlags & ADMIN_OWNER)) {
         Log::add(LogType::Warning, 'Hacking Attempt',
