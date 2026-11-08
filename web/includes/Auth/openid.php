@@ -200,7 +200,11 @@ class LightOpenID
         curl_setopt($curl, CURLOPT_FOLLOWLOCATION, true);
         curl_setopt($curl, CURLOPT_HEADER, false);
         curl_setopt($curl, CURLOPT_USERAGENT, $this->user_agent);
-        curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, false);
+        // SourceBans++ security audit 2026-11: verify the provider's TLS
+        // certificate. A MITM answering `is_valid:true` would otherwise
+        // log anyone in as any admin.
+        curl_setopt($curl, CURLOPT_SSL_VERIFYPEER, true);
+        curl_setopt($curl, CURLOPT_SSL_VERIFYHOST, 2);
         curl_setopt($curl, CURLOPT_RETURNTRANSFER, true);
 
         if ($method == 'POST') {
@@ -893,6 +897,15 @@ class LightOpenID
             return false;
         }
 
+        // SourceBans++ security audit 2026-11: only Steam's exact signed
+        // field list is accepted, and the assertion must come from Steam.
+        // Forwarding attacker-chosen extra fields to check_authentication
+        // let a value echoed back by the provider satisfy the old,
+        // unanchored `is_valid:true` match.
+        if (!self::isAcceptedSteamAssertion($this->data)) {
+            return false;
+        }
+
         $this->claimed_id = $this->data['openid_claimed_id'] ?? $this->data['openid_identity'];
         $params = array(
             'openid.assoc_handle' => $this->data['openid_assoc_handle'],
@@ -943,7 +956,58 @@ class LightOpenID
 
         $response = $this->request($server, 'POST', $params);
 
-        return preg_match('/is_valid\s*:\s*true/i', $response);
+        return self::responseIsValid((string) $response);
+    }
+
+    /** Fields Steam signs in every positive assertion, in no particular order. */
+    const STEAM_SIGNED_FIELDS = ['signed', 'op_endpoint', 'claimed_id', 'identity', 'return_to', 'response_nonce', 'assoc_handle'];
+    const STEAM_OP_ENDPOINT   = 'https://steamcommunity.com/openid/login';
+
+    /**
+     * The callback must carry exactly Steam's signed field list, every
+     * signed field must be present, and `op_endpoint` must be Steam.
+     */
+    public static function isAcceptedSteamAssertion(array $data): bool
+    {
+        $signed = explode(',', (string) ($data['openid_signed'] ?? ''));
+        $expected = self::STEAM_SIGNED_FIELDS;
+        sort($signed);
+        sort($expected);
+        if ($signed !== $expected) {
+            return false;
+        }
+        foreach (self::STEAM_SIGNED_FIELDS as $field) {
+            if (!isset($data['openid_' . $field]) || !is_string($data['openid_' . $field])) {
+                return false;
+            }
+        }
+        if (!isset($data['openid_sig']) || !is_string($data['openid_sig'])) {
+            return false;
+        }
+        return $data['openid_op_endpoint'] === self::STEAM_OP_ENDPOINT
+            && $data['openid_claimed_id'] === $data['openid_identity'];
+    }
+
+    /**
+     * Parse a check_authentication key-value response (one `key:value`
+     * per line) and require the `is_valid` key to be exactly `true`.
+     */
+    public static function responseIsValid(string $response): bool
+    {
+        $isValid = null;
+        foreach (preg_split('/\r?\n/', $response) as $line) {
+            $pos = strpos($line, ':');
+            if ($pos === false) {
+                continue;
+            }
+            if (substr($line, 0, $pos) === 'is_valid') {
+                if ($isValid !== null) {
+                    return false;
+                }
+                $isValid = substr($line, $pos + 1);
+            }
+        }
+        return $isValid === 'true';
     }
 
     protected function getAxAttributes()

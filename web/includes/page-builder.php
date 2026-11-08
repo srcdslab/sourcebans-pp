@@ -38,6 +38,12 @@ function route(int|string $fallback): array
     };
 
     if ($resolved === '__steam_login__') {
+        // Steam login turned off in Settings must be off for real, not
+        // just hidden on the login card.
+        if (!Config::getBool('config.enablesteamlogin')) {
+            header('Location: index.php?p=login');
+            exit();
+        }
         require_once 'includes/Auth/openid.php';
         new SteamAuthHandler(new LightOpenID(Host::complete()), $GLOBALS['PDO']);
         exit();
