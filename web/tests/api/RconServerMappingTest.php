@@ -34,6 +34,7 @@ final class RconServerMappingTest extends ApiTestCase
             'comms.paste'         => ['comms.paste', ['sid' => 1, 'name' => 'x']],
             'bans.kick_player'    => ['bans.kick_player', ['sid' => 1, 'name' => 'x']],
             'kickit.kick_player'  => ['kickit.kick_player', ['sid' => 1, 'check' => 'STEAM_0:1:123', 'type' => 0, 'mode' => 'kick']],
+            'blockit.block_player' => ['blockit.block_player', ['sid' => 1, 'check' => 'STEAM_0:1:123', 'type' => 1, 'length' => 0]],
         ];
     }
 
@@ -68,5 +69,57 @@ final class RconServerMappingTest extends ApiTestCase
         // Not refused: the call reaches the RCON step (no game server in
         // the test stack, so it reports no_connect).
         $this->assertTrue($env['ok'], json_encode($env));
+    }
+
+    private function insertComm(int $type, string $authid): void
+    {
+        Fixture::rawPdo()->prepare(sprintf(
+            'INSERT INTO `%s_comms` (created, type, authid, name, ends, length, reason, aid, adminIp)
+             VALUES (UNIX_TIMESTAMP(), ?, ?, ?, 0, 0, ?, ?, \'127.0.0.1\')',
+            DB_PREFIX,
+        ))->execute([$type, $authid, 'chatter', 'spam', Fixture::adminAid()]);
+    }
+
+    public function testBlockFanOutGoesThroughForAnActivelyBlockedTarget(): void
+    {
+        // The post-comms.add fan-out applies a global block on every
+        // server, like kickit's mode=ban.
+        $this->insertComm(1, 'STEAM_1:1:123');
+        $this->loginAsUnmappedBanAdmin();
+
+        $env = $this->api('blockit.block_player', ['sid' => 1, 'check' => 'STEAM_0:1:123', 'type' => 1, 'length' => 0]);
+
+        $this->assertTrue($env['ok'], json_encode($env));
+    }
+
+    public function testBlockOfAnotherTypeIsRefused(): void
+    {
+        // An active mute does not authorise a gag on an unmapped server.
+        $this->insertComm(1, 'STEAM_0:1:123');
+        $this->loginAsUnmappedBanAdmin();
+
+        $env = $this->api('blockit.block_player', ['sid' => 1, 'check' => 'STEAM_0:1:123', 'type' => 2, 'length' => 0]);
+
+        $this->assertEnvelopeError($env, 'forbidden');
+    }
+
+    public function testKickModeServerListFlagsUnmappedServersWithoutLogging(): void
+    {
+        $pdo = Fixture::rawPdo();
+        $pdo->prepare(sprintf(
+            'INSERT INTO `%s_servers` (sid, ip, port, rcon, modid, enabled) VALUES (1, \'10.0.0.1\', 27015, \'r\', 1, 1)',
+            DB_PREFIX,
+        ))->execute();
+        $this->loginAsUnmappedBanAdmin();
+        $logsBefore = (int) $pdo->query(sprintf('SELECT COUNT(*) FROM `%s_log`', DB_PREFIX))->fetchColumn();
+
+        $kick = $this->api('kickit.load_servers', ['mode' => 'kick']);
+        $ban  = $this->api('kickit.load_servers', []);
+
+        // Kick mode marks the unmapped server so the iframe skips it
+        // instead of calling kick_player and logging a Hacking Attempt.
+        $this->assertFalse($kick['data']['servers'][0]['allowed']);
+        $this->assertTrue($ban['data']['servers'][0]['allowed']);
+        $this->assertSame($logsBefore, (int) $pdo->query(sprintf('SELECT COUNT(*) FROM `%s_log`', DB_PREFIX))->fetchColumn());
     }
 }

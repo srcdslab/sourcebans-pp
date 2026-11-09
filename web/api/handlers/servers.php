@@ -39,6 +39,33 @@ function _api_servers_admin_can_rcon(int $aid, int $sid): bool
 }
 
 /**
+ * True when the caller is an Owner or is mapped to server `$sid`. Same
+ * rule as {@see _api_servers_require_rcon_access()}, without the audit
+ * entry: use it where an unmapped server is an expected case (filtering
+ * a server list), not an attack.
+ */
+function _api_servers_caller_can_rcon(int $sid): bool
+{
+    global $userbank;
+    return $userbank->HasAccess(WebPermission::Owner)
+        || _api_servers_admin_can_rcon($userbank->GetAid(), $sid);
+}
+
+/**
+ * Both universe spellings of a Steam2 ID (`STEAM_0:` and `STEAM_1:`).
+ * The plugin and the panel don't store the prefix consistently, and an
+ * `authid IN (?, ?)` lookup keeps the `authid` index usable where
+ * `SUBSTRING(authid, 9)` would scan the whole table.
+ *
+ * @return array{string, string}
+ */
+function _api_servers_steam2_forms(string $steam2): array
+{
+    $tail = substr($steam2, 8);
+    return ['STEAM_0:' . $tail, 'STEAM_1:' . $tail];
+}
+
+/**
  * Refuse an RCON-backed action on server `$sid` unless the caller is an
  * Owner or is mapped to that server (directly or through a server group).
  * Same rule `servers.send_rcon` and `bans.send_message` enforce (#53).
@@ -46,8 +73,7 @@ function _api_servers_admin_can_rcon(int $aid, int $sid): bool
 function _api_servers_require_rcon_access(int $sid, string $what): void
 {
     global $userbank;
-    if ($userbank->HasAccess(WebPermission::Owner)
-        || _api_servers_admin_can_rcon($userbank->GetAid(), $sid)) {
+    if (_api_servers_caller_can_rcon($sid)) {
         return;
     }
     Log::add(LogType::Warning, 'Hacking Attempt',

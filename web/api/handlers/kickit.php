@@ -12,10 +12,18 @@ use SteamID\SteamID;
  * Lists every enabled server with its rcon status. Replaces the legacy
  * LoadServers() that emitted addScript() calls per row.
  *
- * @return array{servers: array<int, array{num:int, sid:int, has_rcon:bool}>}
+ * @return array{servers: array<int, array{num:int, sid:int, has_rcon:bool, allowed:bool}>}
  */
 function api_kickit_load_servers(array $params): array
 {
+    // A plain kick (mode=kick) needs the per-server RCON mapping. Flag the
+    // servers the caller may not kick on so the iframe skips them instead
+    // of calling kick_player and logging a false "Hacking Attempt" for
+    // each. Rows stay in the list (the page pre-renders them by `num`).
+    // The post-ban fan-out (mode=ban) keeps every server allowed:
+    // kick_player lets it through when the target has an active ban.
+    $kickOnly = ($params['mode'] ?? '') === 'kick';
+
     $servers = $GLOBALS['PDO']
         ->query("SELECT sid, rcon FROM `:prefix_servers` WHERE enabled = 1 ORDER BY modid, sid")
         ->resultset();
@@ -27,6 +35,7 @@ function api_kickit_load_servers(array $params): array
             'num'      => $id,
             'sid'      => (int)$s['sid'],
             'has_rcon' => !empty($s['rcon']),
+            'allowed'  => !$kickOnly || _api_servers_caller_can_rcon((int)$s['sid']),
         ];
         $id++;
     }
@@ -126,7 +135,10 @@ function api_kickit_kick_player(array $params): array
     // because the ban itself is global. `mode` is client-controlled, so
     // the exception only applies when the target really has an active
     // ban; otherwise mode=ban would be a way around the mapping.
-    if ($mode === 'kick' || !_api_kickit_target_has_active_ban($type, $check)) {
+    // Check the mapping first: Owners and mapped admins never need the
+    // active-ban lookup.
+    if (!_api_servers_caller_can_rcon($sid)
+        && ($mode === 'kick' || !_api_kickit_target_has_active_ban($type, $check))) {
         _api_servers_require_rcon_access($sid, 'kick a player');
     }
 
@@ -195,17 +207,16 @@ function api_kickit_kick_player(array $params): array
 /**
  * True when `$check` (a validated SteamID for type 0, an IP for type 1)
  * has an active ban: not lifted, and permanent or not yet expired. The
- * SteamID comparison ignores the `STEAM_X:` universe prefix, which the
+ * SteamID comparison accepts both `STEAM_0:` and `STEAM_1:`, which the
  * plugin and the panel do not store consistently.
  */
 function _api_kickit_target_has_active_ban(int $type, string $check): bool
 {
     $active = "RemoveType IS NULL AND RemovedBy IS NULL AND (length = 0 OR ends > UNIX_TIMESTAMP())";
     if ($type === 0) {
-        $steam2 = SteamID::toSteam2($check);
         $row = $GLOBALS['PDO']->query(
-            "SELECT bid FROM `:prefix_bans` WHERE type = 0 AND SUBSTRING(authid, 9) = SUBSTRING(?, 9) AND $active LIMIT 1"
-        )->single([$steam2]);
+            "SELECT bid FROM `:prefix_bans` WHERE type = 0 AND authid IN (?, ?) AND $active LIMIT 1"
+        )->single(_api_servers_steam2_forms(SteamID::toSteam2($check)));
     } else {
         $row = $GLOBALS['PDO']->query(
             "SELECT bid FROM `:prefix_bans` WHERE type = 1 AND ip = ? AND $active LIMIT 1"

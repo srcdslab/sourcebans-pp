@@ -183,10 +183,13 @@
             var ctl = parent.document.getElementById('dialog-control');
             if (ctl) ctl.style.display = 'none';
 
-            sb.api.call(Actions.KickitLoadServers, {}).then(function (r) {
+            sb.api.call(Actions.KickitLoadServers, { mode: MODE }).then(function (r) {
                 if (!r || !r.ok || !r.data) return;
                 r.data.servers.forEach(function (s) {
-                    if (s.has_rcon) {
+                    if (s.allowed === false) {
+                        sb.setHTML('srv_' + s.num, '<span class="text-xs text-faint">No access to this server.</span>');
+                        setCounter(1);
+                    } else if (s.has_rcon) {
                         sb.setHTML('srv_' + s.num, '<span class="text-xs text-muted">Searching&hellip;</span>');
                         processRow(s.sid, s.num);
                     } else {
