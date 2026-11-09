@@ -48,8 +48,14 @@ final class AdminPageGatesTest extends TestCase
         $src = php_strip_whitespace(self::WEB . 'pages/admin.settings.php');
         self::assertBefore($src, '\CSRF::rejectIfInvalid();', 'TRUNCATE TABLE `:prefix_log`');
 
+        // POST-only: a GET `?log_clear=true` must not clear anything, and
+        // the token must not be put in a URL.
+        $this->assertStringContainsString("(\$_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && (\$_POST['log_clear'] ?? '') === 'true'", $src);
+        $this->assertStringNotContainsString("\$_GET['log_clear']", $src);
+
         $tpl = (string) file_get_contents(self::WEB . 'themes/default/page_admin_settings_logs.tpl');
-        $this->assertStringContainsString('log_clear=true&csrf_token=', $tpl);
+        $this->assertStringContainsString("method: 'POST'", $tpl);
+        $this->assertStringNotContainsString('csrf_token=', $tpl);
     }
 
     public function testAdminDetailsPageUsesOwnerGuardForTheTarget(): void

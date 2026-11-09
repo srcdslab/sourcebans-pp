@@ -34,9 +34,12 @@ if (!in_array($section, $validSections, true)) {
     $section = 'settings';
 }
 
-if (isset($_GET['log_clear']) && $_GET['log_clear'] === 'true') {
-    // Wiping the audit trail is destructive: a plain GET link must not do
-    // it on behalf of a logged-in owner (CSRF). The button sends the token.
+if (($_SERVER['REQUEST_METHOD'] ?? '') === 'POST' && ($_POST['log_clear'] ?? '') === 'true') {
+    // Wiping the audit trail is destructive, so it is POST-only with the
+    // CSRF token in the body: a GET link can't trigger it, the token never
+    // lands in a URL, and F5 on the page that follows can't repeat it.
+    // route() already checks the token on every POST; this is the local
+    // guarantee.
     \CSRF::rejectIfInvalid();
     if ($userbank->HasAccess(WebPermission::Owner)) {
         $GLOBALS['PDO']->query("TRUNCATE TABLE `:prefix_log`")->execute();

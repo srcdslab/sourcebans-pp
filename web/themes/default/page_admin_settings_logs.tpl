@@ -73,7 +73,7 @@
                             <button type="button"
                                     class="btn btn--danger btn--sm"
                                     data-testid="logs-clear"
-                                    onclick="clearLogs();">
+                                    onclick="clearLogs(this);">
                                 <i data-lucide="trash-2"></i> Clear log
                             </button>
                         {/if}
@@ -280,12 +280,14 @@
     };
 
     /**
-     * Truncate the log table by hitting the legacy `?log_clear=true`
-     * endpoint on this page (admin.settings.php's TRUNCATE branch). We
-     * full-page nav so the freshly-empty list paints without a JSON dance.
-     * Confirm dialog so a misclick on the danger button doesn't nuke history.
+     * Truncate the log table: POST `log_clear=true` + the CSRF token to
+     * this page (admin.settings.php's TRUNCATE branch), then load the
+     * plain logs URL. A POST keeps the session-wide token out of the URL,
+     * history and access logs, and navigating to a clean GET afterwards
+     * means F5 can't clear the log a second time. Confirm dialog so a
+     * misclick on the danger button doesn't nuke history.
      */
-    window.clearLogs = function () {
+    window.clearLogs = function (btn) {
         var S = window.SBPP;
         if (!S || typeof S.confirm !== 'function') return;
         S.confirm({
@@ -297,8 +299,20 @@
             if (!ok) return;
             var meta = document.querySelector('meta[name="csrf-token"]');
             var token = meta ? meta.getAttribute('content') || '' : '';
-            window.location.href = 'index.php?p=admin&c=settings&section=logs&log_clear=true&csrf_token='
-                + encodeURIComponent(token);
+            var body = new URLSearchParams();
+            body.set('log_clear', 'true');
+            body.set('csrf_token', token);
+            if (btn && typeof S.setBusy === 'function') S.setBusy(btn, true);
+            var url = 'index.php?p=admin&c=settings&section=logs';
+            fetch(url, { method: 'POST', body: body, credentials: 'same-origin' }).then(function (res) {
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                window.location.href = url;
+            }).catch(function () {
+                if (btn && typeof S.setBusy === 'function') S.setBusy(btn, false);
+                if (typeof S.showToast === 'function') {
+                    S.showToast({ kind: 'error', title: 'Log not cleared', body: 'Reload the page and try again.' });
+                }
+            });
         });
     };
 })();
