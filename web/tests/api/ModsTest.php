@@ -174,11 +174,16 @@ final class ModsTest extends ApiTestCase
         $victim = SB_ICONS . '/../sbpp-delete-canary-' . bin2hex(random_bytes(4)) . '.txt';
         file_put_contents($victim, 'canary');
         try {
-            Fixture::rawPdo()->prepare(sprintf(
+            // One connection: rawPdo() opens a new one per call, and
+            // lastInsertId() on a fresh connection is 0, which made this
+            // test remove the seeded mod 0 and delete images/games/web.png.
+            $pdo = Fixture::rawPdo();
+            $pdo->prepare(sprintf(
                 'INSERT INTO `%s_mods` (name, icon, modfolder, steam_universe, enabled) VALUES (?, ?, ?, 0, 1)',
                 DB_PREFIX,
             ))->execute(['Tampered', '../' . basename($victim), 'tampered']);
-            $mid = (int) Fixture::rawPdo()->lastInsertId();
+            $mid = (int) $pdo->lastInsertId();
+            $this->assertGreaterThan(0, $mid);
 
             $this->loginAsAdmin();
             $env = $this->api('mods.remove', ['mid' => $mid]);

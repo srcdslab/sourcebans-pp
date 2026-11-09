@@ -148,8 +148,10 @@ final class OwnerEscalationTest extends ApiTestCase
         $webGroup = $this->createWebGroup('PlainWeb', ADMIN_LIST_ADMINS);
         $this->loginAsAdmin();
 
-        $this->api('groups.remove', ['gid' => $webGroup, 'type' => 'server']);
+        $env = $this->api('groups.remove', ['gid' => $webGroup, 'type' => 'server']);
 
+        // Reported as not found, not as a successful delete.
+        $this->assertEnvelopeError($env, 'not_found');
         $this->assertNotNull($this->row('groups', ['gid' => $webGroup]));
     }
 
@@ -253,5 +255,34 @@ final class OwnerEscalationTest extends ApiTestCase
 
         $this->assertTrue($env['ok'], json_encode($env));
         $this->assertSame(1, (int) $this->adminRow($retired)['enabled']);
+    }
+
+    public function testChangePasswordRefusesAnOwnerTargetForNonOwner(): void
+    {
+        // EditAdmins may call account.change_password for another aid, and
+        // bad_password has no lockout: it must not become a guessing oracle
+        // against an Owner. The refusal comes before the password check.
+        $this->loginAs($this->createAdmin('pw-editor', ADMIN_EDIT_ADMINS));
+        $before = $this->adminRow(Fixture::adminAid())['password'];
+
+        $env = $this->api('account.change_password', [
+            'aid' => Fixture::adminAid(), 'old_password' => 'admin', 'new_password' => 'Hijacked123!',
+        ]);
+
+        $this->assertEnvelopeError($env, 'forbidden');
+        $this->assertSame($before, $this->adminRow(Fixture::adminAid())['password']);
+    }
+
+    public function testChangePasswordStillAllowsANonOwnerTarget(): void
+    {
+        $target = $this->createAdmin('pw-target', ADMIN_LIST_ADMINS);
+        $this->loginAs($this->createAdmin('pw-editor2', ADMIN_EDIT_ADMINS));
+
+        $env = $this->api('account.change_password', [
+            'aid' => $target, 'old_password' => 'wrong', 'new_password' => 'Whatever123!',
+        ]);
+
+        // Reaches the current-password check (the target's password is 'x').
+        $this->assertEnvelopeError($env, 'bad_password');
     }
 }

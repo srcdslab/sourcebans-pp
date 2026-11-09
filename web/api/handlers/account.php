@@ -61,6 +61,13 @@ function api_account_change_password(array $params): array
         return Api::redirect('index.php?p=login&m=no_access');
     }
 
+    // Only an Owner may change an Owner's password. Checked before the
+    // current-password test so `bad_password` can't be used as a guessing
+    // oracle against an Owner account (it has no lockout).
+    if ($aid !== $userbank->GetAid() && !\Sbpp\Security\OwnerGuard::canModifyAdmin($aid)) {
+        throw new ApiError('forbidden', 'Only an owner can change an owner\'s password.');
+    }
+
     if (!$userbank->isCurrentPasswordValid($aid, $oldPass)) {
         throw new ApiError('bad_password', 'Current password doesn\'t match.', 'current');
     }

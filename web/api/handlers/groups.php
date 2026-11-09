@@ -84,6 +84,16 @@ function api_groups_remove(array $params): array
         throw new ApiError('forbidden', 'Only an owner can delete a group with owner permissions.');
     }
 
+    // The `server` branch only removes server groups (type 3). Refuse any
+    // other gid up front, before touching its server links, instead of
+    // reporting "Group Deleted" for a DELETE that matched nothing.
+    if ($type === 'server') {
+        $row = $GLOBALS['PDO']->query("SELECT type FROM `:prefix_groups` WHERE gid = ?")->single([$gid]);
+        if (!is_array($row) || (int) $row['type'] !== 3) {
+            throw new ApiError('not_found', 'Server group not found.');
+        }
+    }
+
     if ($type === 'web') {
         $GLOBALS['PDO']->query("UPDATE `:prefix_admins` SET gid = -1 WHERE gid = :gid");
         $GLOBALS['PDO']->bind(':gid', $gid);

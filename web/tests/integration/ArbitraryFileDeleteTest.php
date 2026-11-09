@@ -105,6 +105,22 @@ final class ArbitraryFileDeleteTest extends TestCase
         }
     }
 
+    public function testBanDemoLookupsBeforeDeleteFilterOnDemtype(): void
+    {
+        // :prefix_demos holds ban (B) and submission (S) rows under the
+        // same numeric demid. Without the filter, editing or deleting ban
+        // #N deleted submission #N's demo file.
+        foreach (['pages/page.banlist.php', 'pages/admin.edit.ban.php'] as $file) {
+            $src = php_strip_whitespace(self::WEB . $file);
+            $this->assertDoesNotMatchRegularExpression(
+                '/SELECT filename FROM `:prefix_demos` WHERE `?demid`?/',
+                $src,
+                "$file must filter the demo lookup on demtype",
+            );
+            $this->assertStringContainsString("SELECT filename FROM `:prefix_demos` WHERE UPPER(demtype) = 'B' AND", $src, $file);
+        }
+    }
+
     public function testEditBanValidatesDemoReferenceBeforeStoringIt(): void
     {
         $src = php_strip_whitespace(self::WEB . 'pages/admin.edit.ban.php');

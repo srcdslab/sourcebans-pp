@@ -201,7 +201,8 @@ if (isset($_GET['a']) && $_GET['a'] == "unban" && isset($_GET['id'])) {
     $fail   = 0;
     foreach ($bids as $bid) {
         $bid    = (int) $bid;
-        $GLOBALS['PDO']->query("SELECT filename FROM `:prefix_demos` WHERE `demid` = :bid");
+        // demtype filter: a submission demo can share this numeric id.
+        $GLOBALS['PDO']->query("SELECT filename FROM `:prefix_demos` WHERE UPPER(demtype) = 'B' AND `demid` = :bid");
         $GLOBALS['PDO']->bind(':bid', $bid);
         $demres = $GLOBALS['PDO']->single();
         if ($demres) {

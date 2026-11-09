@@ -214,9 +214,15 @@ if (isset($_POST['name'])) {
     if (!empty($_POST['dname'])) {
         $did = (string) ($_POST['did'] ?? '');
         $didPath = SB_DEMOS . DIRECTORY_SEPARATOR . $did;
+        $dname = (string) $_POST['dname'];
         if (!preg_match('/^[a-f0-9]{32}$/D', $did) || is_link($didPath) || !is_file($didPath)) {
             $error++;
             $validationErrors['demo'] = 'The demo upload reference is invalid. Please upload the demo again.';
+        } elseif (!mb_check_encoding($dname, 'UTF-8') || mb_strlen($dname, 'UTF-8') > 128) {
+            // `:prefix_demos.origname` is VARCHAR(128): same limit as
+            // bans.add, so strict mode can't turn the REPLACE into a 500.
+            $error++;
+            $validationErrors['demo'] = 'The demo filename is invalid. Rename the file and upload it again.';
         }
     }
 
@@ -325,7 +331,9 @@ if (isset($_POST['name'])) {
         $GLOBALS['PDO']->execute();
 
         if (!empty($_POST['dname'])) {
-            $GLOBALS['PDO']->query("SELECT filename FROM `:prefix_demos` WHERE demid = :id");
+            // demtype filter: a submission demo can share this numeric id,
+            // and its file must not be deleted here.
+            $GLOBALS['PDO']->query("SELECT filename FROM `:prefix_demos` WHERE UPPER(demtype) = 'B' AND demid = :id");
             $GLOBALS['PDO']->bind(':id', $_GET['id']);
             $demoid = $GLOBALS['PDO']->single();
             if (is_array($demoid)) {
