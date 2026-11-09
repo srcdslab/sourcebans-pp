@@ -10,6 +10,13 @@ Legend:
 ? = Other stuff
 ```
 
+(09/11/26): Version 2.2.11-srcdslab
+-----------------------
+```
+01. ! sbpp_main: the ban kick message is built in the banned player's
+        language instead of the last chat recipient's or the admin's
+```
+
 (29/10/26): Version 2.2.10-srcdslab
 -----------------------
 ```
