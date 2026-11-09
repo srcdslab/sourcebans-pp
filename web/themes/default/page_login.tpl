@@ -291,6 +291,7 @@
         empty_pwd:    { kind: 'info',  title: 'Empty password',     body: 'Your account has an empty password set. Reset it via the lost-password link, or ask an admin to do that for you.' },
         failed:       { kind: 'error', title: 'Login failed',       body: 'The username or password you supplied was incorrect. If you forgot your password, use the lost-password link below.' },
         steam_failed: { kind: 'error', title: 'Steam login failed', body: "Steam login was successful, but your SteamID isn't associated with any account." },
+        steam_error:  { kind: 'error', title: 'Steam login failed', body: 'The panel could not reach Steam. Try again later. If it keeps failing, ask the panel owner to check the system log.' },
         locked:       { kind: 'error', title: 'Account locked',     body: lockedBody }
     };
     var msg = msgs[m];

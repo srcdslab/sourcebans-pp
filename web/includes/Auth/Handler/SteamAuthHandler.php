@@ -14,13 +14,23 @@ final class SteamAuthHandler
         private LightOpenID $openid,
         private Database $dbs
     ) {
-        if ($this->openid->validate()) {
-            $steamid = $this->validate();
-            if ($steamid) {
-                $this->check($steamid);
+        try {
+            if ($this->openid->validate()) {
+                $steamid = $this->validate();
+                if ($steamid) {
+                    $this->check($steamid);
+                }
+            } elseif (!$this->openid->mode) {
+                $this->login();
             }
-        } elseif (!$this->openid->mode) {
-            $this->login();
+        } catch (\ErrorException $e) {
+            // LightOpenID throws ErrorException when it can't reach Steam:
+            // discovery or check_authentication failed, most often a TLS
+            // verification failure (error 60) on a host without a CA
+            // bundle. Send the user back to the login page instead of an
+            // unhandled 500, and log the cause for the operator.
+            \Sbpp\Log::add(\LogType::Error, 'Steam Login Failed', 'Could not reach Steam OpenID: ' . $e->getMessage());
+            header("Location: ".Host::complete()."/index.php?p=login&m=steam_error");
         }
     }
 

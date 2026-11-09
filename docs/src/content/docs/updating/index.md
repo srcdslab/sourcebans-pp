@@ -91,6 +91,13 @@ directory has no such guard, so it's on you to remove it.
 
 ## Version-specific notes
 
+### Steam login now verifies TLS
+
+Releases after 2.2.0-srcdslab check Steam's TLS certificate during
+Steam login. PHP needs a CA bundle for that. Most hosts ship one. If
+Steam login now fails with "The panel could not reach Steam", see
+[Steam login says the panel could not reach Steam](/faq/#steam-login-says-the-panel-could-not-reach-steam).
+
 ### Upgrading to 2.1.3-srcdslab or later
 
 Admin sessions are now stored server-side, so they can be revoked.
