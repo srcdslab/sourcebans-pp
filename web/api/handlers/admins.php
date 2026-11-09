@@ -813,7 +813,11 @@ function api_admins_edit_perms(array $params): array
  * is clamped to `[min_length, max_length]`. The response echoes the
  * effective options so the generator dialog can paint them.
  *
- * @param array{length?: int|string, lowercase?: bool|int|string, uppercase?: bool|int|string, digits?: bool|int|string, symbols?: bool|int|string, exclude_ambiguous?: bool|int|string} $params
+ * `max_length` lowers the cap for fields with a shorter limit (the
+ * server password stops at `SERVER_PASSWORD_MAX_BYTES`). It never goes
+ * below `min_length`. Generated characters are ASCII, so length = bytes.
+ *
+ * @param array{length?: int|string, max_length?: int|string, lowercase?: bool|int|string, uppercase?: bool|int|string, digits?: bool|int|string, symbols?: bool|int|string, exclude_ambiguous?: bool|int|string} $params
  * @return array{password: string, options: array{length: int, lowercase: bool, uppercase: bool, digits: bool, symbols: bool, exclude_ambiguous: bool}, min_length: int, max_length: int}
  */
 function api_admins_generate_password(array $params): array
@@ -824,10 +828,16 @@ function api_admins_generate_password(array $params): array
         throw new ApiError('validation', $e->getMessage(), 'charset');
     }
 
+    $maxLength = PasswordGenerator::MAX_LENGTH;
+    if (isset($params['max_length']) && is_numeric($params['max_length'])) {
+        $maxLength = max(PasswordGenerator::minLength(), min($maxLength, (int) $params['max_length']));
+    }
+    $options['length'] = min($options['length'], $maxLength);
+
     return [
         'password'   => PasswordGenerator::generate($options),
         'options'    => $options,
         'min_length' => PasswordGenerator::minLength(),
-        'max_length' => PasswordGenerator::MAX_LENGTH,
+        'max_length' => $maxLength,
     ];
 }

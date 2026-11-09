@@ -66,11 +66,6 @@ final class PasswordGenerator
     /** Character-set option keys, in the order they're guaranteed. */
     private const SETS = ['lowercase', 'uppercase', 'digits', 'symbols'];
 
-    /**
-     * Smallest length the generator will produce: the larger of the
-     * absolute floor and the panel's `config.password.minlength`, so a
-     * generated password always passes the panel's own validation.
-     */
     /** Longest server password the SourceMod plugin stores (`char password[66]`). */
     public const SERVER_PASSWORD_MAX_BYTES = 64;
 
@@ -88,6 +83,11 @@ final class PasswordGenerator
             && preg_match('/["\\\\\x00-\x1F\x7F]/', $value) === 0;
     }
 
+    /**
+     * Smallest length the generator will produce: the larger of the
+     * absolute floor and the panel's `config.password.minlength`, so a
+     * generated password always passes the panel's own validation.
+     */
     public static function minLength(): int
     {
         $panelMin = defined('MIN_PASS_LENGTH') ? (int) MIN_PASS_LENGTH : 0;

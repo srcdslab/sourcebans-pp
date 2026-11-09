@@ -6,7 +6,9 @@
    `<dialog>` (injected once). The dialog shows a generated password,
    lets the admin tweak length + character sets, and fills the inputs
    named in `data-password-targets` (comma-separated element ids) on
-   "Use password".
+   "Use password". An optional `data-password-max-length` caps the
+   length for fields with a shorter limit (the in-game server
+   password stops at 64 bytes).
 
        <button type="button" class="btn btn--ghost btn--icon"
                data-password-generator
@@ -52,6 +54,8 @@
     var targets = [];
     var loaded = false;
     var seq = 0;
+    /** Length cap from the open trigger's `data-password-max-length` (0 = none). */
+    var maxLength = 0;
     /** @type {number|undefined} */
     var debounce;
 
@@ -184,6 +188,7 @@
             return;
         }
 
+        /** @type {Record<string, number|boolean>} */
         var params = {};
         if (loaded) {
             params = readOptions(d);
@@ -194,6 +199,8 @@
                 return;
             }
         }
+
+        if (maxLength > 0) params.max_length = maxLength;
 
         var mine = ++seq;
         use.disabled = true;
@@ -291,6 +298,7 @@
             .split(',')
             .map(function (s) { return s.trim(); })
             .filter(function (s) { return s !== ''; });
+        maxLength = parseInt(trigger.getAttribute('data-password-max-length') || '', 10) || 0;
 
         var d = ensureDialog();
         showError(d, '');

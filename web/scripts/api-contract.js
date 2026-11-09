@@ -80,7 +80,10 @@
  * Generate a random password. Any option left out falls back to the
  * owner-configured defaults (`config.password.generator.*`); `length` is
  * clamped to `[min_length, max_length]`. The response echoes the effective
- * options so the generator dialog can paint them.
+ * options so the generator dialog can paint them.  `max_length` lowers the cap
+ * for fields with a shorter limit (the server password stops at
+ * `SERVER_PASSWORD_MAX_BYTES`). It never goes below `min_length`. Generated
+ * characters are ASCII, so length = bytes.
  *
  * @typedef {Object} ApiAdminsGeneratePasswordRequest
  * @typedef {{password: string, options: {length: number, lowercase: boolean, uppercase: boolean, digits: boolean, symbols: boolean, exclude_ambiguous: boolean}, min_length: number, max_length: number}} ApiAdminsGeneratePasswordResponse
@@ -459,7 +462,7 @@
  * LoadServers() that emitted addScript() calls per row.
  *
  * @typedef {Object} ApiKickitLoadServersRequest
- * @typedef {{servers: Array<{num:number, sid:number, has_rcon:boolean}>}} ApiKickitLoadServersResponse
+ * @typedef {{servers: Array<{num:number, sid:number, has_rcon:boolean, allowed:boolean}>}} ApiKickitLoadServersResponse
  */
 /**
  * @typedef {Object} ApiModsAddRequest
