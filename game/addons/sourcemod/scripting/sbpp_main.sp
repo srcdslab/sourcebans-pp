@@ -3361,14 +3361,14 @@ stock void PrepareBan(int client, int target, int time, char[] reason, int targe
 		char length[32];
 
 		if(time == 0)
-			FormatEx(length, sizeof(length), "%T", "permanent", client);
+			FormatEx(length, sizeof(length), "%T", "permanent", target);
 		else
-			FormatEx(length, sizeof(length), "%d %t", time, time == 1 ? "minute" : "minutes", client);
+			FormatEx(length, sizeof(length), "%d %T", time, time == 1 ? "minute" : "minutes", target);
 
 		if (time > 5 || time == 0)
 			time = 5;
 
-		Format(bannedSite, sizeof(bannedSite), "%t\n\n%t", "Banned Check Site", WebsiteAddress, "Kick Reason", client, reason, length);//temp
+		Format(bannedSite, sizeof(bannedSite), "%T\n\n%T", "Banned Check Site", target, WebsiteAddress, "Kick Reason", target, client, reason, length);//temp
 		BanClient(target, time, BANFLAG_AUTO, bannedSite, bannedSite, "sm_ban", client);
 	}
 
