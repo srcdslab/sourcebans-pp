@@ -237,13 +237,14 @@
                                id="account-new-srv-password"
                                name="new_srv_password"
                                data-testid="account-new-srv-password"
-                               minlength="{$min_pass_len}"
+                               minlength="{$min_pass_len}" maxlength="64"
                                style="flex:1;min-width:0">
                         {if $can_generate_password}
                             <button type="button" class="btn btn--ghost btn--icon"
                                     title="Generate password"
                                     aria-label="Generate server password"
                                     data-password-generator
+                                    data-password-max-length="64"
                                     data-password-targets="account-new-srv-password,account-confirm-srv-password"
                                     data-testid="account-generate-srv-password">
                                 <i data-lucide="refresh-cw" style="width:14px;height:14px"></i>
@@ -258,7 +259,7 @@
                            id="account-confirm-srv-password"
                            name="confirm_srv_password"
                            data-testid="account-confirm-srv-password"
-                           minlength="{$min_pass_len}">
+                           minlength="{$min_pass_len}" maxlength="64">
                     <div id="account-confirm-srv-password-msg" class="text-xs" style="color:var(--danger);display:none;margin-top:0.375rem"></div>
                 </div>
                 {if $srvpwset}
