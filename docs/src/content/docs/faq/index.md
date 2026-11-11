@@ -192,6 +192,29 @@ Fix it on the server, not in the panel:
 Linux packages usually set this up already (`ca-certificates`). The
 setting is most often missing on Windows and minimal PHP builds.
 
+### Login says "locked" for an account that isn't
+
+Two limits apply to password logins:
+
+- **Per account:** 5 wrong passwords lock that account for 10 minutes.
+- **Per address:** 20 failed logins from one IP address (or one IPv6
+  /64) in 15 minutes block logins from that address, for every
+  account, until the 15 minutes are up.
+
+The per-address limit needs the panel to see the visitor's real IP.
+Behind a reverse proxy (Cloudflare, Caddy, nginx), configure it to
+pass the client IP, or every visitor shares the proxy's address and
+one attacker blocks everyone. On Docker, set `SBPP_TRUSTED_PROXIES`.
+Elsewhere, configure your web server's real-IP module
+(`mod_remoteip`, nginx `real_ip`).
+
+To change the per-address limit, or turn it off with `0`, add this to
+`config.php` (or set the `SBPP_LOGIN_IP_LIMIT` env var on Docker):
+
+```php
+define('SBPP_LOGIN_IP_LIMIT', 50);
+```
+
 ### How do I customize the dashboard?
 
 See [Customizing the dashboard](/customization/removing-default-message/).

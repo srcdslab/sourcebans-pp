@@ -269,6 +269,17 @@ CREATE TABLE IF NOT EXISTS `{prefix}_login_tokens` (
     KEY `aid` (`aid`)
 ) ENGINE=InnoDB DEFAULT CHARSET={charset};
 
+-- Failed password logins per client address (#97), see
+-- Sbpp\Auth\LoginThrottle. `ip` is the hex of the packed address (IPv6
+-- cut to /64).
+CREATE TABLE IF NOT EXISTS `{prefix}_login_throttle` (
+    `ip` varchar(32) NOT NULL,
+    `attempts` int(10) UNSIGNED NOT NULL DEFAULT 0,
+    `window_start` int(11) NOT NULL,
+    PRIMARY KEY (`ip`),
+    KEY `window_start` (`window_start`)
+) ENGINE=InnoDB DEFAULT CHARSET={charset};
+
 -- Player notes scratchpad surfaced by the player-detail drawer (#1165).
 -- Notes are scoped per Steam ID so an admin can pin context that survives
 -- ban-row churn (a re-ban or unban makes a new bid — notes follow the

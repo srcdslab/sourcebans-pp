@@ -107,6 +107,17 @@ if (!defined('SBPP_PANEL_URL')) {
     define('SBPP_PANEL_URL', is_string($envPanelUrl) ? $envPanelUrl : '');
 }
 
+// SBPP_LOGIN_IP_LIMIT (#97): failed password logins allowed per client
+// address per 15 minutes (`Sbpp\Auth\LoginThrottle`). `0` turns the
+// per-address limit off, e.g. behind a proxy that hides client IPs.
+// config.php wins, then the env var; undefined uses the default (20).
+if (!defined('SBPP_LOGIN_IP_LIMIT')) {
+    $envLoginLimit = getenv('SBPP_LOGIN_IP_LIMIT');
+    if (is_string($envLoginLimit) && trim($envLoginLimit) !== '') {
+        define('SBPP_LOGIN_IP_LIMIT', $envLoginLimit);
+    }
+}
+
 // Issue #1335 C1: pre-fix this guard exempted `HTTP_HOST ==
 // "localhost"`, which was a panel-takeover path on any panel
 // reachable via a `localhost` Host header (port-forward, SSH

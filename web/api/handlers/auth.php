@@ -49,6 +49,18 @@ function api_auth_login(array $params): array
         return Api::redirect('?p=login&m=empty_pwd');
     }
 
+    $now = time();
+
+    // Per-address limit (#97), checked before the user lookup so known
+    // and unknown usernames get the same answer. It counts this attempt
+    // now and gives it back on success.
+    $clientIp = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
+    $throttle = new \Sbpp\Auth\LoginThrottle($GLOBALS['PDO']);
+    $ipRetryAfter = $throttle->reserve($clientIp, $now);
+    if ($ipRetryAfter !== null) {
+        return Api::redirect('?p=login&m=locked&time=' . (int) ceil($ipRetryAfter / 60));
+    }
+
     $user = _api_auth_get_user($username);
     if (!$user) {
         // Pay the same bcrypt cost a known account does, so response time
@@ -57,36 +69,67 @@ function api_auth_login(array $params): array
         return Api::redirect('?p=login&m=failed');
     }
 
-    if (!empty($user['lockout_until']) && strtotime($user['lockout_until']) > time()) {
-        $remaining = (strtotime($user['lockout_until']) - time()) / 60;
-        return Api::redirect('?p=login&m=locked&time=' . round($remaining));
+    // Reserve this attempt on the account before checking the password
+    // (#97). The lockout check, the increment and setting the lock are one
+    // statement: requests sent in parallel each take a slot, and once the
+    // slot that reaches $maxAttempts is taken the rest see the lock and
+    // never reach password_verify(). Pre-#97 the check and the increment
+    // were separate statements around the bcrypt check, so every parallel
+    // request passed the check and got a guess.
+    //
+    // `lockout_until` is assigned first so it reads the old `attempts`.
+    // Times are PHP-side `Y-m-d H:i:s`, as everywhere `lockout_until` is
+    // read. Keeps the pre-#97 rule: after a lock expires, `attempts` is
+    // still >= $maxAttempts, so one more wrong password locks again.
+    $GLOBALS['PDO']->query(
+        "UPDATE `:prefix_admins`
+            SET lockout_until = IF(attempts + 1 >= :max, :until, lockout_until),
+                attempts = attempts + 1
+          WHERE aid = :aid AND (lockout_until IS NULL OR lockout_until <= :now)"
+    );
+    $GLOBALS['PDO']->bindMultiple([
+        ':max'   => $maxAttempts,
+        ':until' => date('Y-m-d H:i:s', $now + $lockoutTime),
+        ':aid'   => (int) $user['aid'],
+        ':now'   => date('Y-m-d H:i:s', $now),
+    ]);
+    $GLOBALS['PDO']->execute();
+    if ($GLOBALS['PDO']->rowCount() === 0) {
+        // Locked, by an earlier request or a concurrent one.
+        return _api_auth_locked_redirect((int) $user['aid'], $now, $lockoutTime);
     }
 
     $auth = new NormalAuthHandler($GLOBALS['PDO'], $username, $password, $remember);
 
     if (!$auth->getResult()) {
-        $GLOBALS['PDO']->query("UPDATE `:prefix_admins` SET attempts = attempts + 1 WHERE user = :user");
-        $GLOBALS['PDO']->bind(':user', $username);
-        $GLOBALS['PDO']->execute();
-
-        $user = _api_auth_get_user($username);
-        if (($user['attempts'] ?? 0) >= $maxAttempts) {
-            $until = date('Y-m-d H:i:s', time() + $lockoutTime);
-            $GLOBALS['PDO']->query("UPDATE `:prefix_admins` SET lockout_until = :until WHERE user = :user");
-            $GLOBALS['PDO']->bind(':until', $until);
-            $GLOBALS['PDO']->bind(':user', $username);
-            $GLOBALS['PDO']->execute();
-            return Api::redirect('?p=login&m=locked&time=' . round($lockoutTime / 60));
+        // The reservation above already counted the failure, and set the
+        // lock if this was the last allowed attempt.
+        $after = _api_auth_get_user($username);
+        if (!empty($after['lockout_until']) && strtotime((string) $after['lockout_until']) > $now) {
+            return _api_auth_locked_redirect((int) $user['aid'], $now, $lockoutTime);
         }
-
         return Api::redirect('?p=login&m=failed');
     }
 
-    $GLOBALS['PDO']->query("UPDATE `:prefix_admins` SET attempts = 0, lockout_until = NULL WHERE user = :user");
-    $GLOBALS['PDO']->bind(':user', $username);
+    $GLOBALS['PDO']->query("UPDATE `:prefix_admins` SET attempts = 0, lockout_until = NULL WHERE aid = :aid");
+    $GLOBALS['PDO']->bind(':aid', (int) $user['aid']);
     $GLOBALS['PDO']->execute();
+    $throttle->release($clientIp);
 
     return Api::redirect('?' . $redirect);
+}
+
+/**
+ * `?p=login&m=locked&time=<minutes left>` for a locked account.
+ */
+function _api_auth_locked_redirect(int $aid, int $now, int $lockoutTime): array
+{
+    $GLOBALS['PDO']->query("SELECT lockout_until FROM `:prefix_admins` WHERE aid = :aid");
+    $GLOBALS['PDO']->bind(':aid', $aid);
+    $row = $GLOBALS['PDO']->single();
+    $until = is_array($row) && !empty($row['lockout_until']) ? strtotime((string) $row['lockout_until']) : false;
+    $remaining = $until !== false && $until > $now ? $until - $now : $lockoutTime;
+    return Api::redirect('?p=login&m=locked&time=' . round($remaining / 60));
 }
 
 /**
