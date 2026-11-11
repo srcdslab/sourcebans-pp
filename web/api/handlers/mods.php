@@ -11,6 +11,12 @@ function api_mods_add(array $params): array
     $steamUniverse  = (int)($params['steam_universe'] ?? 0);
     $enabled        = (int)(bool)($params['enabled']  ?? false);
 
+    // The icon name is joined to SB_ICONS and passed to unlink() when the
+    // mod is removed; only accept a plain file name.
+    if ($icon !== '' && !\Sbpp\Upload\UploadHandler::isSafeStoredName($icon)) {
+        throw new ApiError('validation', 'The icon file name is invalid.', 'icon');
+    }
+
     $check = $GLOBALS['PDO']->query("SELECT * FROM `:prefix_mods` WHERE modfolder = ? OR name = ?;")
         ->single([$folder, $name]);
 
@@ -78,7 +84,7 @@ function api_mods_remove(array $params): array
     $row = $GLOBALS['PDO']->single();
 
     if ($row && !empty($row['icon'])) {
-        @unlink(SB_ICONS . '/' . $row['icon']);
+        \Sbpp\Upload\UploadHandler::unlinkInside(SB_ICONS, (string) $row['icon']);
     }
 
     $GLOBALS['PDO']->query("DELETE FROM `:prefix_mods` WHERE mid = :mid");

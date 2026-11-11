@@ -1171,7 +1171,9 @@ paths:
         Only keys that already exist. Unknown or forbidden keys are 400.
         Enable flags must be 0/1. Integer settings (auth lifetimes, page
         size) must be a non-negative integer. Never writes `smtp.pass`
-        or `telemetry.instance_id`.
+        or `telemetry.instance_id`. `telemetry.endpoint` and
+        `telemetry.last_ping` are read-only. `config.theme` must name an
+        installed theme.
       requestBody:
         required: true
         content:

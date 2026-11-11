@@ -325,4 +325,32 @@ final class RestAdminsTest extends RestTestCase
         $this->assertIsArray($row, 'Expected an audit-log entry titled "' . $title . '"');
         return (string) $row['message'];
     }
+    public function testEditAdminsPatCannotUpdateOrReactivateADeactivatedOwner(): void
+    {
+        // Security review on #89: HasAccess() reads a disabled account as
+        // flag-less, so PUT (which also reactivates) used to let an
+        // EditAdmins token take over a deactivated Owner.
+        $pdo = Fixture::rawPdo();
+        $steam64 = '76561198000265728'; // STEAM_0:0:20000000
+        $pdo->prepare(sprintf(
+            'INSERT INTO `%s_admins` (user, authid, password, gid, email, validate, extraflags, immunity, enabled)
+             VALUES (?, ?, ?, -1, ?, NULL, ?, 0, 0)',
+            DB_PREFIX,
+        ))->execute(['retired-owner', 'STEAM_0:0:20000000', password_hash('x', PASSWORD_BCRYPT), 'retired@example.test', ADMIN_OWNER]);
+        $ownerAid = (int) $pdo->lastInsertId();
+        $pdo->prepare(sprintf(
+            'INSERT INTO `%s_admins` (user, authid, password, gid, email, validate, extraflags, immunity)
+             VALUES (?, ?, ?, -1, ?, NULL, ?, 0)',
+            DB_PREFIX,
+        ))->execute(['rest-editor', 'STEAM_0:0:20000001', password_hash('x', PASSWORD_BCRYPT), 'editor@example.test', ADMIN_EDIT_ADMINS]);
+        $token = $this->mintToken((int) $pdo->lastInsertId());
+
+        $response = $this->rest('PUT', '/admins/' . $steam64, ['email' => 'attacker@example.test'], $token);
+
+        $this->assertRestError($response, 403, 'forbidden');
+        $row = $pdo->query(sprintf('SELECT email, enabled FROM `%s_admins` WHERE aid = %d', DB_PREFIX, $ownerAid))
+            ->fetch(\PDO::FETCH_ASSOC);
+        $this->assertSame('retired@example.test', $row['email']);
+        $this->assertSame(0, (int) $row['enabled']);
+    }
 }

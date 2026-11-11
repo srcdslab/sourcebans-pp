@@ -5,7 +5,8 @@
             {
                 "num": 0,
                 "sid": 5,
-                "has_rcon": true
+                "has_rcon": true,
+                "allowed": true
             }
         ]
     }

@@ -131,6 +131,12 @@ if ($section === 'add-admin') {
 
 // ---------------------------------------------------------------- overrides
 if ($section === 'overrides') {
+    // The c=admins route admits any admin flag; the nav entry is gated
+    // on AddAdmins but this handler also writes overrides on POST.
+    if (!$canAddAdmins) {
+        echo '<div class="card"><div class="card__body"><p class="text-muted m-0">Access denied.</p></div></div>';
+        return;
+    }
     // Overrides — extracted into its own handler in #1123 B17. The
     // require lands the AdminOverridesView for us (it does its own
     // POST processing + Renderer::render). admin.overrides.php is

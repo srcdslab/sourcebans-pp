@@ -52,6 +52,16 @@ function api_blockit_block_player(array $params): array
         ];
     }
 
+    // Blocking is an RCON action: it needs the per-server mapping, like
+    // kickit.kick_player. The one exception is the fan-out that follows
+    // comms.add, which applies a just-added block on every server because
+    // the block itself is global. The exception only applies when the
+    // target really has an active block of that type; otherwise this
+    // action would gag or mute anyone on any server.
+    if (!_api_servers_caller_can_rcon($sid) && !_api_blockit_target_has_active_block($type, $check)) {
+        _api_servers_require_rcon_access($sid, 'block a player');
+    }
+
     $serverInfo = $GLOBALS['PDO']->query("SELECT ip, port FROM `:prefix_servers` WHERE sid = :sid");
     $GLOBALS['PDO']->bind(':sid', $sid);
     $sdata = $GLOBALS['PDO']->single() ?: ['ip' => '', 'port' => ''];
@@ -88,4 +98,30 @@ function api_blockit_block_player(array $params): array
     }
 
     return ['status' => 'not_found', 'sid' => $sid, 'num' => $num, 'hostname' => $hostname, 'ip' => $sdata['ip'], 'port' => $sdata['port']];
+}
+
+/**
+ * True when `$check` (a validated SteamID) has an active, unlifted block
+ * covering `$type` (1 = mute, 2 = gag, 3 = both). comms.add stores a
+ * silence as one mute row plus one gag row; forks and imports may store
+ * it as a single type 3 row, which covers every type.
+ */
+function _api_blockit_target_has_active_block(int $type, string $check): bool
+{
+    $rows = $GLOBALS['PDO']->query(
+        "SELECT DISTINCT type FROM `:prefix_comms`
+          WHERE authid IN (?, ?) AND RemovedBy IS NULL AND RemoveType IS NULL
+            AND (length = 0 OR ends > UNIX_TIMESTAMP())"
+    )->resultset(_api_servers_steam2_forms(SteamID::toSteam2($check)));
+    $types = array_map(static fn (array $r): int => (int) $r['type'], $rows);
+
+    if (in_array(3, $types, true)) {
+        return true;
+    }
+    return match ($type) {
+        1 => in_array(1, $types, true),
+        2 => in_array(2, $types, true),
+        3 => in_array(1, $types, true) && in_array(2, $types, true),
+        default => false,
+    };
 }

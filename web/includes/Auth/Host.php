@@ -166,7 +166,11 @@ final class Host
             switch (true) {
                 case empty($fragment):
                 case str_contains($fragment, '.php'):
-                case !preg_match('#^[A-Za-z0-9._~!$&\'()*+,;=:@%-]+$#', $fragment):
+                // Path segments are echoed into HTML, JS, mail links and
+                // RCON kick messages; keep only characters that can't
+                // break out of any of those contexts (no quotes, parens,
+                // `;`, `&`, `<`, `>`). Percent-escapes stay encoded.
+                case !preg_match('#^[A-Za-z0-9._~%+-]+$#D', $fragment):
                     unset($request[$id]);
                     break;
                 default:

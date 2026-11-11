@@ -169,6 +169,29 @@ the panel's bootstrap. Touch only the row you intend to fix, and
 back up the table first if you're not sure.
 :::
 
+### Steam login says the panel could not reach Steam
+
+The panel checks Steam's TLS certificate before it trusts a Steam
+login. If PHP has no CA bundle, the check fails and the login stops.
+**Admin Panel → System log** then shows a `Steam Login Failed` entry,
+often with `SSL certificate problem` (cURL error 60).
+
+Fix it on the server, not in the panel:
+
+1. Download a CA bundle, for example
+   [cacert.pem from the cURL project](https://curl.se/docs/caextract.html).
+2. Point PHP at it in `php.ini`:
+
+   ```ini
+   curl.cainfo = "/path/to/cacert.pem"
+   openssl.cafile = "/path/to/cacert.pem"
+   ```
+
+3. Restart PHP (or your web server) and try again.
+
+Linux packages usually set this up already (`ca-certificates`). The
+setting is most often missing on Windows and minimal PHP builds.
+
 ### How do I customize the dashboard?
 
 See [Customizing the dashboard](/customization/removing-default-message/).

@@ -177,7 +177,7 @@ every anonymous visitor shares one 60/min bucket. Do not parse
 | PATCH | `/comments/{cid}` | `body`. Author or Owner |
 | DELETE | `/comments/{cid}` | Owner only |
 | GET | `/settings` | Flat key/value map. Never `smtp.pass` or `telemetry.instance_id` |
-| PATCH | `/settings` | Existing keys only. Same forbidden keys. Enable flags are 0/1. Integer settings must be an integer |
+| PATCH | `/settings` | Existing keys only. Same forbidden keys. `telemetry.endpoint` and `telemetry.last_ping` are read-only. `config.theme` must be an installed theme. Enable flags are 0/1. Integer settings must be an integer |
 | GET | `/openapi.yaml` | This spec |
 
 GET `/bans`, `/comms`, and `/servers` work without a token. Ban and comm

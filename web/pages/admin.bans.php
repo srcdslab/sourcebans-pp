@@ -96,6 +96,13 @@ if (isset($GLOBALS['IN_ADMIN'])) {
     define('CUR_AID', $userbank->GetAid());
 }
 
+if (isset($_POST['action']) && $_POST['action'] == "importBans" && !$canImport) {
+    // The c=bans route admits any ban flag; importing needs BanImport.
+    Log::add(LogType::Warning, 'Hacking Attempt', $userbank->GetProperty('user') . " tried to import bans, but doesn't have access.");
+    echo '<div class="card"><div class="card__body"><p class="text-muted m-0">Access denied.</p></div></div>';
+    return;
+}
+
 if (isset($_POST['action']) && $_POST['action'] == "importBans") {
     $bannedcfg = file($_FILES["importFile"]["tmp_name"]);
     $bancnt    = 0;

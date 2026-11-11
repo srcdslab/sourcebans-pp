@@ -26,6 +26,12 @@ function api_groups_add(array $params): array
     if ($type === '0') {
         throw new ApiError('validation', 'Please choose a type for the group.', 'type');
     }
+    if ($type === '1' && \Sbpp\Security\OwnerGuard::maskHasOwner($bitmask)
+        && !\Sbpp\Security\OwnerGuard::callerIsOwner()) {
+        Log::add(LogType::Warning, 'Hacking Attempt',
+            $userbank->GetProperty('user') . ' tried to create a group with OWNER permissions, but doesnt have access.');
+        throw new ApiError('forbidden', 'Only an owner can create a group with owner permissions.');
+    }
 
     $next = (int)($GLOBALS['PDO']->query("SELECT MAX(gid) AS next_gid FROM `:prefix_groups`")->single()['next_gid'] ?? 0) + 1;
 
@@ -71,6 +77,23 @@ function api_groups_remove(array $params): array
     $rehashing = false;
     $allservers = [];
 
+    // Both `web` and `server` delete from :prefix_groups, so both must be
+    // guarded: `type` is client-controlled.
+    if (($type === 'web' || $type === 'server') && \Sbpp\Security\OwnerGuard::isOwnerGroup($gid)
+        && !\Sbpp\Security\OwnerGuard::callerIsOwner()) {
+        throw new ApiError('forbidden', 'Only an owner can delete a group with owner permissions.');
+    }
+
+    // The `server` branch only removes server groups (type 3). Refuse any
+    // other gid up front, before touching its server links, instead of
+    // reporting "Group Deleted" for a DELETE that matched nothing.
+    if ($type === 'server') {
+        $row = $GLOBALS['PDO']->query("SELECT type FROM `:prefix_groups` WHERE gid = ?")->single([$gid]);
+        if (!is_array($row) || (int) $row['type'] !== 3) {
+            throw new ApiError('not_found', 'Server group not found.');
+        }
+    }
+
     if ($type === 'web') {
         $GLOBALS['PDO']->query("UPDATE `:prefix_admins` SET gid = -1 WHERE gid = :gid");
         $GLOBALS['PDO']->bind(':gid', $gid);
@@ -84,7 +107,8 @@ function api_groups_remove(array $params): array
         $GLOBALS['PDO']->bind(':gid', $gid);
         $GLOBALS['PDO']->execute();
 
-        $GLOBALS['PDO']->query("DELETE FROM `:prefix_groups` WHERE gid = :gid");
+        // Only server groups (type 3) may be removed through this branch.
+        $GLOBALS['PDO']->query("DELETE FROM `:prefix_groups` WHERE gid = :gid AND type = 3");
         $GLOBALS['PDO']->bind(':gid', $gid);
         $ok = $GLOBALS['PDO']->execute();
     } else {
@@ -141,6 +165,12 @@ function api_groups_edit(array $params): array
 
     if ($name === '') {
         throw new ApiError('validation', 'Group name is required.', 'name');
+    }
+    if (($type === 'web' || $type === 'server') && !\Sbpp\Security\OwnerGuard::callerIsOwner()
+        && (\Sbpp\Security\OwnerGuard::maskHasOwner($webFlags) || \Sbpp\Security\OwnerGuard::isOwnerGroup($gid))) {
+        Log::add(LogType::Warning, 'Hacking Attempt',
+            $GLOBALS['userbank']->GetProperty('user') . ' tried to edit an OWNER group or grant OWNER to a group, but doesnt have access.');
+        throw new ApiError('forbidden', 'Only an owner can grant owner permissions or edit an owner group.');
     }
 
     if ($type === 'web' || $type === 'server') {

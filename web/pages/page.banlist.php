@@ -201,11 +201,12 @@ if (isset($_GET['a']) && $_GET['a'] == "unban" && isset($_GET['id'])) {
     $fail   = 0;
     foreach ($bids as $bid) {
         $bid    = (int) $bid;
-        $GLOBALS['PDO']->query("SELECT filename FROM `:prefix_demos` WHERE `demid` = :bid");
+        // demtype filter: a submission demo can share this numeric id.
+        $GLOBALS['PDO']->query("SELECT filename FROM `:prefix_demos` WHERE UPPER(demtype) = 'B' AND `demid` = :bid");
         $GLOBALS['PDO']->bind(':bid', $bid);
         $demres = $GLOBALS['PDO']->single();
         if ($demres) {
-            @unlink(SB_DEMOS . "/" . $demres["filename"]);
+            \Sbpp\Upload\UploadHandler::unlinkInside(SB_DEMOS, (string) $demres["filename"]);
         }
         $GLOBALS['PDO']->query("SELECT s.sid, m.steam_universe FROM `:prefix_banlog` bl INNER JOIN `:prefix_servers` s ON s.sid = bl.sid INNER JOIN `:prefix_mods` m ON m.mid = s.modid WHERE bl.bid = :bid AND (UNIX_TIMESTAMP() - bl.time <= 300)");
         $GLOBALS['PDO']->bind(':bid', $bid);

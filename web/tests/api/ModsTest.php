@@ -155,4 +155,43 @@ final class ModsTest extends ApiTestCase
         $this->assertIsArray($row, 'Expected an audit-log entry titled "' . $title . '"');
         return (string) $row['message'];
     }
+    public function testAddRejectsIconPathTraversal(): void
+    {
+        $this->loginAsAdmin();
+        $env = $this->api('mods.add', [
+            'name' => 'Traversal', 'folder' => 'trav', 'icon' => '../../config.php',
+            'steam_universe' => 0, 'enabled' => true,
+        ]);
+        $this->assertEnvelopeError($env, 'validation');
+        $this->assertSame('icon', $env['error']['field']);
+        $this->assertNull($this->row('mods', ['modfolder' => 'trav']));
+    }
+
+    public function testRemoveNeverDeletesOutsideTheIconDirectory(): void
+    {
+        // A row tampered with before the fix (or written straight to the DB)
+        // must not let mods.remove delete a file outside SB_ICONS.
+        $victim = SB_ICONS . '/../sbpp-delete-canary-' . bin2hex(random_bytes(4)) . '.txt';
+        file_put_contents($victim, 'canary');
+        try {
+            // One connection: rawPdo() opens a new one per call, and
+            // lastInsertId() on a fresh connection is 0, which made this
+            // test remove the seeded mod 0 and delete images/games/web.png.
+            $pdo = Fixture::rawPdo();
+            $pdo->prepare(sprintf(
+                'INSERT INTO `%s_mods` (name, icon, modfolder, steam_universe, enabled) VALUES (?, ?, ?, 0, 1)',
+                DB_PREFIX,
+            ))->execute(['Tampered', '../' . basename($victim), 'tampered']);
+            $mid = (int) $pdo->lastInsertId();
+            $this->assertGreaterThan(0, $mid);
+
+            $this->loginAsAdmin();
+            $env = $this->api('mods.remove', ['mid' => $mid]);
+
+            $this->assertTrue($env['ok'], json_encode($env));
+            $this->assertFileExists($victim);
+        } finally {
+            @unlink($victim);
+        }
+    }
 }

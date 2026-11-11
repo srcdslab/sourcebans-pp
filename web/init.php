@@ -289,7 +289,7 @@ if (defined("IS_UPDATE")) {
 define('SB_THEME', $theme_name);
 
 if (!@file_exists(SB_THEMES . $theme_name . "/theme.conf.php")) {
-    die("Theme Error: <b>".$theme_name."</b> is not a valid theme. Must have a valid <b>theme.conf.php</b> file.");
+    die("Theme Error: <b>" . htmlspecialchars((string) $theme_name, ENT_QUOTES, 'UTF-8') . "</b> is not a valid theme. Must have a valid <b>theme.conf.php</b> file.");
 }
 if (!@is_writable(SB_CACHE)) {
     die("Theme Error: <b>".SB_CACHE."</b> MUST be writable.");

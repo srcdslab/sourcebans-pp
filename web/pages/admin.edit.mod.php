@@ -84,13 +84,19 @@ if (isset($_POST['name'])) {
         }
     }
 
+    // The icon name is joined to SB_ICONS and later passed to unlink();
+    // only accept a plain file name (no directory part, no leading dot).
+    if ($rawIcon !== '' && !\Sbpp\Upload\UploadHandler::isSafeStoredName($rawIcon)) {
+        $validationErrors['icon'] = 'The icon file name is invalid. Please upload the icon again.';
+    }
+
     $name   = htmlspecialchars(strip_tags($rawName));
     $folder = htmlspecialchars(strip_tags($rawFolder));
     $icon   = htmlspecialchars(strip_tags($rawIcon));
 
     if ($validationErrors === []) {
         if (((string) $modRow['icon']) !== $rawIcon) {
-            @unlink(SB_ICONS . '/' . (string) $modRow['icon']);
+            \Sbpp\Upload\UploadHandler::unlinkInside(SB_ICONS, (string) $modRow['icon']);
         }
 
         $pdo->query(

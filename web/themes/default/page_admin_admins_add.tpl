@@ -147,7 +147,7 @@
                                onclick="var on = this.checked; ['a_serverpass', 'a_serverpass_generate'].forEach(function (id) { var el = document.getElementById(id); if (el) el.disabled = !on; });">
                         <label for="a_useserverpass" class="text-sm font-medium" style="margin:0">Set in-game admin password</label>
                         <div class="flex gap-2" style="max-width:16rem;margin-left:auto;flex:1;min-width:0">
-                            <input class="input" id="a_serverpass" name="a_serverpass" type="password"
+                            <input class="input" id="a_serverpass" name="a_serverpass" type="password" maxlength="64"
                                    style="flex:1;min-width:0" disabled tabindex="7"
                                    data-testid="admin-add-serverpass" autocomplete="new-password"
                                    aria-label="In-game admin password">
@@ -163,6 +163,7 @@
                             </button>
                             <button type="button" class="btn btn--ghost btn--icon" disabled
                                     id="a_serverpass_generate"
+                                    data-password-max-length="64"
                                     title="Generate password"
                                     aria-label="Generate in-game password"
                                     data-password-generator
