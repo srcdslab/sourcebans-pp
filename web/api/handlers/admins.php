@@ -560,6 +560,9 @@ function api_admins_add(array $params): array
     if (str_contains($name, "'")) {
         throw new ApiError('validation', "An admin name can not contain a \"'\".", 'name');
     }
+    if (!\Sbpp\Security\PluginConfigString::isSafe($name)) {
+        throw new ApiError('validation', 'The admin name ' . \Sbpp\Security\PluginConfigString::RULE, 'name');
+    }
     if ($userbank->isNameTaken($name)) {
         throw new ApiError('validation', 'An admin with this name already exists', 'name');
     }
@@ -631,6 +634,9 @@ function api_admins_add(array $params): array
         }
         if (str_contains((string)$serverName, ',')) {
             throw new ApiError('validation', "Group name cannot contain a ','", 'servername_err');
+        }
+        if (!\Sbpp\Security\PluginConfigString::isSafe((string)$serverName)) {
+            throw new ApiError('validation', 'The group name ' . \Sbpp\Security\PluginConfigString::RULE, 'servername_err');
         }
     }
     if ($wg === '-2') {
