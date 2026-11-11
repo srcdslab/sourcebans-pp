@@ -10,6 +10,17 @@ Legend:
 ? = Other stuff
 ```
 
+(11/11/26): Version 2.2.13-srcdslab
+-----------------------
+```
+01. ? web: league/commonmark 2.10.0 -> 2.10.7 (GHSA-97jj-33gv-5xf9,
+        GHSA-3q6v-r5mr-hxv8; the panel's renderer doesn't enable the
+        affected extensions, but this clears the Dependabot alerts)
+02. ? web: symfony/mime 8.1.2 -> 8.1.10 (CVE-2026-45070, email header
+        injection) and symfony/mailer 8.1.2 -> 8.1.10
+03. ? web: maxmind-db/reader 1.13.1 -> 1.14.0
+```
+
 (11/11/26): Version 2.2.12-srcdslab
 -----------------------
 ```
