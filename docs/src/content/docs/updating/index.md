@@ -91,6 +91,14 @@ directory has no such guard, so it's on you to remove it.
 
 ## Version-specific notes
 
+### Admin and server group names refuse quotes and backslashes
+
+Releases after 2.2.14-srcdslab refuse `"`, `\` and control characters
+in admin names and server group names. The plugin copies them into
+`sb_admins.cfg` and `sb_admin_groups.cfg`, and those characters break
+the file. Existing names keep working: the plugin replaces those
+characters with `_` in the backup files and logs it.
+
 ### Steam login now verifies TLS
 
 Releases after 2.2.0-srcdslab check Steam's TLS certificate during

@@ -91,6 +91,8 @@ if (isset($_POST['adminname'])) {
         $validationErrors['adminname'] = 'You must type a name for the admin.';
     } elseif (str_contains($rawName, "'")) {
         $validationErrors['adminname'] = "An admin name can not contain a \" ' \".";
+    } elseif (!\Sbpp\Security\PluginConfigString::isSafe($rawName)) {
+        $validationErrors['adminname'] = 'The admin name ' . \Sbpp\Security\PluginConfigString::RULE;
     } elseif ($rawName !== $userbank->GetProperty('user', $adminId)
         && $userbank->isNameTaken($rawName)) {
         $validationErrors['adminname'] = 'An admin with this name already exists.';

@@ -80,7 +80,7 @@ final class PasswordGenerator
     public static function isSafeServerPassword(string $value): bool
     {
         return strlen($value) <= self::SERVER_PASSWORD_MAX_BYTES
-            && preg_match('/["\\\\\x00-\x1F\x7F]/', $value) === 0;
+            && PluginConfigString::isSafe($value);
     }
 
     /**

@@ -438,6 +438,7 @@ matching its directory. PSR-4 autoloads from `web/includes/` →
 | `Sbpp\Security\Crypto`                   | password / token crypto               |
 | `Sbpp\Security\PasswordGenerator`        | configurable random password generator (owner defaults in `config.password.generator.*`) |
 | `Sbpp\Security\OwnerGuard`               | who may grant, hold or modify the Owner flag (groups.*, admins.*, admin edit pages) |
+| `Sbpp\Security\PluginConfigString`      | strings the plugin copies into `sb_admins.cfg` / `sb_admin_groups.cfg` (admin names, server group names, server passwords): no quotes, backslashes or control characters (#91). Check it on every new write path for those values |
 | `Sbpp\Log`                               | audit log                             |
 | `Sbpp\Config`                            | settings cache                        |
 | `Sbpp\Api\Api`                           | JSON API dispatcher                   |

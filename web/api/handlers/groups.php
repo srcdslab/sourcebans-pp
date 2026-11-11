@@ -20,6 +20,11 @@ function api_groups_add(array $params): array
     if (str_contains($name, ',')) {
         throw new ApiError('validation', "You cannot have a comma ',' in a group name.", 'name');
     }
+    // Server group names are written to sb_admin_groups.cfg (#91). Web
+    // groups never leave the panel.
+    if ($type === '2' && !\Sbpp\Security\PluginConfigString::isSafe($name)) {
+        throw new ApiError('validation', 'The group name ' . \Sbpp\Security\PluginConfigString::RULE, 'name');
+    }
     if ($existsWeb || $existsSrv) {
         throw new ApiError('validation', "A group is already named '$name'", 'name');
     }
@@ -165,6 +170,11 @@ function api_groups_edit(array $params): array
 
     if ($name === '') {
         throw new ApiError('validation', 'Group name is required.', 'name');
+    }
+    // Same rule as groups.add: a server group name ends up in
+    // sb_admin_groups.cfg and in every member's sb_admins.cfg entry (#91).
+    if ($type === 'srv' && !\Sbpp\Security\PluginConfigString::isSafe($name)) {
+        throw new ApiError('validation', 'The group name ' . \Sbpp\Security\PluginConfigString::RULE, 'name');
     }
     if (($type === 'web' || $type === 'server') && !\Sbpp\Security\OwnerGuard::callerIsOwner()
         && (\Sbpp\Security\OwnerGuard::maskHasOwner($webFlags) || \Sbpp\Security\OwnerGuard::isOwnerGroup($gid))) {

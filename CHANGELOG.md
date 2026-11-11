@@ -10,6 +10,20 @@ Legend:
 ? = Other stuff
 ```
 
+(11/11/26): Version 2.2.16-srcdslab
+-----------------------
+```
+01. ! web: admin names and server group names refuse quotes,
+        backslashes and control characters on every write path
+        (add admin, admin details, REST, groups, install wizard), like
+        the server password; they are written to sb_admins.cfg (#91)
+02. ! sbpp_main: the backup files (sb_admins.cfg, sb_admin_groups.cfg,
+        overrides_backup.cfg) replace quotes, backslashes and control
+        characters with _ in names, and leave out a server password or
+        SteamID that has one, so a database value can't break the file
+        or add entries to it (#91)
+```
+
 (11/11/26): Version 2.2.14-srcdslab
 -----------------------
 ```
