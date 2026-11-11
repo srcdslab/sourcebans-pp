@@ -7,6 +7,7 @@ declare(strict_types=1);
 
 namespace Sbpp\Upload;
 
+use Sbpp\Db\Database;
 use Sbpp\Log;
 use Sbpp\View\Renderer;
 use Sbpp\View\UploadFileView;
@@ -235,6 +236,59 @@ final class UploadHandler
             return false;
         }
         return @unlink($resolved);
+    }
+
+    /**
+     * True when a form sent any part of a demo attachment. The add-ban
+     * form has always sent numeric `0` as the disk name when no file was
+     * uploaded: keep that as "no attachment".
+     */
+    public static function hasDemoAttachment(string $diskName, string $originalName): bool
+    {
+        return ($diskName !== '' && $diskName !== '0') || $originalName !== '';
+    }
+
+    /**
+     * Validate an uploaded demo before linking it to a ban: `bans.add` and
+     * the edit-ban page both go through here (#98). `$diskName` comes from
+     * the client (the upload popup's callback), so it must be the exact
+     * name the uploader generates ({@see randomDiskName()}), resolve to a
+     * regular file inside SB_DEMOS (no symlink), and not already belong to
+     * another ban or submission: ban demos are public, submission demos
+     * are not (#55). Returns null when the attachment can be stored.
+     */
+    public static function checkDemoAttachment(Database $dbs, string $diskName, string $originalName): ?DemoAttachmentError
+    {
+        if ($diskName === '' || $diskName === '0' || $originalName === '') {
+            return DemoAttachmentError::Incomplete;
+        }
+        if (!preg_match('/^[a-f0-9]{32}$/D', $diskName)) {
+            return DemoAttachmentError::InvalidReference;
+        }
+        // `:prefix_demos.origname` is VARCHAR(128): refuse longer names
+        // before MariaDB strict mode turns the write into a 500.
+        if (!mb_check_encoding($originalName, 'UTF-8') || mb_strlen($originalName, 'UTF-8') > 128) {
+            return DemoAttachmentError::InvalidName;
+        }
+
+        $root = realpath(SB_DEMOS);
+        $path = rtrim(SB_DEMOS, '/\\') . DIRECTORY_SEPARATOR . $diskName;
+        $resolved = realpath($path);
+        if ($root === false
+            || $resolved === false
+            || !str_starts_with($resolved, $root . DIRECTORY_SEPARATOR)
+            || is_link($path)
+            || !is_file($resolved)) {
+            return DemoAttachmentError::Missing;
+        }
+
+        $dbs->query('SELECT 1 FROM `:prefix_demos` WHERE filename = :filename LIMIT 1');
+        $dbs->bind(':filename', $diskName);
+        if ($dbs->single()) {
+            return DemoAttachmentError::AlreadyAttached;
+        }
+
+        return null;
     }
 
     /**
