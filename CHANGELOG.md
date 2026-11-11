@@ -10,6 +10,15 @@ Legend:
 ? = Other stuff
 ```
 
+(11/11/26): Version 2.2.14-srcdslab
+-----------------------
+```
+01. - web: removed the unused TinyMCE 5.4.2 bundle
+        (web/includes/tinymce/). Nothing loads it since the intro text
+        moved to Markdown, but its files were still served on installs
+        that don't deny includes/, and 5.4.2 has known XSS CVEs
+```
+
 (11/11/26): Version 2.2.13-srcdslab
 -----------------------
 ```
