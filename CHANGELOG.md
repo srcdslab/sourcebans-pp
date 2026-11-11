@@ -10,6 +10,18 @@ Legend:
 ? = Other stuff
 ```
 
+(11/11/26): Version 2.2.17-srcdslab
+-----------------------
+```
+01. + web: bans.add and the edit-ban page validate an uploaded demo
+        with the same checks (UploadHandler::checkDemoAttachment); the
+        edit page now also requires the file to resolve inside demos/
+        and refuses a demo reference without its name (#98)
+02. ! web: a demo file already attached to another ban or submission
+        can't be attached to a ban, so a private submission demo can't
+        be made public through a ban (#98)
+```
+
 (11/11/26): Version 2.2.14-srcdslab
 -----------------------
 ```

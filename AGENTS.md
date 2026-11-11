@@ -450,7 +450,7 @@ matching its directory. PSR-4 autoloads from `web/includes/` →
 | `Sbpp\View\*`                            | view DTOs (page-level + partials)     |
 | `Sbpp\Servers\SourceQueryCache`          | per-`(ip, port)` on-disk cache around the xPaw A2S probe (#1311) |
 | `Sbpp\Servers\RconStatusCache`           | per-`sid` on-disk cache around the RCON `status` command (#PLAYER_CTX_MENU) |
-| `Sbpp\Upload\UploadHandler`              | shared file-upload handler (size + extension allowlist + filename sanitiser) for the three popup upload pages |
+| `Sbpp\Upload\UploadHandler`              | shared file-upload handler (size + extension allowlist + filename sanitiser) for the three popup upload pages; `checkDemoAttachment()` validates an uploaded demo reference before it is linked to a ban (#98) |
 | `Sbpp\Markup\IntroRenderer`              | admin-authored Markdown renderer      |
 | `Sbpp\Mail\Mail` / `Sbpp\Mail\Mailer` / `Sbpp\Mail\EmailType` | `Mail::send(...)` entry point + Symfony Mailer SMTP wrapper + email-type enum |
 | `Sbpp\Version`                           | three-tier `SB_VERSION` resolver (tarball JSON → git → `'dev'`) |
@@ -3302,6 +3302,12 @@ the spec, target a 1920px viewport, not 1440px.
  to defend the path. New popup-upload surfaces wire through
  `UploadHandler::handle()`; never `move_uploaded_file()`
  directly.
+- A per-page copy of the demo-reference checks (`preg_match` on the
+ 32-hex `did`, `is_file`, origname length) before writing
+ `:prefix_demos` → call `Sbpp\Upload\UploadHandler::checkDemoAttachment()`
+ and map its `DemoAttachmentError` to the page's error shape. The
+ copies drifted (#98: the edit-ban page had no `realpath` containment)
+ and neither refused a file already attached elsewhere.
 - `class="btn--ghost btn--icon"` (or any other modifier-only chain
  of `.btn--*` classes without the base `btn` token) on a `<button>`
  / `<a>` chrome affordance → always ship `class="btn btn--ghost
