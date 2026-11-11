@@ -99,6 +99,16 @@ services:
       # the typical value is "172.16.0.0/12 10.0.0.0/8".
       SBPP_TRUSTED_PROXIES: "${SBPP_TRUSTED_PROXIES:-}"
 
+      # SBPP_PANEL_URL — public URL of the panel root (e.g.
+      # https://panel.example.com). Emailed links are built from it
+      # instead of the client-supplied Host header. Empty = fall back
+      # to the Host header.
+      SBPP_PANEL_URL: "${SBPP_PANEL_URL:-}"
+
+      # SBPP_LOGIN_IP_LIMIT — failed password logins per client IP per
+      # 15 minutes. Empty = default (20), 0 = off.
+      SBPP_LOGIN_IP_LIMIT: "${SBPP_LOGIN_IP_LIMIT:-}"
+
       # SBPP_AUTO_INSTALL — set to "0" to opt OUT of the entrypoint's
       # first-boot install pass (e.g. when pointing at a managed DB
       # an operator already populated by hand). Default "1".

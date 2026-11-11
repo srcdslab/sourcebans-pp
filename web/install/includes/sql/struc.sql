@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS `{prefix}_admins` (
   `gid` int(6) NOT NULL,
   `email` varchar(128) NOT NULL,
   `validate` varchar(128) NULL default NULL,
+  `validate_until` datetime NULL default NULL,
   `extraflags` int(10) UNSIGNED NOT NULL,
   `immunity` int(10) NOT NULL default '0',
   `srv_group` varchar(128) default NULL,
@@ -266,6 +267,17 @@ CREATE TABLE IF NOT EXISTS `{prefix}_login_tokens` (
     PRIMARY KEY (`jti`),
     UNIQUE KEY `secret` (`secret`),
     KEY `aid` (`aid`)
+) ENGINE=InnoDB DEFAULT CHARSET={charset};
+
+-- Failed password logins per client address (#97), see
+-- Sbpp\Auth\LoginThrottle. `ip` is the hex of the packed address (IPv6
+-- cut to /64).
+CREATE TABLE IF NOT EXISTS `{prefix}_login_throttle` (
+    `ip` varchar(32) NOT NULL,
+    `attempts` int(10) UNSIGNED NOT NULL DEFAULT 0,
+    `window_start` int(11) NOT NULL,
+    PRIMARY KEY (`ip`),
+    KEY `window_start` (`window_start`)
 ) ENGINE=InnoDB DEFAULT CHARSET={charset};
 
 -- Player notes scratchpad surfaced by the player-detail drawer (#1165).

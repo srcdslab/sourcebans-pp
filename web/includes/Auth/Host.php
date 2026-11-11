@@ -187,12 +187,45 @@ final class Host
      *
      * Use this for every link the panel emails out. `complete(true)` drops
      * the install subfolder, so its links 404 on subfolder installs (#71).
-     * Call it from `index.php` / `api.php` requests only: the path is taken
-     * from the current request, so a nested script would add its own path.
+     *
+     * `SBPP_PANEL_URL` (config.php or env) wins when it is set: without it
+     * the host name comes from the request's `Host` header, which anyone
+     * can set, so a password reset requested with `Host: evil.example`
+     * would mail a link to that host (#95). The fallback takes the path
+     * from the current request: call it from `index.php` / `api.php` only,
+     * a nested script would add its own path.
      */
     public static function panelUrl(): string
     {
-        return rtrim(self::complete(), '/');
+        return self::configuredPanelUrl() ?? rtrim(self::complete(), '/');
+    }
+
+    /**
+     * `SBPP_PANEL_URL` when it holds a usable panel root, else null.
+     */
+    public static function configuredPanelUrl(): ?string
+    {
+        if (!defined('SBPP_PANEL_URL')) {
+            return null;
+        }
+        $value = constant('SBPP_PANEL_URL');
+        return is_string($value) ? self::normalizePanelUrl($value) : null;
+    }
+
+    /**
+     * Validate a panel root URL: `http` or `https`, a host, an optional
+     * port and path, nothing else (no credentials, query or fragment).
+     * Returns it without the trailing slash, or null when it isn't one.
+     * Characters are limited the same way `complete()` limits path
+     * segments, since the value is pasted into HTML and mail bodies.
+     */
+    public static function normalizePanelUrl(string $url): ?string
+    {
+        $url = rtrim(trim($url), '/');
+        if (!preg_match('#^https?://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~%+-]+)*$#Di', $url)) {
+            return null;
+        }
+        return $url;
     }
 }
 

@@ -430,7 +430,8 @@ matching its directory. PSR-4 autoloads from `web/includes/` →
 | `Sbpp\Db\Database`                       | DB access (PDO wrapper)               |
 | `Sbpp\Auth\UserManager`                  | session / user-state (was `CUserManager`) |
 | `Sbpp\Auth\Auth`                         | login flow                            |
-| `Sbpp\Auth\Host`                         | hostname helper                       |
+| `Sbpp\Auth\Host`                         | hostname helper; `panelUrl()` for emailed links (`SBPP_PANEL_URL`, #95) |
+| `Sbpp\Auth\LoginThrottle`                | failed password logins per client address, reserved before the password check (#97) |
 | `Sbpp\Auth\JWT`                          | token encode/decode                   |
 | `Sbpp\Auth\Handler\NormalAuthHandler`    | password login handler                |
 | `Sbpp\Auth\Handler\SteamAuthHandler`     | Steam OpenID login handler            |
@@ -1142,6 +1143,20 @@ The contract:
   treat a NULL / empty stored secret as never matching. Reference
   shape: the `?email=…&validation=…` branch in
   `web/pages/page.lostpassword.php`.
+- **A mailed secret expires.** Store a deadline next to it
+  (`:prefix_admins.validate_until` for reset tokens, #96) and refuse
+  the secret past it, or when the deadline is NULL.
+- **Count a guess before checking it.** A brute-force limit
+  (account lockout, `LoginThrottle`) must take its slot in one atomic
+  statement *before* the secret is verified, never read-check-verify-
+  increment: parallel requests all pass a separate check. Apply any
+  per-address limit before the identifier lookup so known and unknown
+  identifiers get the same answer (#97).
+- **Build mailed links with `Host::panelUrl()`.** It returns
+  `SBPP_PANEL_URL` (config.php or env) when set, and only falls back
+  to the request's `Host` header, which the client controls (#95).
+  Never concatenate `$_SERVER['HTTP_HOST']` or `Host::domain()` into
+  an emailed URL.
 
 **Caveat: response-time differential remains.** The matched branch
 performs a DB write + an SMTP round-trip; the unmatched branch

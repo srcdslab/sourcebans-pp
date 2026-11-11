@@ -245,6 +245,14 @@ form in and copy the `STEAM_0:0:…` line back out.
 Fill it in and click **OK**. Your panel is now live at
 `https://<your-domain>/`.
 
+The wizard also writes the address you ran it from into `config.php`
+as `SBPP_PANEL_URL`. Links in password reset and notification emails
+use it. If the panel moves to another address, edit that line:
+
+```php
+define('SBPP_PANEL_URL', 'https://bans.example.com');
+```
+
 <Aside type="caution" title="Delete the install directory">
 After the wizard finishes, **delete the `install/` directory** from
 your webserver. The panel refuses to boot while `install/` exists,

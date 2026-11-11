@@ -287,14 +287,19 @@ export interface LostpasswordSeed {
  * stays Python-style invisible to the spec author).
  *
  * Pass `email` to seed (and target) a dedicated admin row for that
- * address instead of the default `lostpw-happy@example.test`.
+ * address instead of the default `lostpw-happy@example.test`. Pass
+ * `{ expired: true }` (with an `email`) to seed a token whose
+ * `validate_until` deadline is already past (#96).
  */
-export async function seedLostpasswordE2e(email?: string): Promise<LostpasswordSeed> {
+export async function seedLostpasswordE2e(
+    email?: string,
+    opts: { expired?: boolean } = {},
+): Promise<LostpasswordSeed> {
     const inContainer = process.env.E2E_IN_CONTAINER === '1';
     const cmd = inContainer ? 'php' : 'docker';
     const scriptArgs = email === undefined
         ? [SEED_LOSTPASSWORD_INSIDE_CONTAINER]
-        : [SEED_LOSTPASSWORD_INSIDE_CONTAINER, email];
+        : [SEED_LOSTPASSWORD_INSIDE_CONTAINER, email, ...(opts.expired ? ['--expired'] : [])];
     const cmdArgs = inContainer
         ? scriptArgs
         : ['compose', 'exec', '-T', 'web', 'php', ...scriptArgs];

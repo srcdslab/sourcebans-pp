@@ -92,7 +92,8 @@ web/
 │   ├── Auth/UserManager.php  Sbpp\Auth\UserManager (was CUserManager) — current admin + perms
 │   ├── Auth/Auth.php         Sbpp\Auth\Auth — login flow / cookie issue
 │   ├── Auth/JWT.php          Sbpp\Auth\JWT — token encode/decode
-│   ├── Auth/Host.php         Sbpp\Auth\Host — hostname helper
+│   ├── Auth/Host.php         Sbpp\Auth\Host — hostname helper, panelUrl() (SBPP_PANEL_URL) for emailed links
+│   ├── Auth/LoginThrottle.php  Sbpp\Auth\LoginThrottle — failed logins per client address (#97)
 │   ├── Auth/Handler/         Sbpp\Auth\Handler\{Normal,Steam}AuthHandler — login handlers
 │   ├── Auth/openid.php       LightOpenID — third-party, intentionally global ns
 │   ├── Security/CSRF.php     Sbpp\Security\CSRF — token helpers
@@ -388,7 +389,11 @@ also requires BanSubmissions / BanProtests; DELETE is Owner via
 - Two login back-ends:
   - `Sbpp\Auth\Handler\NormalAuthHandler` — username + bcrypt password,
     with attempt counter and 10-minute lockout after 5 failures (#1081
-    hardening).
+    hardening). `api_auth_login` reserves the attempt in one `UPDATE`
+    before the password check, so parallel requests can't each get a
+    guess, and `Sbpp\Auth\LoginThrottle` limits failed logins per
+    client address (20 per 15 minutes, `SBPP_LOGIN_IP_LIMIT`) before
+    the username is looked up (#97).
   - `Sbpp\Auth\Handler\SteamAuthHandler` — OpenID via the third-party
     `includes/Auth/openid.php` (LightOpenID, intentionally kept in
     the global namespace).
@@ -1083,6 +1088,7 @@ in dev/CI). Major tables:
 | `sb_settings`               | Flat key/value config used by `Config`.       |
 | `sb_log`                    | Audit log (see `Log.php`).                    |
 | `sb_login_tokens`           | Live browser sessions: JWT id (`jti`) → admin (`aid`), last-accessed for GC. |
+| `sb_login_throttle`         | Failed password logins per client address (IPv6 /64), fixed 15-minute window (#97). |
 | `sb_notes`                  | Per-Steam-ID admin scratchpad (Notes tab in the player drawer, #1165). |
 
 Reseeded in tests via `web/tests/Fixture.php`, which renders `struc.sql`
