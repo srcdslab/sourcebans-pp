@@ -13,6 +13,12 @@ use Sbpp\Mail\Mail;
  */
 const API_AUTH_TIMING_DUMMY_HASH = '$2y$12$gaS4ruZ8z1k15YBlZL8toev5T.l7Bs4RMkwPxh8aGwGyTCr/FMaiG';
 
+/**
+ * Lifetime of a password reset link, in seconds (#96). The mail template
+ * (`pass_reset.html`) says "1 hour": keep them in sync.
+ */
+const API_AUTH_PASSWORD_RESET_TTL = 3600;
+
 function _api_auth_get_user(string $username): ?array
 {
     $GLOBALS['PDO']->query("SELECT aid, password, attempts, lockout_until FROM `:prefix_admins` WHERE user = :user");
@@ -197,8 +203,11 @@ function api_auth_lost_password(array $params): array
 
     $storedEmail = (string) $row['email'];
     $validation  = Crypto::recoveryHash();
-    $GLOBALS['PDO']->query("UPDATE `:prefix_admins` SET validate = :validate WHERE aid = :aid");
+    // The deadline is a PHP-side `Y-m-d H:i:s`, like `lockout_until`, so it
+    // compares in the same timezone `page.lostpassword.php` reads it in.
+    $GLOBALS['PDO']->query("UPDATE `:prefix_admins` SET validate = :validate, validate_until = :until WHERE aid = :aid");
     $GLOBALS['PDO']->bind(':validate', $validation);
+    $GLOBALS['PDO']->bind(':until', date('Y-m-d H:i:s', time() + API_AUTH_PASSWORD_RESET_TTL));
     $GLOBALS['PDO']->bind(':aid', (int) $row['aid']);
     $GLOBALS['PDO']->execute();
 

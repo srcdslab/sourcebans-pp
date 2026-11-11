@@ -1142,6 +1142,9 @@ The contract:
   treat a NULL / empty stored secret as never matching. Reference
   shape: the `?email=…&validation=…` branch in
   `web/pages/page.lostpassword.php`.
+- **A mailed secret expires.** Store a deadline next to it
+  (`:prefix_admins.validate_until` for reset tokens, #96) and refuse
+  the secret past it, or when the deadline is NULL.
 - **Build mailed links with `Host::panelUrl()`.** It returns
   `SBPP_PANEL_URL` (config.php or env) when set, and only falls back
   to the request's `Host` header, which the client controls (#95).

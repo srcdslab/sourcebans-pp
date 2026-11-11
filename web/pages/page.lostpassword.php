@@ -64,7 +64,7 @@ if (isset($_GET['email'], $_GET['validation']) && (!empty($_GET['email']) || !em
     // only narrows by email: the token is checked byte-exact here, and
     // the new password goes to the stored address, never the
     // collation-equal request value.
-    $GLOBALS['PDO']->query("SELECT aid, user, email, validate FROM `:prefix_admins` WHERE `email` = :email");
+    $GLOBALS['PDO']->query("SELECT aid, user, email, validate, validate_until FROM `:prefix_admins` WHERE `email` = :email");
     $GLOBALS['PDO']->bind(':email', $email);
     $candidates = $GLOBALS['PDO']->resultset();
 
@@ -79,6 +79,19 @@ if (isset($_GET['email'], $_GET['validation']) && (!empty($_GET['email']) || !em
 
     if ($result === null) {
         \Sbpp\View\Toast::emit('error', 'Error', 'The validation string does not match the email for this reset request.');
+        PageDie();
+    }
+
+    // #96: a reset link is valid for API_AUTH_PASSWORD_RESET_TTL after the
+    // request. A token without a deadline predates the column: refuse it.
+    // Only someone holding the right token reaches this branch, so the
+    // distinct message tells an attacker nothing.
+    $until = $result['validate_until'] === null ? false : strtotime((string) $result['validate_until']);
+    if ($until === false || $until <= time()) {
+        $GLOBALS['PDO']->query("UPDATE `:prefix_admins` SET `validate` = NULL, `validate_until` = NULL WHERE `aid` = :aid");
+        $GLOBALS['PDO']->bind(':aid', $result['aid']);
+        $GLOBALS['PDO']->execute();
+        \Sbpp\View\Toast::emit('error', 'Link expired', 'This password reset link has expired. Request a new one.');
         PageDie();
     }
 
@@ -110,7 +123,7 @@ if (isset($_GET['email'], $_GET['validation']) && (!empty($_GET['email']) || !em
         PageDie();
     }
 
-    $GLOBALS['PDO']->query("UPDATE `:prefix_admins` SET `password` = :password, `validate` = NULL WHERE `aid` = :aid");
+    $GLOBALS['PDO']->query("UPDATE `:prefix_admins` SET `password` = :password, `validate` = NULL, `validate_until` = NULL WHERE `aid` = :aid");
     $GLOBALS['PDO']->bind(':password', password_hash($password, PASSWORD_BCRYPT));
     $GLOBALS['PDO']->bind(':aid', $result['aid']);
     $GLOBALS['PDO']->execute();

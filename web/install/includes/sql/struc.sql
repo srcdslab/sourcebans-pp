@@ -8,6 +8,7 @@ CREATE TABLE IF NOT EXISTS `{prefix}_admins` (
   `gid` int(6) NOT NULL,
   `email` varchar(128) NOT NULL,
   `validate` varchar(128) NULL default NULL,
+  `validate_until` datetime NULL default NULL,
   `extraflags` int(10) UNSIGNED NOT NULL,
   `immunity` int(10) NOT NULL default '0',
   `srv_group` varchar(128) default NULL,

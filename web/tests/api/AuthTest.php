@@ -167,6 +167,40 @@ final class AuthTest extends ApiTestCase
     }
 
     /**
+     * #96: a reset token carries a deadline one hour out, in the same
+     * PHP-side `Y-m-d H:i:s` format `page.lostpassword.php` compares.
+     */
+    public function testLostPasswordSetsAOneHourDeadlineOnTheToken(): void
+    {
+        $before = time();
+        $this->api('auth.lost_password', ['email' => 'admin@example.test']);
+        $after = time();
+
+        $row = $this->row('admins', ['user' => 'admin']);
+        $this->assertNotNull($row['validate'] ?? null);
+        $this->assertNotNull($row['validate_until'] ?? null, 'The token must carry a deadline.');
+
+        $until = strtotime((string) $row['validate_until']);
+        $this->assertNotFalse($until);
+        $this->assertGreaterThanOrEqual($before + API_AUTH_PASSWORD_RESET_TTL, $until);
+        $this->assertLessThanOrEqual($after + API_AUTH_PASSWORD_RESET_TTL, $until);
+        $this->assertSame(3600, API_AUTH_PASSWORD_RESET_TTL, 'pass_reset.html says "1 hour".');
+    }
+
+    public function testLostPasswordPageRefusesATokenPastItsDeadline(): void
+    {
+        // The page exits through PageDie(), so pin the check in its source.
+        $src = (string) php_strip_whitespace(ROOT . 'pages/page.lostpassword.php');
+        $this->assertStringContainsString("\$result['validate_until'] === null ? false", $src);
+        $this->assertStringContainsString('$until <= time()', $src);
+        $this->assertLessThan(
+            strpos($src, 'Crypto::genSecret('),
+            strpos($src, '$until <= time()'),
+            'The deadline must be checked before a new password is generated and mailed.',
+        );
+    }
+
+    /**
      * #1456 — the `config.enablenormallogin=0` branch returns an
      * `ApiError('disabled', …)` envelope. The contract documented in
      * AGENTS.md "Public auth surfaces: response-shape uniformity" is

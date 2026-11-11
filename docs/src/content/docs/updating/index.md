@@ -104,7 +104,9 @@ wizard. On an existing install, add it to `config.php`:
 define('SBPP_PANEL_URL', 'https://bans.example.com');
 ```
 
-On Docker, set `SBPP_PANEL_URL` in `.env` instead.
+On Docker, set `SBPP_PANEL_URL` in `.env` instead. Password reset
+links now also expire after 1 hour. Links requested before the update
+no longer work: request a new one.
 
 ### Steam login now verifies TLS
 
