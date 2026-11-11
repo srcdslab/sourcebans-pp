@@ -96,6 +96,17 @@ if (!defined('SBPP_TRUSTED_PROXIES')) {
     define('SBPP_TRUSTED_PROXIES', is_string($envProxies) ? $envProxies : '');
 }
 
+// SBPP_PANEL_URL (#95): public URL of the panel root, e.g.
+// `https://bans.example.com` or `https://example.com/sourcebans`.
+// `Host::panelUrl()` builds every emailed link from it. Same resolution
+// order as SBPP_TRUSTED_PROXIES: config.php, then the env var (Docker),
+// then empty. Empty falls back to the request's Host header, which the
+// client controls.
+if (!defined('SBPP_PANEL_URL')) {
+    $envPanelUrl = getenv('SBPP_PANEL_URL');
+    define('SBPP_PANEL_URL', is_string($envPanelUrl) ? $envPanelUrl : '');
+}
+
 // Issue #1335 C1: pre-fix this guard exempted `HTTP_HOST ==
 // "localhost"`, which was a panel-takeover path on any panel
 // reachable via a `localhost` Host header (port-forward, SSH

@@ -430,7 +430,7 @@ matching its directory. PSR-4 autoloads from `web/includes/` →
 | `Sbpp\Db\Database`                       | DB access (PDO wrapper)               |
 | `Sbpp\Auth\UserManager`                  | session / user-state (was `CUserManager`) |
 | `Sbpp\Auth\Auth`                         | login flow                            |
-| `Sbpp\Auth\Host`                         | hostname helper                       |
+| `Sbpp\Auth\Host`                         | hostname helper; `panelUrl()` for emailed links (`SBPP_PANEL_URL`, #95) |
 | `Sbpp\Auth\JWT`                          | token encode/decode                   |
 | `Sbpp\Auth\Handler\NormalAuthHandler`    | password login handler                |
 | `Sbpp\Auth\Handler\SteamAuthHandler`     | Steam OpenID login handler            |
@@ -1142,6 +1142,11 @@ The contract:
   treat a NULL / empty stored secret as never matching. Reference
   shape: the `?email=…&validation=…` branch in
   `web/pages/page.lostpassword.php`.
+- **Build mailed links with `Host::panelUrl()`.** It returns
+  `SBPP_PANEL_URL` (config.php or env) when set, and only falls back
+  to the request's `Host` header, which the client controls (#95).
+  Never concatenate `$_SERVER['HTTP_HOST']` or `Host::domain()` into
+  an emailed URL.
 
 **Caveat: response-time differential remains.** The matched branch
 performs a DB write + an SMTP round-trip; the unmatched branch

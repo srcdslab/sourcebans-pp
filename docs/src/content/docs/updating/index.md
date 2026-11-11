@@ -91,6 +91,21 @@ directory has no such guard, so it's on you to remove it.
 
 ## Version-specific notes
 
+### Set the panel URL for emailed links
+
+Releases after 2.2.14-srcdslab read the panel's public URL from
+`SBPP_PANEL_URL` and build every emailed link from it (password
+resets, protests, submissions). Without it, links use the request's
+`Host` header, which a visitor can forge to send an admin a reset
+link pointing at another site. New installs get it from the install
+wizard. On an existing install, add it to `config.php`:
+
+```php
+define('SBPP_PANEL_URL', 'https://bans.example.com');
+```
+
+On Docker, set `SBPP_PANEL_URL` in `.env` instead.
+
 ### Steam login now verifies TLS
 
 Releases after 2.2.0-srcdslab check Steam's TLS certificate during

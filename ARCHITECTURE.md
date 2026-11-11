@@ -92,7 +92,7 @@ web/
 │   ├── Auth/UserManager.php  Sbpp\Auth\UserManager (was CUserManager) — current admin + perms
 │   ├── Auth/Auth.php         Sbpp\Auth\Auth — login flow / cookie issue
 │   ├── Auth/JWT.php          Sbpp\Auth\JWT — token encode/decode
-│   ├── Auth/Host.php         Sbpp\Auth\Host — hostname helper
+│   ├── Auth/Host.php         Sbpp\Auth\Host — hostname helper, panelUrl() (SBPP_PANEL_URL) for emailed links
 │   ├── Auth/Handler/         Sbpp\Auth\Handler\{Normal,Steam}AuthHandler — login handlers
 │   ├── Auth/openid.php       LightOpenID — third-party, intentionally global ns
 │   ├── Security/CSRF.php     Sbpp\Security\CSRF — token helpers
