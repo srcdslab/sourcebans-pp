@@ -10,6 +10,22 @@ Legend:
 ? = Other stuff
 ```
 
+(11/11/26): Version 2.2.12-srcdslab
+-----------------------
+```
+01. ! sbpp_main: sm_addban and sm_unban reject a malformed SteamID
+        (e.g. STEAM:0:1:1) instead of storing a ban that never matches
+        or reporting "No active ban"; sm_addban stores it as STEAM_0
+02. ! sbpp_main: sm_addban, sm_unban and SBPP_BanPlayerBySteamId match
+        a ban of either universe (STEAM_0 / STEAM_1), so sm_unban
+        STEAM_1:Y:Z lifts the panel's STEAM_0:Y:Z ban and sm_addban no
+        longer adds a duplicate next to it
+03. ! sbpp_main: sm_unban lifts every active ban that matches, not only
+        the first one
+04. ? sbpp_sleuth: sm_sleuth_duration's description points at
+        sm_sleuth_actions 2 (Custom Length), the mode that uses it
+```
+
 (09/11/26): Version 2.2.11-srcdslab
 -----------------------
 ```

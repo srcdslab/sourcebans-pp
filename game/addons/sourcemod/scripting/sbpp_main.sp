@@ -690,6 +690,16 @@ public Action CommandUnban(int client, int args)
 		len = 0;
 		Arguments[0] = '\0';
 	}
+
+	// Anything starting with STEAM_ must be a real SteamID2: a typo would
+	// otherwise just report "No active ban" for a player who stays banned.
+	bool isSteamId = strncmp(arg, "STEAM_", 6, false) == 0;
+	if (isSteamId && !UTIL_IsValidSteamID2(arg))
+	{
+		ReplyToCommand(client, "%s%t", Prefix, "Invalid SteamID", arg);
+		return Plugin_Handled;
+	}
+
 	if (!client)
 	{
 		// setup dummy adminAuth and adminIp for server
@@ -704,11 +714,13 @@ public Action CommandUnban(int client, int args)
 		return Plugin_Handled;
 	}
 
-	char query[256];
+	char query[512];
 
-	if (strncmp(arg, "STEAM_", 6) == 0)
+	if (isSteamId)
 	{
-		if (DB.Format(query, sizeof(query), "SELECT bid FROM %!s_bans WHERE (type = 0 AND authid = '%s') AND (length = '0' OR ends > UNIX_TIMESTAMP()) AND RemoveType IS NULL", DatabasePrefix, arg) >= sizeof(query) - 1)
+		// Either universe, like the connect ban check: the web panel stores
+		// STEAM_0, some games report STEAM_1.
+		if (DB.Format(query, sizeof(query), "SELECT bid FROM %!s_bans WHERE (type = 0 AND authid IN ('STEAM_0:%s', 'STEAM_1:%s')) AND (length = '0' OR ends > UNIX_TIMESTAMP()) AND RemoveType IS NULL", DatabasePrefix, arg[8], arg[8]) >= sizeof(query) - 1)
 		{
 			LogError("CommandUnban query truncated (steam)");
 			return Plugin_Handled;
@@ -784,6 +796,19 @@ public Action CommandAddBan(int client, int args)
 		return Plugin_Handled;
 	}
 
+	// A ban on anything else never matches a player: the connect check only
+	// looks up STEAM_0:Y:Z / STEAM_1:Y:Z.
+	if (!UTIL_IsValidSteamID2(authid))
+	{
+		ReplyToCommand(client, "%s%t", Prefix, "Invalid SteamID", authid);
+		return Plugin_Handled;
+	}
+
+	// Stored as STEAM_0, like the web panel stores SteamIDs.
+	char normalizedAuthid[MAX_AUTHID_LENGTH];
+	FormatEx(normalizedAuthid, sizeof(normalizedAuthid), "STEAM_0:%s", authid[8]);
+	strcopy(authid, sizeof(authid), normalizedAuthid);
+
 	if (!minutes && client && !(CheckCommandAccess(client, "sm_unban", ADMFLAG_UNBAN | ADMFLAG_ROOT)))
 	{
 		ReplyToCommand(client, "You do not have Perm Ban Permission");
@@ -805,9 +830,11 @@ public Action CommandAddBan(int client, int args)
 		return Plugin_Handled;
 	}
 
-	char sQuery[256];
-	if (DB.Format(sQuery, sizeof sQuery, "SELECT bid FROM %!s_bans WHERE type = 0 AND authid = '%s' AND (length = 0 OR ends > UNIX_TIMESTAMP()) AND RemoveType IS NULL",
-		DatabasePrefix, authid) >= sizeof(sQuery) - 1)
+	// An existing ban of either universe counts, so STEAM_1:Y:Z doesn't add a
+	// second ban next to the panel's STEAM_0:Y:Z one.
+	char sQuery[512];
+	if (DB.Format(sQuery, sizeof sQuery, "SELECT bid FROM %!s_bans WHERE type = 0 AND authid IN ('STEAM_0:%s', 'STEAM_1:%s') AND (length = 0 OR ends > UNIX_TIMESTAMP()) AND RemoveType IS NULL",
+		DatabasePrefix, authid[8], authid[8]) >= sizeof(sQuery) - 1)
 	{
 		LogError("CommandAddBan query truncated");
 		return Plugin_Handled;
@@ -1554,28 +1581,41 @@ public void SelectUnbanCallback(Database db, DBResultSet results, const char[] e
 		return;
 	}
 
-	// There is ban
-	if (results != null && results.FetchRow())
+	// Lift every active ban that matched (e.g. one per universe): the connect
+	// check would still find any ban left behind.
+	char bids[512];
+	int bidsLen;
+	while (results.FetchRow())
 	{
-		// Get the values from the existing ban record
-		int bid = results.FetchInt(0);
-
-		char query[1024];
-		if (db.Format(query, sizeof(query), "UPDATE %!s_bans SET RemovedBy = (SELECT aid FROM %!s_admins WHERE authid IN ('%s', 'STEAM_0:%s', 'STEAM_1:%s')), RemoveType = 'U', RemovedOn = UNIX_TIMESTAMP(), ureason = '%s' WHERE bid = %d",
-			DatabasePrefix, DatabasePrefix, adminAuth, adminAuth[8], adminAuth[8], reason, bid) >= sizeof(query) - 1)
+		char bid[16];
+		int bidLen = FormatEx(bid, sizeof(bid), "%s%d", bidsLen ? "," : "", results.FetchInt(0));
+		if (bidsLen + bidLen >= sizeof(bids))
 		{
-			LogError("SelectUnbanCallback update query truncated");
-			delete dataPack;
-			return;
+			// Never cut an id in half. The rest stays banned until the next sm_unban.
+			LogError("SelectUnbanCallback: too many active bans for %s, lifting the first ones only", arg);
+			break;
 		}
-
-		db.Query(InsertUnbanCallback, query, dataPack);
+		StrCat(bids, sizeof(bids), bid);
+		bidsLen += bidLen;
 	}
-	else
+
+	if (!bidsLen)
 	{
 		delete dataPack;
+		return;
 	}
-	return;
+
+	// bids only holds integers and commas, so it goes in unescaped.
+	char query[2048];
+	if (db.Format(query, sizeof(query), "UPDATE %!s_bans SET RemovedBy = (SELECT aid FROM %!s_admins WHERE authid IN ('%s', 'STEAM_0:%s', 'STEAM_1:%s')), RemoveType = 'U', RemovedOn = UNIX_TIMESTAMP(), ureason = '%s' WHERE bid IN (%!s)",
+		DatabasePrefix, DatabasePrefix, adminAuth, adminAuth[8], adminAuth[8], reason, bids) >= sizeof(query) - 1)
+	{
+		LogError("SelectUnbanCallback update query truncated");
+		delete dataPack;
+		return;
+	}
+
+	db.Query(InsertUnbanCallback, query, dataPack);
 }
 
 public void InsertUnbanCallback(Database db, DBResultSet results, const char[] error, DataPack dataPack)
@@ -2709,16 +2749,19 @@ public int Native_SBBanPlayer(Handle plugin, int numParams)
 	return true;
 }
 
-// Validates a SteamID2 authid ("STEAM_X:Y:Z" with X/Y single digits and Z a
-// non-empty run of digits). A prefix-only check would let malformed strings
-// such as "STEAM_junk" through, and the INSERT below slices authid[8] to build
-// the 'STEAM_0:%s' / 'STEAM_1:%s' lookups, so a bad tail silently produces a garbage row.
+// Validates a SteamID2 authid ("STEAM_X:Y:Z" with X and Y each 0 or 1 and Z a
+// non-empty run of digits that fits an account id, at most 2147483647).
+// A prefix-only check would let malformed strings such as "STEAM_junk"
+// through, and callers slice authid[8] to build the 'STEAM_0:%s' /
+// 'STEAM_1:%s' lookups, so a bad tail silently produces a garbage row.
+// Used by sm_addban, sm_unban and SBPP_BanPlayerBySteamId.
 static bool UTIL_IsValidSteamID2(const char[] authid)
 {
 	if (strncmp(authid, "STEAM_", 6, false) != 0)
 		return false;
 
-	if (!IsCharNumeric(authid[6]) || authid[7] != ':')
+	// The connect check only looks up STEAM_0 / STEAM_1.
+	if ((authid[6] != '0' && authid[6] != '1') || authid[7] != ':')
 		return false;
 
 	if ((authid[8] != '0' && authid[8] != '1') || authid[9] != ':')
@@ -2727,11 +2770,17 @@ static bool UTIL_IsValidSteamID2(const char[] authid)
 	if (authid[10] == '\0')
 		return false;
 
+	int zLength;
 	for (int i = 10; authid[i] != '\0'; i++)
 	{
 		if (!IsCharNumeric(authid[i]))
 			return false;
+		zLength++;
 	}
+
+	// Z is half of a 32-bit account id.
+	if (zLength > 10 || (zLength == 10 && strcmp(authid[10], "2147483647") > 0))
+		return false;
 
 	return true;
 }
@@ -2811,12 +2860,15 @@ public int Native_SBPP_BanPlayerBySteamId(Handle plugin, int numParams)
 	pack.WriteString(adminAuth);
 	pack.WriteString(adminIp);
 
-	char steamIdEscaped[MAX_AUTHID_LENGTH * 2 + 1];
-	DB.Escape(steamId, steamIdEscaped, sizeof(steamIdEscaped));
-
+	// An existing ban of either universe counts, as for sm_addban.
 	char query[512];
-	FormatEx(query, sizeof(query), "SELECT bid FROM %s_bans WHERE type = 0 AND authid = '%s' AND (length = 0 OR ends > UNIX_TIMESTAMP()) AND RemoveType IS NULL",
-		DatabasePrefix, steamIdEscaped);
+	if (DB.Format(query, sizeof(query), "SELECT bid FROM %!s_bans WHERE type = 0 AND authid IN ('STEAM_0:%s', 'STEAM_1:%s') AND (length = 0 OR ends > UNIX_TIMESTAMP()) AND RemoveType IS NULL",
+		DatabasePrefix, steamId[8], steamId[8]) >= sizeof(query) - 1)
+	{
+		LogError("SBPP_BanPlayerBySteamId query truncated");
+		delete pack;
+		return 0;
+	}
 
 	DB.Query(DB_OnBanBySteamIdSelect, query, pack, DBPrio_High);
 
