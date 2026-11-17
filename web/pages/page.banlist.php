@@ -868,6 +868,11 @@ if ($viewCommentsEnabled && $banIds !== []) {
 // local DB file), but the write-back that caches the resolved country
 // on `:prefix_bans` is queued here and flushed as ONE batched UPDATE
 // after the loop instead of one UPDATE per row.
+//
+// #1614: the database is operator-supplied and may be absent. Without
+// it CountryFlag::resolve() skips the lookup and nothing is written back,
+// so rows aren't permanently cached as "zz" and resolve once the
+// operator adds it.
 $pendingCountryUpdates = [];
 $countryFlagsEnabled   = CountryFlag::enabled();
 

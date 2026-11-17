@@ -808,8 +808,15 @@ final class BansTest extends ApiTestCase
         $this->assertNull($env['data']['player']['country'], 'junk stored value must not reach the wire');
 
         $env = $this->api('bans.detail', ['bid' => $lookupBid]);
-        $this->assertSame('US', $env['data']['player']['country'], 'empty column falls back to the bundled GeoIP DB');
         $cached = $pdo->query(sprintf('SELECT country FROM `%s_bans` WHERE bid = %d', DB_PREFIX, $lookupBid))->fetchColumn();
+        if (!GeoIpAvailable()) {
+            // #1614: no GeoLite2 database (it isn't shipped): no country,
+            // and nothing cached, so the row resolves once one is added.
+            $this->assertNull($env['data']['player']['country'], 'no database, no lookup');
+            $this->assertNull($cached, 'nothing is cached without a database');
+            return;
+        }
+        $this->assertSame('US', $env['data']['player']['country'], 'empty column falls back to the GeoIP DB');
         $this->assertSame('US', $cached, 'lookup result is cached on the ban row');
     }
 

@@ -71,6 +71,11 @@ final class CountryFlag
         if ($ip === '' || filter_var($ip, FILTER_VALIDATE_IP) === false) {
             return null;
         }
+        // #1614: the GeoLite2 database is operator-supplied. Without it
+        // there is nothing to look up, and nothing must be written back.
+        if (!\GeoIpAvailable()) {
+            return null;
+        }
         $lookedUp = \FetchIp($ip);
         return self::normalize($lookedUp);
     }
