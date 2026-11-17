@@ -52,14 +52,21 @@ final class BanListCountryFlagTest extends ApiTestCase
         $this->assertSame('fr', CountryFlag::resolve('FR', '8.8.8.8', $looked));
         $this->assertNull($looked, 'no lookup when the column is already filled');
 
+        $this->assertNull(CountryFlag::resolve('', '', $looked));
+        $this->assertNull($looked, 'no IP, no lookup');
+
+        // #1614: the GeoLite2 database is operator-supplied (not shipped).
+        if (!GeoIpAvailable()) {
+            $this->assertNull(CountryFlag::resolve(null, '8.8.8.8', $looked));
+            $this->assertNull($looked, 'without a database there is no lookup, so nothing to cache');
+            return;
+        }
+
         $this->assertSame('us', CountryFlag::resolve(null, '8.8.8.8', $looked));
         $this->assertSame('US', $looked, 'raw lookup result is handed back for caching');
 
         $this->assertNull(CountryFlag::resolve('', '10.0.0.1', $looked));
         $this->assertSame('zz', $looked, 'private IPs cache the zz placeholder');
-
-        $this->assertNull(CountryFlag::resolve('', '', $looked));
-        $this->assertNull($looked, 'no IP, no lookup');
     }
 
     public function testEnabledFollowsInvertedSetting(): void
