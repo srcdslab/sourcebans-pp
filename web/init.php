@@ -96,6 +96,28 @@ if (!defined('SBPP_TRUSTED_PROXIES')) {
     define('SBPP_TRUSTED_PROXIES', is_string($envProxies) ? $envProxies : '');
 }
 
+// SBPP_PANEL_URL (#95): public URL of the panel root, e.g.
+// `https://bans.example.com` or `https://example.com/sourcebans`.
+// `Host::panelUrl()` builds every emailed link from it. Same resolution
+// order as SBPP_TRUSTED_PROXIES: config.php, then the env var (Docker),
+// then empty. Empty falls back to the request's Host header, which the
+// client controls.
+if (!defined('SBPP_PANEL_URL')) {
+    $envPanelUrl = getenv('SBPP_PANEL_URL');
+    define('SBPP_PANEL_URL', is_string($envPanelUrl) ? $envPanelUrl : '');
+}
+
+// SBPP_LOGIN_IP_LIMIT (#97): failed password logins allowed per client
+// address per 15 minutes (`Sbpp\Auth\LoginThrottle`). `0` turns the
+// per-address limit off, e.g. behind a proxy that hides client IPs.
+// config.php wins, then the env var; undefined uses the default (20).
+if (!defined('SBPP_LOGIN_IP_LIMIT')) {
+    $envLoginLimit = getenv('SBPP_LOGIN_IP_LIMIT');
+    if (is_string($envLoginLimit) && trim($envLoginLimit) !== '') {
+        define('SBPP_LOGIN_IP_LIMIT', $envLoginLimit);
+    }
+}
+
 // Issue #1335 C1: pre-fix this guard exempted `HTTP_HOST ==
 // "localhost"`, which was a panel-takeover path on any panel
 // reachable via a `localhost` Host header (port-forward, SSH
