@@ -91,6 +91,31 @@ directory has no such guard, so it's on you to remove it.
 
 ## Version-specific notes
 
+### Set the panel URL for emailed links
+
+Releases after 2.2.14-srcdslab read the panel's public URL from
+`SBPP_PANEL_URL` and build every emailed link from it (password
+resets, protests, submissions). Without it, links use the request's
+`Host` header, which a visitor can forge to send an admin a reset
+link pointing at another site. New installs get it from the install
+wizard. On an existing install, add it to `config.php`:
+
+```php
+define('SBPP_PANEL_URL', 'https://bans.example.com');
+```
+
+On Docker, set `SBPP_PANEL_URL` in `.env` instead. Password reset
+links now also expire after 1 hour. Links requested before the update
+no longer work: request a new one.
+
+### Failed logins are limited per IP address
+
+Releases after 2.2.14-srcdslab also block password logins from an IP
+address after 20 failed attempts in 15 minutes, on top of the
+per-account lockout. Behind a reverse proxy the panel must see the
+client's IP, see
+[Login says "locked" for an account that isn't](/faq/#login-says-locked-for-an-account-that-isnt).
+
 ### Steam login now verifies TLS
 
 Releases after 2.2.0-srcdslab check Steam's TLS certificate during

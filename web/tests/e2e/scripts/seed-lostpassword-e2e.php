@@ -131,8 +131,12 @@ $pdo->bind(':password', password_hash(bin2hex(random_bytes(16)), PASSWORD_BCRYPT
 $pdo->bind(':email', $email);
 $pdo->execute();
 
-$pdo->query('UPDATE `:prefix_admins` SET validate = :validate WHERE email = :email');
+// A token without `validate_until` is refused as expired (#96). Pass
+// `--expired` as the second argument to seed a deadline in the past.
+$expired = ($argv[2] ?? '') === '--expired';
+$pdo->query('UPDATE `:prefix_admins` SET validate = :validate, validate_until = :until WHERE email = :email');
 $pdo->bind(':validate', $token);
+$pdo->bind(':until', date('Y-m-d H:i:s', $expired ? time() - 60 : time() + 3600));
 $pdo->bind(':email', $email);
 $pdo->execute();
 

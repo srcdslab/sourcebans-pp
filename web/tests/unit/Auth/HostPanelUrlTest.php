@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Sbpp\Tests\Unit\Auth;
 
 use PHPUnit\Framework\Attributes\DataProvider;
+use PHPUnit\Framework\Attributes\RunInSeparateProcess;
 use PHPUnit\Framework\TestCase;
 use Sbpp\Auth\Host;
 
@@ -14,6 +15,10 @@ use Sbpp\Auth\Host;
  * subfolder, so they 404'd on subfolder installs. `Host::panelUrl()`
  * keeps the subfolder and never ends with a slash, so callers can
  * append `/index.php?...` safely.
+ *
+ * #95: the fallback takes the host name from the client's `Host` header.
+ * `SBPP_PANEL_URL` wins when it is set. The constant is process-global,
+ * so the tests that define it run in a separate process.
  */
 final class HostPanelUrlTest extends TestCase
 {
@@ -62,6 +67,63 @@ final class HostPanelUrlTest extends TestCase
         $_SERVER['REQUEST_URI'] = '/sb/api.php';
 
         $this->assertSame('https://example.com/sb', Host::panelUrl());
+    }
+
+    /**
+     * @return iterable<string, array{string, ?string}>
+     */
+    public static function panelUrlValues(): iterable
+    {
+        yield 'root' => ['https://bans.example.com', 'https://bans.example.com'];
+        yield 'trailing slash' => ['https://bans.example.com/', 'https://bans.example.com'];
+        yield 'subfolder' => ['https://example.com/games/sb/', 'https://example.com/games/sb'];
+        yield 'port + http' => ['http://10.0.0.5:8080/sb', 'http://10.0.0.5:8080/sb'];
+        yield 'surrounding spaces' => ['  https://example.com  ', 'https://example.com'];
+        yield 'empty' => ['', null];
+        yield 'no scheme' => ['bans.example.com', null];
+        yield 'other scheme' => ['javascript://example.com', null];
+        yield 'credentials' => ['https://user:pass@example.com', null];
+        yield 'query' => ['https://example.com/?p=login', null];
+        yield 'fragment' => ['https://example.com/#x', null];
+        yield 'quote' => ['https://example.com/"onmouseover=x', null];
+        yield 'angle bracket' => ['https://example.com/<b>', null];
+        yield 'newline' => ["https://example.com/\nBcc: x@y", null];
+        yield 'empty path segment' => ['https://example.com//sb', null];
+    }
+
+    #[DataProvider('panelUrlValues')]
+    public function testNormalizePanelUrl(string $value, ?string $expected): void
+    {
+        $this->assertSame($expected, Host::normalizePanelUrl($value));
+    }
+
+    #[RunInSeparateProcess]
+    public function testConfiguredPanelUrlWinsOverHostHeader(): void
+    {
+        define('SBPP_PANEL_URL', 'https://bans.example.com/sb/');
+        $_SERVER['HTTP_HOST'] = 'evil.example';
+        $_SERVER['REQUEST_URI'] = '/api.php';
+
+        $this->assertSame('https://bans.example.com/sb', Host::panelUrl());
+    }
+
+    #[RunInSeparateProcess]
+    public function testInvalidConfiguredPanelUrlFallsBackToTheRequest(): void
+    {
+        define('SBPP_PANEL_URL', 'bans.example.com');
+        $_SERVER['REQUEST_URI'] = '/sb/api.php';
+
+        $this->assertNull(Host::configuredPanelUrl());
+        $this->assertSame('http://example.com/sb', Host::panelUrl());
+    }
+
+    #[RunInSeparateProcess]
+    public function testEmptyConfiguredPanelUrlFallsBackToTheRequest(): void
+    {
+        define('SBPP_PANEL_URL', '');
+        $_SERVER['REQUEST_URI'] = '/index.php';
+
+        $this->assertSame('http://example.com', Host::panelUrl());
     }
 
     /**

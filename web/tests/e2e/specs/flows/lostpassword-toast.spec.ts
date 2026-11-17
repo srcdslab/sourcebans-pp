@@ -366,6 +366,32 @@ test.describe('flow: lostpassword toast (#1403 ShowBox → Toast::emit)', () => 
         ).toEqual([]);
     });
 
+    test('Expired token → "Link expired" toast, no mail, token cleared (#96)', async ({ page, request }, testInfo) => {
+        const email = `lostpw-expired-${testInfo.project.name}-${Date.now()}@example.test`;
+        const { token } = await seedLostpasswordE2e(email, { expired: true });
+
+        await page.goto(
+            `/index.php?p=lostpassword&email=${encodeURIComponent(email)}&validation=${token}`,
+        );
+
+        await expect(page.locator('footer.sbpp-footer')).toBeAttached();
+        await expect(
+            page.locator('.toast[data-kind="error"]').filter({ hasText: /expired/i }),
+        ).toBeVisible();
+        expect(
+            await mailpitRecipientsFoldingTo(request, email),
+            'no new password may be mailed for an expired link',
+        ).toEqual([]);
+
+        // The expired token is cleared: a second visit no longer matches.
+        await page.goto(
+            `/index.php?p=lostpassword&email=${encodeURIComponent(email)}&validation=${token}`,
+        );
+        await expect(
+            page.locator('.toast[data-kind="error"]').filter({ hasText: /validation string does not match/i }),
+        ).toBeVisible();
+    });
+
     test('No raw <script>ShowBox(...) blob is emitted (static regression guard at the wire layer)', async ({ page }) => {
         // Belt-and-braces: the PHPUnit `ToastEmitRegressionTest` is
         // the canonical static gate, but the runtime equivalent
