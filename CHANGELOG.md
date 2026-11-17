@@ -10,6 +10,18 @@ Legend:
 ? = Other stuff
 ```
 
+(17/11/26): Version 2.2.20-srcdslab
+-----------------------
+```
+01. ! web: the GeoLite2 country database is no longer shipped:
+        MaxMind's EULA forbids redistributing it. Operators download it
+        with geoipupdate and point MMDB_PATH (config.php) or
+        SBPP_GEOIP_PATH (Docker) at it; without it, country lookups and
+        their write-back are skipped, flags already stored on bans still
+        show, and Settings says the database is missing (upstream #1616)
+02. ? theme: 2.0.5 (GeoLite attribution in the footer, settings hint)
+```
+
 (11/11/26): Version 2.2.17-srcdslab
 -----------------------
 ```
