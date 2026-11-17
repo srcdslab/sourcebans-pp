@@ -40,7 +40,7 @@ jobs:
           inc="game/addons/sourcemod/scripting/include/sbpp_version.inc"
           grep -Fq "#define SB_VERSION                        \"${GITHUB_REF_NAME}\"" "${inc}"
           grep -Fq '#define MAJOR_REVISION                    2' "${inc}"
-          grep -Fq '#define MINOR_REVISION                    0' "${inc}"
+          grep -Fq '#define MINOR_REVISION                    1' "${inc}"
 
       - name: Compile plugins
         working-directory: game/addons/sourcemod/scripting
