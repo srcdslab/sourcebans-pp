@@ -123,10 +123,12 @@ final class ArbitraryFileDeleteTest extends TestCase
 
     public function testEditBanValidatesDemoReferenceBeforeStoringIt(): void
     {
+        // #98: same validator as bans.add (hash shape, realpath inside
+        // SB_DEMOS, no symlink, not already attached).
         $src = php_strip_whitespace(self::WEB . 'pages/admin.edit.ban.php');
-        $gate = strpos($src, "preg_match('/^[a-f0-9]{32}\$/D', \$did)");
+        $gate = strpos($src, 'UploadHandler::checkDemoAttachment(');
         $store = strpos($src, 'REPLACE INTO `:prefix_demos`');
-        $this->assertNotFalse($gate, 'did must be checked against the uploader hash shape');
+        $this->assertNotFalse($gate, 'did must go through UploadHandler::checkDemoAttachment()');
         $this->assertNotFalse($store);
         $this->assertLessThan($store, $gate);
     }

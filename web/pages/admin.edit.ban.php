@@ -207,22 +207,20 @@ if (isset($_POST['name'])) {
         $validationErrors['reason'] = 'You must type a reason';
     }
 
-    // A demo attachment must reference a file the uploader created: a
-    // 32-char lowercase hex name that exists as a regular file inside
-    // SB_DEMOS. The stored name is later passed to unlink(), so an
-    // unchecked `did` (`../config.php`) was an arbitrary file delete.
-    if (!empty($_POST['dname'])) {
-        $did = (string) ($_POST['did'] ?? '');
-        $didPath = SB_DEMOS . DIRECTORY_SEPARATOR . $did;
-        $dname = (string) $_POST['dname'];
-        if (!preg_match('/^[a-f0-9]{32}$/D', $did) || is_link($didPath) || !is_file($didPath)) {
+    // A demo attachment must reference a file the uploader created. The
+    // stored name is later passed to unlink(), so an unchecked `did`
+    // (`../config.php`) was an arbitrary file delete. Same checks as
+    // bans.add (#98): UploadHandler::checkDemoAttachment().
+    $did = (string) ($_POST['did'] ?? '');
+    $dname = (string) ($_POST['dname'] ?? '');
+    $attachDemo = \Sbpp\Upload\UploadHandler::hasDemoAttachment($did, $dname);
+    if ($attachDemo) {
+        $demoError = \Sbpp\Upload\UploadHandler::checkDemoAttachment($GLOBALS['PDO'], $did, $dname);
+        if ($demoError !== null) {
             $error++;
-            $validationErrors['demo'] = 'The demo upload reference is invalid. Please upload the demo again.';
-        } elseif (!mb_check_encoding($dname, 'UTF-8') || mb_strlen($dname, 'UTF-8') > 128) {
-            // `:prefix_demos.origname` is VARCHAR(128): same limit as
-            // bans.add, so strict mode can't turn the REPLACE into a 500.
-            $error++;
-            $validationErrors['demo'] = 'The demo filename is invalid. Rename the file and upload it again.';
+            $validationErrors['demo'] = $demoError->message() . ($demoError === \Sbpp\Upload\DemoAttachmentError::InvalidName
+                ? ' Rename the file and upload it again.'
+                : ' Please upload the demo again.');
         }
     }
 
@@ -330,7 +328,7 @@ if (isset($_POST['name'])) {
         ]);
         $GLOBALS['PDO']->execute();
 
-        if (!empty($_POST['dname'])) {
+        if ($attachDemo) {
             // demtype filter: a submission demo can share this numeric id,
             // and its file must not be deleted here.
             $GLOBALS['PDO']->query("SELECT filename FROM `:prefix_demos` WHERE UPPER(demtype) = 'B' AND demid = :id");
@@ -350,11 +348,11 @@ if (isset($_POST['name'])) {
             );
             $GLOBALS['PDO']->bindMultiple([
                 ':demid'    => (int) $_GET['id'],
-                ':filename' => $_POST['did'],
-                ':origname' => $_POST['dname'],
+                ':filename' => $did,
+                ':origname' => $dname,
             ]);
             $GLOBALS['PDO']->execute();
-            $res['dname'] = $_POST['dname'];
+            $res['dname'] = $dname;
         }
 
         if ($_POST['banlength'] != $lengthrev['length']) {

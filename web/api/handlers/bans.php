@@ -22,43 +22,20 @@ function _api_bans_steam_api_key(): string
 
 /**
  * Validate the upload callback pair before linking a demo to a new ban.
+ * The checks live in {@see \Sbpp\Upload\UploadHandler::checkDemoAttachment()},
+ * shared with the edit-ban page (#98).
  *
  * @return bool True when a complete, valid attachment should be inserted.
  */
 function _api_bans_validate_demo_attachment(string $filename, string $originalName): bool
 {
-    // The add-ban form has historically sent numeric `0` when no upload
-    // was selected. Preserve that wire sentinel as the empty state.
-    $hasFilename = $filename !== '' && $filename !== '0';
-    $hasOriginalName = $originalName !== '';
-    if (!$hasFilename && !$hasOriginalName) {
+    if (!\Sbpp\Upload\UploadHandler::hasDemoAttachment($filename, $originalName)) {
         return false;
     }
-    if (!$hasFilename || !$hasOriginalName) {
-        throw new ApiError('validation', 'The demo upload is incomplete.', 'dfile');
+    $error = \Sbpp\Upload\UploadHandler::checkDemoAttachment($GLOBALS['PDO'], $filename, $originalName);
+    if ($error !== null) {
+        throw new ApiError('validation', $error->message(), $error->field());
     }
-    if (!preg_match('/^[a-f0-9]{32}$/D', $filename)) {
-        throw new ApiError('validation', 'The demo upload reference is invalid.', 'dfile');
-    }
-    // `:prefix_demos.origname` is VARCHAR(128); reject over-width input
-    // before MariaDB strict mode turns the INSERT into a generic 500.
-    if (!mb_check_encoding($originalName, 'UTF-8') || mb_strlen($originalName, 'UTF-8') > 128) {
-        throw new ApiError('validation', 'The demo filename is invalid.', 'dname');
-    }
-
-    // SECURITY-REVIEW: `$filename` is API input. Require the exact
-    // uploader-generated hash shape, reject links, and contain the resolved
-    // regular file inside SB_DEMOS before persisting a public download row.
-    $demoRoot = realpath(SB_DEMOS);
-    $path = rtrim(SB_DEMOS, '/\\') . DIRECTORY_SEPARATOR . $filename;
-    $resolvedPath = realpath($path);
-    $insideDemoRoot = $demoRoot !== false
-        && $resolvedPath !== false
-        && str_starts_with($resolvedPath, $demoRoot . DIRECTORY_SEPARATOR);
-    if ($resolvedPath === false || !$insideDemoRoot || is_link($path) || !is_file($resolvedPath)) {
-        throw new ApiError('validation', 'The uploaded demo is no longer available.', 'dfile');
-    }
-
     return true;
 }
 
