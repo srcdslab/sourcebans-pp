@@ -86,7 +86,7 @@ final class PluginVersionResolveTest extends TestCase
         self::assertIsString($inc);
         self::assertStringContainsString('#define SB_VERSION                        "2.0.0"', $inc);
         self::assertStringContainsString('#define MAJOR_REVISION                    2', $inc);
-        self::assertStringContainsString('#define MINOR_REVISION                    0', $inc);
+        self::assertStringContainsString('#define MINOR_REVISION                    1', $inc);
 
         @rmdir($tmp);
     }
@@ -106,8 +106,8 @@ final class PluginVersionResolveTest extends TestCase
         self::assertIsString($inc);
         self::assertStringContainsString('#define SB_VERSION                        "2.1.0"', $inc);
         self::assertStringContainsString('#define MAJOR_REVISION                    2', $inc);
-        self::assertStringContainsString('#define MINOR_REVISION                    0', $inc);
-        self::assertStringNotContainsString('#define MINOR_REVISION                    1', $inc);
+        self::assertStringContainsString('#define MINOR_REVISION                    1', $inc);
+        self::assertStringNotContainsString('#define MINOR_REVISION                    2', $inc);
     }
 
     public function testVersionJsonTierWhenPresent(): void
@@ -149,7 +149,7 @@ final class PluginVersionResolveTest extends TestCase
         self::assertIsString($inc);
         self::assertStringContainsString('#define SB_VERSION                        "9.8.7"', $inc);
         self::assertStringContainsString('#define MAJOR_REVISION                    2', $inc);
-        self::assertStringContainsString('#define MINOR_REVISION                    0', $inc);
+        self::assertStringContainsString('#define MINOR_REVISION                    1', $inc);
         self::assertSame(self::$incBackup, file_get_contents(self::incPath()));
 
         @unlink($jsonPath);

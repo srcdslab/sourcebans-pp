@@ -10,6 +10,15 @@ Legend:
 ? = Other stuff
 ```
 
+(17/11/26): Version 2.2.19-srcdslab
+-----------------------
+```
+01. ! sbpp_main: the native API revision (SOURCEBANSPP_VERSION_MINOR)
+        is now 1, as upstream: SBPP_BanPlayerBySteamId (#23) is an
+        additive native, so a plugin can check the revision before
+        calling it (upstream #1511, b7a01388)
+```
+
 (11/11/26): Version 2.2.17-srcdslab
 -----------------------
 ```
