@@ -19,6 +19,17 @@ Legend:
         calling it (upstream #1511, b7a01388)
 ```
 
+(17/11/26): Version 2.2.18-srcdslab
+-----------------------
+```
+01. ? web: composer's classmap skips the legacy global classes under
+        includes/ that aren't in the Sbpp\ namespace (upstream #1621)
+02. ? tests: system.check_version's tests no longer reach the network,
+        and PluginVersionResolveTest's git-describe tests use a stub git
+        so they don't depend on the checkout's tag (upstream #1624,
+        #1615)
+```
+
 (11/11/26): Version 2.2.17-srcdslab
 -----------------------
 ```
