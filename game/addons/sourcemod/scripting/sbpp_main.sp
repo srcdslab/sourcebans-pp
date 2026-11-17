@@ -2112,22 +2112,39 @@ public void AdminsDone(Database db, DBResultSet results, const char[] error, any
 		TrimString(groups);
 		TrimString(flags);
 
-		// Disable writing to file if they chose to
-		if (backupConfig)
+		// Disable writing to file if they chose to. The identity and the
+		// password can't be rewritten without changing what they match, so
+		// an unsafe one is left out of the backup (#91).
+		if (backupConfig && !UTIL_IsSafeCfgString(identity))
 		{
-			adminsKV.JumpToKey(name, true);
+			LogToFile(logFile, "Admin \"%s\" not written to sb_admins.cfg: the SteamID has characters the file can't hold.", name);
+		}
+		else if (backupConfig)
+		{
+			char cfgName[MAX_NAME_LENGTH], cfgGroups[256], cfgFlags[32];
+			if (UTIL_SanitizeCfgString(name, cfgName, sizeof(cfgName)))
+				LogToFile(logFile, "Admin \"%s\" written to sb_admins.cfg as \"%s\": quotes, backslashes and control characters are replaced.", name, cfgName);
+			UTIL_SanitizeCfgString(groups, cfgGroups, sizeof(cfgGroups));
+			UTIL_SanitizeCfgString(flags, cfgFlags, sizeof(cfgFlags));
+
+			adminsKV.JumpToKey(cfgName, true);
 
 			adminsKV.SetString("auth", authType);
 			adminsKV.SetString("identity", identity);
 
-			if (strlen(flags) > 0)
-				adminsKV.SetString("flags", flags);
+			if (strlen(cfgFlags) > 0)
+				adminsKV.SetString("flags", cfgFlags);
 
-			if (strlen(groups) > 0)
-				adminsKV.SetString("group", groups);
+			if (strlen(cfgGroups) > 0)
+				adminsKV.SetString("group", cfgGroups);
 
 			if (strlen(password) > 0)
-				adminsKV.SetString("password", password);
+			{
+				if (UTIL_IsSafeCfgString(password))
+					adminsKV.SetString("password", password);
+				else
+					LogToFile(logFile, "Admin \"%s\": server password not written to sb_admins.cfg, it has characters the file can't hold.", name);
+			}
 
 			if (Immunity > 0)
 				adminsKV.SetNum("immunity", Immunity);
@@ -2262,9 +2279,14 @@ public void GroupsDone(Database db, DBResultSet results, const char[] error, any
 
 		if (backupConfig)
 		{
-			groupsKV.JumpToKey(grpName, true);
-			if (strlen(grpFlags) > 0)
-				groupsKV.SetString("flags", grpFlags);
+			char cfgGrpName[128], cfgGrpFlags[32];
+			if (UTIL_SanitizeCfgString(grpName, cfgGrpName, sizeof(cfgGrpName)))
+				LogToFile(logFile, "Group \"%s\" written to sb_admin_groups.cfg as \"%s\": quotes, backslashes and control characters are replaced.", grpName, cfgGrpName);
+			UTIL_SanitizeCfgString(grpFlags, cfgGrpFlags, sizeof(cfgGrpFlags));
+
+			groupsKV.JumpToKey(cfgGrpName, true);
+			if (strlen(cfgGrpFlags) > 0)
+				groupsKV.SetString("flags", cfgGrpFlags);
 			if (Immunity > 0)
 				groupsKV.SetNum("immunity", Immunity);
 
@@ -2403,16 +2425,24 @@ public void LoadGroupsOverrides(Database db, DBResultSet results, const char[] e
 		PrintToServer("AddAdmGroupCmdOverride(%i, %s, %i, %i)", curGrp, sCommand, iType, iRule);
 		#endif
 
-		// Save overrides into admin_groups.cfg backup
-		if (groupsKV.JumpToKey(sGroupName))
+		// Save overrides into admin_groups.cfg backup. GroupsDone wrote the
+		// group under its sanitized name, so look it up the same way (#91).
+		char cfgGroupName[128], cfgCommand[64], cfgAllowed[16];
+		UTIL_SanitizeCfgString(sGroupName, cfgGroupName, sizeof(cfgGroupName));
+		UTIL_SanitizeCfgString(sAllowed, cfgAllowed, sizeof(cfgAllowed));
+		if (groupsKV.JumpToKey(cfgGroupName))
 		{
 			groupsKV.JumpToKey("Overrides", true);
 			if (iType == Override_Command)
-				groupsKV.SetString(sCommand, sAllowed);
+			{
+				UTIL_SanitizeCfgString(sCommand, cfgCommand, sizeof(cfgCommand));
+				groupsKV.SetString(cfgCommand, cfgAllowed);
+			}
 			else
 			{
 				Format(sCommand, sizeof(sCommand), "@%s", sCommand);
-				groupsKV.SetString(sCommand, sAllowed);
+				UTIL_SanitizeCfgString(sCommand, cfgCommand, sizeof(cfgCommand));
+				groupsKV.SetString(cfgCommand, cfgAllowed);
 			}
 			groupsKV.Rewind();
 		}
@@ -2456,18 +2486,24 @@ public void OverridesDone(Database db, DBResultSet results, const char[] error, 
 		LogToFile(logFile, "Adding override (%s, %s, %s)", sType, sName, sFlags);
 		#endif
 
+		// The backup copy gets sanitized strings (#91); the live override
+		// keeps the database value.
+		char cfgName[MAX_NAME_LENGTH], cfgFlags[32];
+		UTIL_SanitizeCfgString(sName, cfgName, sizeof(cfgName));
+		UTIL_SanitizeCfgString(sFlags, cfgFlags, sizeof(cfgFlags));
+
 		if (strcmp(sType, "command", false) == 0)
 		{
 			AddCommandOverride(sName, Override_Command, ReadFlagString(sFlags));
 			hKV.JumpToKey("override_commands", true);
-			hKV.SetString(sName, sFlags);
+			hKV.SetString(cfgName, cfgFlags);
 			hKV.GoBack();
 		}
 		else if (strcmp(sType, "group", false) == 0)
 		{
 			AddCommandOverride(sName, Override_CommandGroup, ReadFlagString(sFlags));
 			hKV.JumpToKey("override_groups", true);
-			hKV.SetString(sName, sFlags);
+			hKV.SetString(cfgName, cfgFlags);
 			hKV.GoBack();
 		}
 	}
@@ -2783,6 +2819,44 @@ static bool UTIL_IsValidSteamID2(const char[] authid)
 		return false;
 
 	return true;
+}
+
+// The backup files (sb_admins.cfg, sb_admin_groups.cfg, overrides_backup.cfg)
+// are written with KeyValues and read back by sbpp_admcfg's SMC parser
+// when the database is down. KeyValues doesn't escape a backslash or control
+// characters on export, so one of those in a database value can end a quoted
+// string early and break the file, or change what the server reads from it
+// (#91). The panel refuses them on write; this covers rows written by older
+// panels, other tools or direct SQL.
+static bool UTIL_IsSafeCfgString(const char[] value)
+{
+	for (int i = 0; value[i] != '\0'; i++)
+	{
+		int c = value[i];
+		if (c == '"' || c == '\\' || (c >= 0 && c < 0x20) || c == 0x7F)
+			return false;
+	}
+	return true;
+}
+
+// Copies value into buffer, replacing each unsafe character with '_'. Used for
+// names: the same group name gets the same replacement in sb_admins.cfg and in
+// sb_admin_groups.cfg, so the backup still links admins to their group.
+// Returns true when something was replaced.
+static bool UTIL_SanitizeCfgString(const char[] value, char[] buffer, int maxlen)
+{
+	strcopy(buffer, maxlen, value);
+	bool changed;
+	for (int i = 0; buffer[i] != '\0'; i++)
+	{
+		int c = buffer[i];
+		if (c == '"' || c == '\\' || (c >= 0 && c < 0x20) || c == 0x7F)
+		{
+			buffer[i] = '_';
+			changed = true;
+		}
+	}
+	return changed;
 }
 
 public int Native_SBPP_BanPlayerBySteamId(Handle plugin, int numParams)

@@ -61,6 +61,8 @@ if ($posted) {
 
     if ($uname === '' || $steam === '' || $email === '' || $pass1 === '' || $pass2 === '') {
         $error = 'All fields are required.';
+    } elseif (!\Sbpp\Security\PluginConfigString::isSafe($uname)) {
+        $error = 'The admin name ' . \Sbpp\Security\PluginConfigString::RULE;
     } elseif (strlen($pass1) < 8) {
         $error = 'Password must be at least 8 characters.';
     } elseif ($pass1 !== $pass2) {

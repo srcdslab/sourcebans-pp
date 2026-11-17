@@ -176,6 +176,9 @@ final class AdminsService
         if (str_contains($name, "'")) {
             throw new ApiError('validation', "An admin name can not contain a \"'\".", 'name', 400);
         }
+        if (!\Sbpp\Security\PluginConfigString::isSafe($name)) {
+            throw new ApiError('validation', 'The admin name ' . \Sbpp\Security\PluginConfigString::RULE, 'name', 400);
+        }
         if ($userbank->isNameTaken($name)) {
             throw new ApiError('conflict', 'An admin with this name already exists.', 'name', 409);
         }
@@ -268,6 +271,9 @@ final class AdminsService
         }
         if (str_contains($name, "'")) {
             throw new ApiError('validation', "An admin name can not contain a \"'\".", 'name', 400);
+        }
+        if (!\Sbpp\Security\PluginConfigString::isSafe($name)) {
+            throw new ApiError('validation', 'The admin name ' . \Sbpp\Security\PluginConfigString::RULE, 'name', 400);
         }
         if ($name !== (string) $current['user'] && $userbank->isNameTaken($name)) {
             throw new ApiError('conflict', 'An admin with this name already exists.', 'name', 409);
