@@ -22,6 +22,40 @@ Legend:
         be made public through a ban (#98)
 ```
 
+(11/11/26): Version 2.2.16-srcdslab
+-----------------------
+```
+01. ! web: admin names and server group names refuse quotes,
+        backslashes and control characters on every write path
+        (add admin, admin details, REST, groups, install wizard), like
+        the server password; they are written to sb_admins.cfg (#91)
+02. ! sbpp_main: the backup files (sb_admins.cfg, sb_admin_groups.cfg,
+        overrides_backup.cfg) replace quotes, backslashes and control
+        characters with _ in names, and leave out a server password or
+        SteamID that has one, so a database value can't break the file
+        or add entries to it (#91)
+```
+
+(11/11/26): Version 2.2.15-srcdslab
+-----------------------
+```
+01. ! web: emailed links (password reset, protests, submissions) are
+        built from SBPP_PANEL_URL (config.php or env) instead of the
+        request's Host header, which let anyone get an admin a genuine
+        reset mail pointing at another host; the install wizard writes
+        it on new installs (#95)
+02. ! web: password reset links expire after 1 hour; links issued
+        before the update are refused (new column
+        :prefix_admins.validate_until, migration 817) (#96)
+03. ! web: the login lockout takes its attempt in one statement before
+        the password check, so parallel requests no longer each get a
+        guess (#97)
+04. * web: failed password logins are limited per IP address (20 per
+        15 minutes, IPv6 per /64), checked before the username lookup;
+        SBPP_LOGIN_IP_LIMIT tunes it, 0 turns it off (new table
+        :prefix_login_throttle, migration 818) (#97)
+```
+
 (11/11/26): Version 2.2.14-srcdslab
 -----------------------
 ```

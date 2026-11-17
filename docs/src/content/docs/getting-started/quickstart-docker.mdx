@@ -114,6 +114,11 @@ Open `.env` in your editor. The template is grouped into
 5. **`SBPP_DOMAIN`**: if you plan to use the Caddy reverse-proxy
    stub for automatic TLS, set this to the public domain that points
    at your host (e.g. `panel.yourcommunity.example`).
+
+6. **`SBPP_PANEL_URL`**: the panel's public URL, e.g.
+   `https://panel.yourcommunity.example`. Links in password reset and
+   notification emails use it. Left empty, they use the `Host` header
+   of the request, which a visitor can forge.
 </Steps>
 
 The template is commented in detail. Read through the rest of it
