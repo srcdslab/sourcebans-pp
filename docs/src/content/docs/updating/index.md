@@ -108,6 +108,18 @@ On Docker, set `SBPP_PANEL_URL` in `.env` instead. Password reset
 links now also expire after 1 hour. Links requested before the update
 no longer work: request a new one.
 
+### Failed logins lock per username, not per account
+
+Releases after 2.2.20-srcdslab count failed password logins per
+username (unknown usernames included) and per browser instead of per
+account: 5 failures in 15 minutes lock a username only for browsers
+that never signed in as that admin, so an attacker can no longer lock
+a real admin out of their usual browser. Accounts locked by the old
+rule are unlocked by the update (migration 819). Password reset
+requests are limited too. Until the updater has run, password sign-in
+says "Sign-in unavailable"; see
+[Login says "locked" for an account that isn't](/faq/#login-says-locked-for-an-account-that-isnt).
+
 ### Failed logins are limited per IP address
 
 Releases after 2.2.14-srcdslab also block password logins from an IP

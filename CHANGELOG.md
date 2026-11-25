@@ -10,6 +10,37 @@ Legend:
 ? = Other stuff
 ```
 
+(25/11/26): Version 2.2.21-srcdslab
+-----------------------
+```
+01. ! web: failed password logins are counted per username instead of
+        per account, unknown usernames included: 5 failures in 15
+        minutes lock the name, "locked" no longer tells whether an
+        account exists, and case or accent variants of a name share
+        its counter (#106)
+02. ! web: an attacker can no longer lock a real admin out. A browser
+        that signed in as an admin before (password or Steam) keeps a
+        signed device cookie and its own 5 attempts while the name is
+        locked for everyone else (#106)
+03. ! web: password sign-in is refused, with "Sign-in unavailable",
+        when the sign-in counter table is missing; before, the per-IP
+        limit silently let every attempt through until the updater
+        ran. Other database errors refuse it too, without telling to
+        run the updater (#106)
+04. * web: the system log gets one entry when an address, a username
+        or a password-reset account goes over its limit, with a hint
+        when the address is a private one (reverse proxy), also when
+        the attempts arrive in parallel (#106)
+05. ! web: password reset requests are limited (5 per hour per
+        address, 3 mails per hour per account), behind the same
+        "check your email" answer (#106)
+06. ? web: new table :prefix_auth_throttle replaces
+        :prefix_login_throttle; :prefix_admins.attempts and
+        lockout_until are cleared and no longer used (migration 819)
+07. ? theme: 2.0.6 (neutral "Sign-in paused" message, "Sign-in
+        unavailable" message)
+```
+
 (17/11/26): Version 2.2.20-srcdslab
 -----------------------
 ```

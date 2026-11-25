@@ -98,7 +98,8 @@ web/
 │   ├── Auth/Auth.php         Sbpp\Auth\Auth — login flow / cookie issue
 │   ├── Auth/JWT.php          Sbpp\Auth\JWT — token encode/decode
 │   ├── Auth/Host.php         Sbpp\Auth\Host — hostname helper, panelUrl() (SBPP_PANEL_URL) for emailed links
-│   ├── Auth/LoginThrottle.php  Sbpp\Auth\LoginThrottle — failed logins per client address (#97)
+│   ├── Auth/LoginThrottle.php  Sbpp\Auth\LoginThrottle — failed sign-in counters per address, username, device (#97, #106)
+│   ├── Auth/DeviceCookie.php   Sbpp\Auth\DeviceCookie — signed `sbpp_device` cookie: per-browser login budget (#106)
 │   ├── Auth/Handler/         Sbpp\Auth\Handler\{Normal,Steam}AuthHandler — login handlers
 │   ├── Auth/openid.php       LightOpenID — third-party, intentionally global ns
 │   ├── Security/CSRF.php     Sbpp\Security\CSRF — token helpers
@@ -392,13 +393,25 @@ also requires BanSubmissions / BanProtests; DELETE is Owner via
   and exposes `is_logged_in()`, `is_admin()`,
   `HasAccess(flags)`, and `GetProperty(name)`.
 - Two login back-ends:
-  - `Sbpp\Auth\Handler\NormalAuthHandler` — username + bcrypt password,
-    with attempt counter and 10-minute lockout after 5 failures (#1081
-    hardening). `api_auth_login` reserves the attempt in one `UPDATE`
-    before the password check, so parallel requests can't each get a
-    guess, and `Sbpp\Auth\LoginThrottle` limits failed logins per
-    client address (20 per 15 minutes, `SBPP_LOGIN_IP_LIMIT`) before
-    the username is looked up (#97).
+  - `Sbpp\Auth\Handler\NormalAuthHandler` — username + bcrypt password.
+    `api_auth_login` takes a slot on `Sbpp\Auth\LoginThrottle`
+    counters before the password check, each in one atomic upsert on
+    `sb_auth_throttle`, so parallel requests can't each get a guess
+    (#97): per client address first (20 per 15 minutes,
+    `SBPP_LOGIN_IP_LIMIT`, before the username lookup), then 5 per 15
+    minutes per username (#106). The username counter is keyed on the
+    name's collation weight (`WEIGHT_STRING` in the `user` column's
+    collation), so case / accent / trailing-space variants share it and
+    unknown names lock like real ones. A browser holding a valid
+    `Sbpp\Auth\DeviceCookie` for that name (issued on every successful
+    password or Steam sign-in) is charged on its own per-device counter
+    instead (OWASP device cookies): filling the shared counter can't
+    lock the real admin out. A missing table refuses the sign-in
+    (`m=unavailable`), any other database error too (`m=signin_error`).
+    Each attempt reads back its own count (`LAST_INSERT_ID(expr)`), so
+    exactly one attempt per window sees `limit + 1` and writes the
+    audit-log entry. `:prefix_admins.attempts` / `lockout_until` are no
+    longer read (cleared by migration 819).
   - `Sbpp\Auth\Handler\SteamAuthHandler` — OpenID via the third-party
     `includes/Auth/openid.php` (LightOpenID, intentionally kept in
     the global namespace).
@@ -1093,7 +1106,7 @@ in dev/CI). Major tables:
 | `sb_settings`               | Flat key/value config used by `Config`.       |
 | `sb_log`                    | Audit log (see `Log.php`).                    |
 | `sb_login_tokens`           | Live browser sessions: JWT id (`jti`) → admin (`aid`), last-accessed for GC. |
-| `sb_login_throttle`         | Failed password logins per client address (IPv6 /64), fixed 15-minute window (#97). |
+| `sb_auth_throttle`          | Failed sign-in counters, one row per typed key (`ip:` address, `n:` username weight, `d:` device cookie, `lpi:` / `lpa:` password reset), each with its own window end (#97, #106; replaced `sb_login_throttle` in migration 819). |
 | `sb_notes`                  | Per-Steam-ID admin scratchpad (Notes tab in the player drawer, #1165). |
 
 Reseeded in tests via `web/tests/Fixture.php`, which renders `struc.sql`

@@ -69,8 +69,7 @@ final class LoginToggleTest extends ApiTestCase
         $env = $this->api('auth.login', ['username' => 'admin', 'password' => 'wrong']);
         $this->assertSame('?p=login&m=failed', $env['redirect'] ?? null);
 
-        $row = $this->row('admins', ['user' => 'admin']);
-        $this->assertSame(1, (int)$row['attempts'],
+        $this->assertSame(1, $this->nameAttempts('admin'),
             'Wrong password should still increment the lockout counter when steam login is disabled.');
 
         // Pre-fix the short-circuit also emitted a bogus "Hacking attempt"
@@ -91,8 +90,7 @@ final class LoginToggleTest extends ApiTestCase
         $this->assertSame('?p=login&m=failed', $env['redirect'] ?? null);
 
         // Lockout counter must not advance: we never reached NormalAuthHandler.
-        $row = $this->row('admins', ['user' => 'admin']);
-        $this->assertSame(0, (int)$row['attempts'],
+        $this->assertSame(0, $this->nameAttempts('admin'),
             'Disabled-feature short-circuit must not advance the lockout counter.');
 
         // And no "Hacking attempt" log entry either.
@@ -144,5 +142,16 @@ final class LoginToggleTest extends ApiTestCase
         $ctx->run(ROOT . 'updater/data/802.php');
         $this->assertSame('0', $this->readSetting('config.enablenormallogin'),
             'Re-running the migration must not overwrite an existing value.');
+    }
+
+    /** Failed attempts on the shared `n:` counter of a username (#106). */
+    private function nameAttempts(string $user): int
+    {
+        $key = 'n:' . (new \Sbpp\Auth\LoginThrottle($GLOBALS['PDO']))->nameKey($user, true);
+        $stmt = \Sbpp\Tests\Fixture::rawPdo()->prepare(
+            'SELECT attempts FROM `' . DB_PREFIX . '_auth_throttle` WHERE throttle_key = ?'
+        );
+        $stmt->execute([$key]);
+        return (int) $stmt->fetchColumn();
     }
 }
