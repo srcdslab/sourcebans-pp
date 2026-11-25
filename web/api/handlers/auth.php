@@ -231,8 +231,8 @@ function api_auth_passkey_login_finish(array $params): array
             }
         }
     } catch (ThrottleUnavailable $e) {
-        error_log('[sbpp] passkey sign-in refused, the sign-in counters are unavailable (run the updater): ' . $e->getMessage());
-        return Api::redirect('?p=login&m=unavailable');
+        _api_auth_log_throttle_unavailable('passkey sign-in', $e);
+        return Api::redirect('?p=login&m=' . ($e->tableMissing ? 'unavailable' : 'signin_error'));
     }
 
     $credential = $params['credential'] ?? null;
