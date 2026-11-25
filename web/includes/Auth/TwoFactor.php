@@ -403,7 +403,13 @@ final class TwoFactor
             'domain'   => Host::cookieDomain(),
             'secure'   => Host::isSecure(),
             'httponly' => true,
-            'samesite' => 'Strict',
+            // Lax, like the session cookie: a Steam sign-in comes back from
+            // steamcommunity.com, and browsers don't send a Strict cookie on
+            // that cross-site redirect chain, so `?p=login&step=enroll|2fa`
+            // found no pending step and every Steam sign-in of an admin with
+            // (or required to have) 2FA ended on "2fa_expired". Lax still
+            // keeps it off cross-site POSTs.
+            'samesite' => 'Lax',
         ]);
     }
 

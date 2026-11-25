@@ -10,6 +10,15 @@ Legend:
 ? = Other stuff
 ```
 
+(25/11/26): Version 2.2.24-srcdslab
+-----------------------
+```
+01. ! web: Steam sign-in of an admin with two-factor, or required to set
+        it up, ended on "The two-factor step expired": the pending-step
+        cookie was SameSite=Strict, which browsers drop on the redirect
+        back from Steam. It is Lax now, like the session cookie
+```
+
 (25/11/26): Version 2.2.23-srcdslab
 -----------------------
 ```

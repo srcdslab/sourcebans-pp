@@ -438,4 +438,19 @@ final class TwoFactorTest extends ApiTestCase
         $stmt->execute([$title]);
         return (int) $stmt->fetchColumn();
     }
+
+    /**
+     * A Steam sign-in returns from steamcommunity.com: browsers don't send a
+     * SameSite=Strict cookie on that cross-site redirect chain, so the second
+     * step never found its pending row and Steam admins with 2FA (or required
+     * to set it up) were locked out.
+     */
+    public function testPendingCookieIsSameSiteLaxSoSteamSignInReachesTheSecondStep(): void
+    {
+        $src = (string) file_get_contents(dirname(__DIR__, 2) . '/includes/Auth/TwoFactor.php');
+        $this->assertMatchesRegularExpression(
+            "/function setPendingCookie\\(.*?'samesite'\\s*=>\\s*'Lax'/s",
+            $src,
+        );
+    }
 }
