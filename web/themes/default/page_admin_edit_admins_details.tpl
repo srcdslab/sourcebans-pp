@@ -162,3 +162,39 @@
         </div>
     </form>
 </div>
+
+{if $can_reset_2fa}
+    {* #107: Owner-only reset of another admin's two-factor (lost phone). *}
+    <div class="card mt-4" data-testid="edit-admin-2fa">
+        <div class="card__header"><div>
+            <h3>Two-factor authentication</h3>
+            <p>On for {$user}. Resetting it turns it off and ends their sessions; if the panel requires two-factor for them, they set it up again at their next sign-in.</p>
+        </div></div>
+        <div class="card__body flex justify-end">
+            <button type="button" class="btn btn--danger btn--sm" id="edit-admin-2fa-reset"
+                    data-aid="{$admin_id}" data-testid="edit-admin-2fa-reset">Reset two-factor</button>
+        </div>
+    </div>
+    {literal}
+    <script>
+    (function () {
+        var btn = document.getElementById('edit-admin-2fa-reset');
+        if (!btn) return;
+        btn.addEventListener('click', function () {
+            if (!window.confirm('Turn off two-factor authentication for this admin and end their sessions?')) return;
+            if (window.SBPP && window.SBPP.setBusy) window.SBPP.setBusy(btn, true); else btn.disabled = true;
+            sb.api.call(Actions.Admins2faReset, { aid: parseInt(btn.getAttribute('data-aid') || '0', 10) }).then(function (res) {
+                if (res && res.ok === true) {
+                    if (window.SBPP && window.SBPP.showToast) window.SBPP.showToast({ kind: 'success', title: 'Two-factor reset', body: res.data && res.data.message ? res.data.message.body : '' });
+                    var card = document.querySelector('[data-testid="edit-admin-2fa"]');
+                    if (card) card.remove();
+                    return;
+                }
+                if (window.SBPP && window.SBPP.setBusy) window.SBPP.setBusy(btn, false); else btn.disabled = false;
+                if (window.SBPP && window.SBPP.showToast) window.SBPP.showToast({ kind: 'error', title: 'Reset failed', body: (res && res.error && res.error.message) || 'Try again.' });
+            });
+        });
+    }());
+    </script>
+    {/literal}
+{/if}

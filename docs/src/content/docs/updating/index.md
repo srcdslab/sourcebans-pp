@@ -108,6 +108,14 @@ On Docker, set `SBPP_PANEL_URL` in `.env` instead. Password reset
 links now also expire after 1 hour. Links requested before the update
 no longer work: request a new one.
 
+### Two-factor authentication
+
+Releases after 2.2.21-srcdslab add two-factor authentication (TOTP),
+off by default (migration 820 adds its tables and the
+`auth.2fa.require` setting). Tarball installs need the `sodium` PHP
+extension, bundled with PHP on most hosts; the Docker image has it.
+See [Two-factor authentication](/configuring/two-factor/).
+
 ### Failed logins lock per username, not per account
 
 Releases after 2.2.20-srcdslab count failed password logins per

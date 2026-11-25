@@ -109,6 +109,22 @@ final class Auth
         self::$dbs->execute();
     }
 
+    /**
+     * End every browser session of an admin except `$keepJti` (the
+     * current one): after turning two-factor on or off (#107).
+     */
+    public static function revokeOtherSessions(int $aid, string $keepJti): void
+    {
+        if ($aid <= 0 || !self::hasAidColumn()) {
+            return;
+        }
+
+        self::$dbs->query("DELETE FROM `:prefix_login_tokens` WHERE aid = :aid AND jti <> :jti");
+        self::$dbs->bind(':aid', $aid, PDO::PARAM_INT);
+        self::$dbs->bind(':jti', $keepJti, PDO::PARAM_STR);
+        self::$dbs->execute();
+    }
+
     /** Parse a cookie value, or null when it isn't a well-formed, unencrypted JWT. */
     private static function parseCookie(string $cookie): ?UnencryptedToken
     {

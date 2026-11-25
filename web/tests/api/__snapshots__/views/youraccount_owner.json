@@ -82,6 +82,9 @@
         "server_permissions": false,
         "min_pass_len": 6,
         "api_tokens": [],
-        "can_generate_password": false
+        "can_generate_password": false,
+        "twofa_enabled": false,
+        "twofa_required": false,
+        "twofa_recovery_left": 0
     }
 }

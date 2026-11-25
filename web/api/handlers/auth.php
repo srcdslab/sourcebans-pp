@@ -7,6 +7,7 @@ use Sbpp\Auth\DeviceCookie;
 use Sbpp\Auth\LoginThrottle;
 use Sbpp\Auth\ThrottleHit;
 use Sbpp\Auth\ThrottleUnavailable;
+use Sbpp\Auth\TwoFactor;
 use Sbpp\Mail\EmailType;
 use Sbpp\Mail\Mail;
 
@@ -115,7 +116,83 @@ function api_auth_login(array $params): array
     }
     DeviceCookie::issue($nameKey, $now);
 
-    return Api::redirect('?' . $redirect);
+    // Starts the session, or the second step for an admin with 2FA (or
+    // one the `auth.2fa.require` setting covers who must set it up, #107).
+    try {
+        return Api::redirect((new TwoFactor($GLOBALS['PDO']))->completePrimary($auth->aid(), $auth->maxlife(), $redirect));
+    } catch (\PDOException $e) {
+        // Can't tell whether this admin has 2FA: refuse rather than skip it.
+        error_log('[sbpp] password sign-in refused, two-factor state unreadable (run the updater): ' . $e->getMessage());
+        return Api::redirect('?p=login&m=unavailable');
+    }
+}
+
+// ---- Second step (#107) ---------------------------------------------------
+//
+// Public actions: the browser has no session yet, only the `sbpp_2fa`
+// pending cookie set by TwoFactor::completePrimary(). Every answer that
+// isn't a success is about that pending step, never about the account.
+
+/** Map a failed TwoFactor result to the wire. */
+function _api_auth_2fa_failure(array $res): array
+{
+    return match ($res['error'] ?? '') {
+        'invalid'     => throw new ApiError('invalid_code', "That code isn't valid. Check the time on your phone, or use a recovery code.", 'code'),
+        'locked'      => throw new ApiError(
+            'locked',
+            'Too many wrong codes. Try again in about ' . max(1, (int) ceil(((int) ($res['retry_after'] ?? 60)) / 60)) . ' minutes.',
+            'code',
+        ),
+        'unavailable' => Api::redirect('?p=login&m=unavailable'),
+        default       => Api::redirect('?p=login&m=2fa_expired'),
+    };
+}
+
+function api_auth_2fa_verify(array $params): array
+{
+    $res = (new TwoFactor($GLOBALS['PDO']))->verifyPending((string) ($params['code'] ?? ''), time());
+    if ($res['ok'] !== true) {
+        return _api_auth_2fa_failure($res);
+    }
+    return Api::redirect($res['redirect']);
+}
+
+function api_auth_2fa_enroll_start(array $params): array
+{
+    $tf = new TwoFactor($GLOBALS['PDO']);
+    $pending = $tf->pending();
+    if ($pending === null || $pending['purpose'] !== TwoFactor::PURPOSE_ENROLL) {
+        return Api::redirect('?p=login&m=2fa_expired');
+    }
+    $GLOBALS['PDO']->query('SELECT user FROM `:prefix_admins` WHERE aid = :aid');
+    $GLOBALS['PDO']->bind(':aid', $pending['aid']);
+    $row = $GLOBALS['PDO']->single();
+    $setup = is_array($row) ? $tf->beginSetup($pending['aid'], (string) $row['user']) : null;
+    if ($setup === null) {
+        $tf->closePending();
+        return Api::redirect('?p=login&m=2fa_expired');
+    }
+    return [
+        'secret' => $setup['secret'],
+        'uri'    => $setup['uri'],
+        'qr'     => \Sbpp\Security\QrCode::svgDataUri($setup['uri']),
+    ];
+}
+
+function api_auth_2fa_enroll_confirm(array $params): array
+{
+    $res = (new TwoFactor($GLOBALS['PDO']))->confirmPendingEnrolment((string) ($params['code'] ?? ''), time());
+    if ($res['ok'] !== true) {
+        return _api_auth_2fa_failure($res);
+    }
+    // Not a redirect: the page shows the recovery codes first.
+    return ['recovery_codes' => $res['recovery_codes'], 'next' => $res['redirect']];
+}
+
+function api_auth_2fa_cancel(array $params): array
+{
+    (new TwoFactor($GLOBALS['PDO']))->closePending();
+    return Api::redirect('?p=login');
 }
 
 /** `?p=login&m=locked&time=<minutes left>`, the same for every counter. */

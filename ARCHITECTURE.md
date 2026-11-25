@@ -99,6 +99,7 @@ web/
 │   ├── Auth/JWT.php          Sbpp\Auth\JWT — token encode/decode
 │   ├── Auth/Host.php         Sbpp\Auth\Host — hostname helper, panelUrl() (SBPP_PANEL_URL) for emailed links
 │   ├── Auth/LoginThrottle.php  Sbpp\Auth\LoginThrottle — failed sign-in counters per address, username, device (#97, #106)
+│   ├── Auth/TwoFactor.php      Sbpp\Auth\TwoFactor — TOTP second step, setup, recovery codes, `auth.2fa.require` (#107)
 │   ├── Auth/DeviceCookie.php   Sbpp\Auth\DeviceCookie — signed `sbpp_device` cookie: per-browser login budget (#106)
 │   ├── Auth/Handler/         Sbpp\Auth\Handler\{Normal,Steam}AuthHandler — login handlers
 │   ├── Auth/openid.php       LightOpenID — third-party, intentionally global ns
@@ -409,10 +410,28 @@ also requires BanSubmissions / BanProtests; DELETE is Owner via
     lock the real admin out. A missing table refuses the sign-in
     (`m=unavailable`). The first refusal of each window writes one
     audit-log entry. `:prefix_admins.attempts` / `lockout_until` are no
-    longer read (cleared by migration 819).
+    longer read (cleared by migration 819). On success the handler no
+    longer starts the session itself: see the second step below.
   - `Sbpp\Auth\Handler\SteamAuthHandler` — OpenID via the third-party
     `includes/Auth/openid.php` (LightOpenID, intentionally kept in
     the global namespace).
+- Second step (#107): both back-ends end in
+  `Sbpp\Auth\TwoFactor::completePrimary()`. Without 2FA it calls
+  `Auth::login()`. With 2FA (a confirmed `sb_admin_totp` row) it
+  writes an `sb_auth_pending` row (SHA-256 of a random token, 10
+  minutes, 5 attempts) and sets the `sbpp_2fa` cookie (`HttpOnly`,
+  `SameSite=Strict`); `?p=login&step=2fa` renders
+  `LoginSecondFactorView`, which posts to the public `auth.2fa_verify`
+  action. When `auth.2fa.require` (`off` / `owners` / `all`) covers an
+  admin without 2FA, the pending row is an `enroll` one and the page
+  sets it up (`auth.2fa_enroll_start` / `_confirm`) before the
+  session starts. `init.php` signs out an existing session of a
+  covered admin who has no 2FA. TOTP secrets are sealed with
+  `Sbpp\Security\SecretBox` (sodium secretbox, key derived from
+  `SB_SECRET_KEY`); recovery codes are SHA-256 hashes of 80-bit codes.
+  Your account (`account.2fa_*`, own account only, password or code
+  re-checked and counted) sets it up, regenerates codes or turns it
+  off; an Owner resets another admin with `admins.2fa_reset`.
 - `Sbpp\Auth\JWT::validate()` rejects tampered tokens and enforces
   `exp` / `nbf` / `iat` via `LooseValidAt` (30s leeway).
   `Auth::gc()` garbage-collects `sb_login_tokens` rows not accessed for
@@ -1104,6 +1123,9 @@ in dev/CI). Major tables:
 | `sb_settings`               | Flat key/value config used by `Config`.       |
 | `sb_log`                    | Audit log (see `Log.php`).                    |
 | `sb_login_tokens`           | Live browser sessions: JWT id (`jti`) → admin (`aid`), last-accessed for GC. |
+| `sb_admin_totp`             | One row per admin with 2FA: sealed TOTP secret, `confirmed_at` (NULL during setup), last accepted 30-second step (#107). |
+| `sb_admin_recovery_codes`   | SHA-256 of single-use 2FA recovery codes, `used_at` when spent (#107). |
+| `sb_auth_pending`           | Pending second sign-in step: token hash → admin, purpose (`verify` / `enroll`), attempts, expiry (#107). |
 | `sb_auth_throttle`          | Failed sign-in counters, one row per typed key (`ip:` address, `n:` username weight, `d:` device cookie, `lpi:` / `lpa:` password reset), each with its own window end (#97, #106; replaced `sb_login_throttle` in migration 819). |
 | `sb_notes`                  | Per-Steam-ID admin scratchpad (Notes tab in the player drawer, #1165). |
 

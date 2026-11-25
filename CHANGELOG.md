@@ -10,6 +10,27 @@ Legend:
 ? = Other stuff
 ```
 
+(25/11/26): Version 2.2.22-srcdslab
+-----------------------
+```
+01. * web: two-factor authentication (TOTP, any authenticator app).
+        Admins turn it on from Your account (QR code, 10 single-use
+        recovery codes); every sign-in then asks for a code, after the
+        password and after a Steam sign-in (#107)
+02. * web: Owner setting "Require two-factor authentication" (No /
+        Owners / All admins): covered admins without 2FA are signed
+        out and set it up at their next sign-in (#107)
+03. * web: an Owner can reset another admin's 2FA (lost phone) from
+        the admin's Edit details page; resets, recovery-code uses and
+        requirement changes go to the system log (#107)
+04. ? web: new tables :prefix_admin_totp, :prefix_admin_recovery_codes,
+        :prefix_auth_pending and setting auth.2fa.require (migration
+        820); the sodium PHP extension is now required; new dependency
+        bacon/bacon-qr-code (#107)
+05. ? theme: 2.0.7 (two-factor sign-in step, Your account section,
+        settings row, reset card)
+```
+
 (25/11/26): Version 2.2.21-srcdslab
 -----------------------
 ```

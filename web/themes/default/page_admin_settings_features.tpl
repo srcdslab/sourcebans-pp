@@ -39,8 +39,8 @@
     Variable contract (kept in sync by SmartyTemplateRule):
         Permission gates:
             $can_web_settings — gates the entire body.
-            $can_owner — currently unused in this section but kept
-                across all settings views for parity.
+            $can_owner — only an Owner can change the two-factor
+                requirement ($twofa_require: off / owners / all, #107).
         Toggles: $export_public, $enable_kickit,
             $enable_groupbanning, $enable_friendsbanning,
             $enable_adminrehashing, $enable_steamlogin,
@@ -155,6 +155,20 @@
                                 </label>
                                 <p class="settings-fieldset__help" id="enable_normallogin_help" data-testid="setting-help-config.enablenormallogin">
                                     Disable to require Steam login for all admins.
+                                </p>
+                            </div>
+
+                            {* #107: only an Owner can change who must use two-factor. *}
+                            <div data-testid="setting-row" data-key="auth.2fa.require">
+                                <label class="label" for="twofa_require">Require two-factor authentication</label>
+                                <select class="select" id="twofa_require" name="twofa_require" aria-describedby="twofa_require_help"{if !$can_owner} disabled{/if} data-testid="setting-twofa-require">
+                                    <option value="off"{if $twofa_require == 'off'} selected{/if}>No (each admin chooses)</option>
+                                    <option value="owners"{if $twofa_require == 'owners'} selected{/if}>Owners</option>
+                                    <option value="all"{if $twofa_require == 'all'} selected{/if}>All admins</option>
+                                </select>
+                                <p class="settings-fieldset__help" id="twofa_require_help" data-testid="setting-help-auth.2fa.require">
+                                    Admins covered who haven't set up two-factor are signed out and must set it up at their next
+                                    sign-in, with a password or with Steam.{if !$can_owner} Only an Owner can change this.{/if}
                                 </p>
                             </div>
                         </div>

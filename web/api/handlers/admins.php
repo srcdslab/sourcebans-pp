@@ -77,6 +77,8 @@ function api_admins_remove(array $params): array
     $allservers = [];
     if ($ok) {
         Auth::revokeAllForAdmin($aid);
+        // A later admin must never inherit this one's 2FA (#107).
+        (new \Sbpp\Auth\TwoFactor($GLOBALS['PDO']))->disable($aid);
         $allservers = _api_admins_rehash_sids($aid);
 
         $GLOBALS['PDO']->query("DELETE FROM `:prefix_admins_servers_groups` WHERE admin_id = :aid");
@@ -846,4 +848,38 @@ function api_admins_generate_password(array $params): array
         'min_length' => PasswordGenerator::minLength(),
         'max_length' => $maxLength,
     ];
+}
+
+/**
+ * Owner-only: turn off another admin's two-factor authentication (#107),
+ * e.g. after a lost phone. Their sessions end; at the next sign-in they
+ * set it up again if `auth.2fa.require` covers them. An admin can't reset
+ * their own 2FA here: that goes through `account.2fa_disable`, which asks
+ * for a current code.
+ */
+function api_admins_2fa_reset(array $params): array
+{
+    global $userbank;
+    $aid = (int) ($params['aid'] ?? 0);
+    if ($aid <= 0 || $aid === $userbank->GetAid()) {
+        throw new ApiError('forbidden', 'Use Your account to change your own two-factor settings.');
+    }
+    $GLOBALS['PDO']->query('SELECT user FROM `:prefix_admins` WHERE aid = :aid');
+    $GLOBALS['PDO']->bind(':aid', $aid);
+    $admin = $GLOBALS['PDO']->single();
+    if (!is_array($admin)) {
+        throw new ApiError('not_found', 'Admin not found.');
+    }
+    if (!\Sbpp\Security\OwnerGuard::canModifyAdmin($aid)) {
+        throw new ApiError('forbidden', 'Only an owner can change an owner.');
+    }
+
+    (new \Sbpp\Auth\TwoFactor($GLOBALS['PDO']))->disable($aid);
+    Auth::revokeAllForAdmin($aid);
+    Log::add(
+        LogType::Warning,
+        'Two-factor reset',
+        sprintf('Two-factor authentication of admin "%s" was turned off by "%s".', (string) $admin['user'], (string) $userbank->GetProperty('user')),
+    );
+    return ['reset' => true, 'message' => ['title' => 'Two-factor reset', 'body' => "Two-factor authentication is off for {$admin['user']}. Their sessions were ended.", 'kind' => 'green']];
 }

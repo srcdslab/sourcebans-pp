@@ -147,6 +147,7 @@ export default defineConfig({
             { label: 'Full data export', slug: 'configuring/data-export' },
             { label: 'REST API', slug: 'configuring/rest-api' },
             { label: 'GeoIP country lookup', slug: 'configuring/geoip' },
+            { label: 'Two-factor authentication', slug: 'configuring/two-factor' },
           ],
         },
         {

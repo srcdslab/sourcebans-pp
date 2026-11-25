@@ -44,6 +44,35 @@ if ($userbank->is_logged_in()) {
 // matches what the sidebar mark does via `core/header.php`.
 $brandLogoUrl = \Sbpp\View\BrandLogo::resolveUrl();
 
+// Second sign-in step (#107): the password or Steam check passed and the
+// browser holds a pending `sbpp_2fa` cookie. Without a live pending step
+// of the matching kind, start over.
+$step = is_string($_GET['step'] ?? null) ? $_GET['step'] : '';
+if ($step === '2fa' || $step === 'enroll') {
+    $wanted = $step === '2fa' ? \Sbpp\Auth\TwoFactor::PURPOSE_VERIFY : \Sbpp\Auth\TwoFactor::PURPOSE_ENROLL;
+    try {
+        $pending = (new \Sbpp\Auth\TwoFactor($GLOBALS['PDO']))->pending();
+    } catch (\PDOException) {
+        $pending = null;
+    }
+    if ($pending === null || $pending['purpose'] !== $wanted) {
+        // JS redirect: the chrome is already flushed (see the logged-in
+        // guard above).
+        echo "<script>window.location.href = 'index.php?p=login&m=2fa_expired';</script>";
+        exit;
+    }
+    $secondFactorView = new \Sbpp\View\LoginSecondFactorView(
+        mode: $wanted,
+        brand_logo_url: $brandLogoUrl,
+    );
+    $theme->setLeftDelimiter('-{');
+    $theme->setRightDelimiter('}-');
+    \Sbpp\View\Renderer::render($theme, $secondFactorView);
+    $theme->setLeftDelimiter('{');
+    $theme->setRightDelimiter('}');
+    return;
+}
+
 $loginView = new \Sbpp\View\LoginView(
     normallogin_show: Config::getBool('config.enablenormallogin'),
     steamlogin_show: Config::getBool('config.enablesteamlogin'),

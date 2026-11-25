@@ -84,7 +84,8 @@ if (!$fileUploads) {
     $errors++;
 }
 
-foreach (['openssl', 'xml', 'pdo_mysql', 'mbstring'] as $ext) {
+// `sodium` encrypts two-factor secrets (#107).
+foreach (['openssl', 'xml', 'pdo_mysql', 'mbstring', 'sodium'] as $ext) {
     $loaded = extension_loaded($ext);
     $phpRows[] = [
         'label'    => $ext . ' extension',

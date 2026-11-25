@@ -3,11 +3,11 @@
 namespace Sbpp\Auth\Handler;
 
 use LightOpenID;
-use Sbpp\Auth\Auth;
 use Sbpp\Auth\DeviceCookie;
 use Sbpp\Auth\Host;
 use Sbpp\Auth\LoginThrottle;
 use Sbpp\Auth\ThrottleUnavailable;
+use Sbpp\Auth\TwoFactor;
 use Sbpp\Config;
 use Sbpp\Db\Database;
 
@@ -99,9 +99,18 @@ final class SteamAuthHandler
 
         if (!empty($result['aid'])) {
             $maxlife = Config::get('auth.maxlife.steam') * 60;
-            Auth::login($result['aid'], $maxlife);
             $this->issueDeviceCookie((string) $result['user']);
-            header("Location: ".Host::complete());
+            // An admin with 2FA (or required to set it up) gets the second
+            // step, not a session (#107): Steam is not a way around it.
+            try {
+                $next = (new TwoFactor($this->dbs))->completePrimary((int) $result['aid'], (int) $maxlife, '');
+            } catch (\PDOException $e) {
+                // Can't tell whether this admin has 2FA: refuse rather than skip it.
+                error_log('[sbpp] Steam sign-in refused, two-factor state unreadable (run the updater): ' . $e->getMessage());
+                header("Location: ".Host::complete()."/index.php?p=login&m=unavailable");
+                return;
+            }
+            header("Location: ".Host::complete() . ($next === '?' ? '' : '/index.php' . $next));
             return;
         }
 

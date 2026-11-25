@@ -26,6 +26,9 @@ $srvpwset = !empty($res['srv_password']);
 // class's docblock for the rationale.
 $webExtraFlags = (int) $userbank->GetProperty("extraflags");
 
+$twoFactor = new \Sbpp\Auth\TwoFactor($GLOBALS['PDO']);
+$myAid     = (int) $userbank->GetAid();
+
 \Sbpp\View\Renderer::render($theme, new \Sbpp\View\YourAccountView(
     srvpwset:                $srvpwset,
     email:                   (string) ($res['email'] ?? ''),
@@ -35,4 +38,7 @@ $webExtraFlags = (int) $userbank->GetProperty("extraflags");
     min_pass_len:            (int) MIN_PASS_LENGTH,
     api_tokens:              \Sbpp\Rest\PatAuthenticator::listForAid((int) $userbank->GetAid()),
     can_generate_password:   $userbank->is_admin(),
+    twofa_enabled:           $twoFactor->isEnrolled($myAid),
+    twofa_required:          $twoFactor->isRequiredFor($myAid),
+    twofa_recovery_left:     $twoFactor->recoveryCodesLeft($myAid),
 ));
