@@ -16,6 +16,22 @@
 /* === Generated typedefs ============================================= */
 
 /**
+ * @typedef {Object} ApiAccount2faDisableRequest
+ * @typedef {Object} ApiAccount2faDisableResponse
+ */
+/**
+ * @typedef {Object} ApiAccount2faRecoveryCodesRequest
+ * @typedef {Object} ApiAccount2faRecoveryCodesResponse
+ */
+/**
+ * @typedef {Object} ApiAccount2faSetupConfirmRequest
+ * @typedef {Object} ApiAccount2faSetupConfirmResponse
+ */
+/**
+ * @typedef {Object} ApiAccount2faSetupStartRequest
+ * @typedef {Object} ApiAccount2faSetupStartResponse
+ */
+/**
  * @typedef {Object} ApiAccountChangeEmailRequest
  * @typedef {Object} ApiAccountChangeEmailResponse
  */
@@ -46,6 +62,16 @@
 /**
  * @typedef {Object} ApiAccountTokensRevokeRequest
  * @typedef {{revoked: number}} ApiAccountTokensRevokeResponse
+ */
+/**
+ * Owner-only: turn off another admin's two-factor authentication (#107), e.g.
+ * after a lost phone. Their sessions end; at the next sign-in they set it up
+ * again if `auth.2fa.require` covers them. An admin can't reset their own 2FA
+ * here: that goes through `account.2fa_disable`, which asks for a current
+ * code.
+ *
+ * @typedef {Object} ApiAdmins2faResetRequest
+ * @typedef {Object} ApiAdmins2faResetResponse
  */
 /**
  * @typedef {Object} ApiAdminsAddRequest
@@ -112,6 +138,22 @@
  *
  * @typedef {Object} ApiAdminsRemoveRequest
  * @typedef {{ remove: string, counter: { admincount: number }, rehash: string|null, message: { title: string, body: string, kind: string, redir: string } }} ApiAdminsRemoveResponse
+ */
+/**
+ * @typedef {Object} ApiAuth2faCancelRequest
+ * @typedef {Object} ApiAuth2faCancelResponse
+ */
+/**
+ * @typedef {Object} ApiAuth2faEnrollConfirmRequest
+ * @typedef {Object} ApiAuth2faEnrollConfirmResponse
+ */
+/**
+ * @typedef {Object} ApiAuth2faEnrollStartRequest
+ * @typedef {Object} ApiAuth2faEnrollStartResponse
+ */
+/**
+ * @typedef {Object} ApiAuth2faVerifyRequest
+ * @typedef {Object} ApiAuth2faVerifyResponse
  */
 /**
  * @typedef {Object} ApiAuthLoginRequest
@@ -693,6 +735,10 @@
  * the dotted action ('admins.remove' -> 'AdminsRemove').
  */
 var Actions = Object.freeze({
+    Account2faDisable: 'account.2fa_disable',
+    Account2faRecoveryCodes: 'account.2fa_recovery_codes',
+    Account2faSetupConfirm: 'account.2fa_setup_confirm',
+    Account2faSetupStart: 'account.2fa_setup_start',
     AccountChangeEmail: 'account.change_email',
     AccountChangePassword: 'account.change_password',
     AccountChangeSrvPassword: 'account.change_srv_password',
@@ -701,6 +747,7 @@ var Actions = Object.freeze({
     AccountTokensCreate: 'account.tokens_create',
     AccountTokensList: 'account.tokens_list',
     AccountTokensRevoke: 'account.tokens_revoke',
+    Admins2faReset: 'admins.2fa_reset',
     AdminsAdd: 'admins.add',
     AdminsBulk: 'admins.bulk',
     AdminsDeactivate: 'admins.deactivate',
@@ -708,6 +755,10 @@ var Actions = Object.freeze({
     AdminsGeneratePassword: 'admins.generate_password',
     AdminsReactivate: 'admins.reactivate',
     AdminsRemove: 'admins.remove',
+    Auth2faCancel: 'auth.2fa_cancel',
+    Auth2faEnrollConfirm: 'auth.2fa_enroll_confirm',
+    Auth2faEnrollStart: 'auth.2fa_enroll_start',
+    Auth2faVerify: 'auth.2fa_verify',
     AuthLogin: 'auth.login',
     AuthLostPassword: 'auth.lost_password',
     BansAdd: 'bans.add',

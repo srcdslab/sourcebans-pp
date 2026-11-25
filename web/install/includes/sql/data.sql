@@ -68,6 +68,7 @@ INSERT IGNORE INTO `{prefix}_settings` (`setting`, `value`) VALUES
 ('auth.maxlife', '1440'),
 ('auth.maxlife.remember', '10080'),
 ('auth.maxlife.steam', '10080'),
+('auth.2fa.require', 'off'),
 ('smtp.host', ''),
 ('smtp.pass', ''),
 ('smtp.port', ''),

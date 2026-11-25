@@ -1,0 +1,86 @@
+---
+title: Two-factor authentication
+description: Ask admins for a code from an authenticator app at every sign-in, with a password or with Steam, and require it for Owners or for everyone.
+sidebar:
+  order: 4
+  label: Two-factor authentication
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components';
+
+Two-factor authentication (2FA) asks for a 6-digit code from an
+authenticator app after the password **or** after a Steam sign-in.
+A leaked or reused password is no longer enough to get into an admin
+account. Any app that supports TOTP codes works: Aegis, 2FAS, Google
+Authenticator, Microsoft Authenticator, 1Password, Bitwarden…
+
+## Turn it on for your account
+
+<Steps>
+
+1. Open **Your account** and find **Two-factor authentication**.
+2. Enter your current password and select **Set up**.
+3. Scan the QR code with your app (or type the key shown under it),
+   then enter the 6-digit code the app shows and select **Turn on**.
+4. **Save the 10 recovery codes.** Each one signs you in once if you
+   lose your phone. They are shown only once; **New recovery codes**
+   replaces them.
+
+</Steps>
+
+Turning 2FA on or off signs your other browsers out.
+
+## Sign in
+
+After the password or the Steam sign-in, the panel asks for the code.
+You have 10 minutes and 5 tries; after that, sign in again. A code
+works once, and a recovery code can be typed in place of a code.
+
+## Require it
+
+**Admin Panel → Settings → Features → Login → Require two-factor
+authentication** (Owners only):
+
+- **No**: each admin chooses (default).
+- **Owners**: admins with the Owner permission, directly or through
+  their web group.
+- **All admins**: everyone who can sign in to the panel.
+
+An admin the setting covers who has no 2FA yet is signed out, and must
+set it up at the next sign-in before reaching any page. Covered admins
+can't turn 2FA off. Changing the setting is written to the system log.
+
+<Aside type="caution">
+Until they set it up, anyone who has a covered admin's password can
+set 2FA up in their place. Ask your admins to set it up from **Your
+account** before you turn the requirement on.
+</Aside>
+
+## Lost phone
+
+- With a recovery code: sign in with it, then turn 2FA off and on
+  again from **Your account** to set up the new phone.
+- Without one: an Owner opens the admin (**Admin Panel → Admins →
+  Edit details**) and selects **Reset two-factor**. That turns 2FA off
+  and signs the admin out; if the setting covers them, they set it up
+  again at the next sign-in. An Owner can't reset their own 2FA this
+  way, and only an Owner can reset another Owner.
+
+## Limits and logs
+
+- 10 wrong codes in 15 minutes for one admin lock code entry for that
+  admin; the system log gets a **Two-factor locked** entry, which means
+  someone else probably has that admin's password (or Steam account).
+- The per-address sign-in limit counts wrong codes too.
+- Every use of a recovery code, every reset and every change of the
+  requirement is logged.
+
+## What it doesn't cover
+
+- **REST API tokens** are a separate credential and don't ask for a
+  code. Creating one needs a signed-in session, so it goes through 2FA.
+- The **email password reset** sets a new password but leaves 2FA on.
+- The secrets are encrypted with a key derived from `SB_SECRET_KEY`.
+  **Changing `SB_SECRET_KEY` makes every authenticator app stop
+  working**: admins sign in with a recovery code and set 2FA up again,
+  or an Owner resets it. Recovery codes keep working.

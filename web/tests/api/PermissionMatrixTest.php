@@ -52,6 +52,11 @@ final class PermissionMatrixTest extends TestCase
             'account.tokens_list'         => ['perm' => 0, 'requireAdmin' => false, 'public' => false],
             'account.tokens_create'       => ['perm' => 0, 'requireAdmin' => false, 'public' => false],
             'account.tokens_revoke'       => ['perm' => 0, 'requireAdmin' => false, 'public' => false],
+            // #107: own account only (no aid parameter).
+            'account.2fa_setup_start'     => ['perm' => 0, 'requireAdmin' => false, 'public' => false],
+            'account.2fa_setup_confirm'   => ['perm' => 0, 'requireAdmin' => false, 'public' => false],
+            'account.2fa_disable'         => ['perm' => 0, 'requireAdmin' => false, 'public' => false],
+            'account.2fa_recovery_codes'  => ['perm' => 0, 'requireAdmin' => false, 'public' => false],
 
             // -- admins.
             'admins.add'                  => ['perm' => ADMIN_OWNER | ADMIN_ADD_ADMINS,    'requireAdmin' => false, 'public' => false],
@@ -61,10 +66,17 @@ final class PermissionMatrixTest extends TestCase
             'admins.bulk'                 => ['perm' => ADMIN_OWNER | ADMIN_DELETE_ADMINS | ADMIN_EDIT_ADMINS, 'requireAdmin' => false, 'public' => false],
             'admins.edit_perms'           => ['perm' => ADMIN_OWNER | ADMIN_EDIT_ADMINS,   'requireAdmin' => false, 'public' => false],
             'admins.generate_password'    => ['perm' => 0, 'requireAdmin' => true,  'public' => false],
+            // #107: Owner only.
+            'admins.2fa_reset'            => ['perm' => ADMIN_OWNER, 'requireAdmin' => false, 'public' => false],
 
             // -- auth (only public surface).
             'auth.login'                  => ['perm' => 0, 'requireAdmin' => false, 'public' => true],
             'auth.lost_password'          => ['perm' => 0, 'requireAdmin' => false, 'public' => true],
+            // #107: no session yet, only the pending `sbpp_2fa` cookie.
+            'auth.2fa_verify'             => ['perm' => 0, 'requireAdmin' => false, 'public' => true],
+            'auth.2fa_enroll_start'       => ['perm' => 0, 'requireAdmin' => false, 'public' => true],
+            'auth.2fa_enroll_confirm'     => ['perm' => 0, 'requireAdmin' => false, 'public' => true],
+            'auth.2fa_cancel'             => ['perm' => 0, 'requireAdmin' => false, 'public' => true],
 
             // -- bans.
             'bans.add'                    => ['perm' => ADMIN_OWNER | ADMIN_ADD_BAN, 'requireAdmin' => false, 'public' => false],

@@ -281,6 +281,47 @@ CREATE TABLE IF NOT EXISTS `{prefix}_auth_throttle` (
     KEY `expires` (`expires`)
 ) ENGINE=InnoDB DEFAULT CHARSET={charset};
 
+-- Two-factor authentication (#107), see Sbpp\Auth\TwoFactor. `secret` is
+-- the base32 TOTP secret sealed with Sbpp\Security\SecretBox (key derived
+-- from SB_SECRET_KEY); `confirmed_at` is NULL while the admin is setting
+-- it up; `last_step` is the last accepted 30-second step (a code is
+-- accepted once).
+CREATE TABLE IF NOT EXISTS `{prefix}_admin_totp` (
+    `aid` int(6) NOT NULL,
+    `secret` varchar(255) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    `confirmed_at` int(11) DEFAULT NULL,
+    `last_step` bigint(20) NOT NULL DEFAULT -1,
+    `created` int(11) NOT NULL,
+    PRIMARY KEY (`aid`)
+) ENGINE=InnoDB DEFAULT CHARSET={charset};
+
+-- Single-use 2FA recovery codes (#107): SHA-256 of the code (80 random
+-- bits), `used_at` set when spent.
+CREATE TABLE IF NOT EXISTS `{prefix}_admin_recovery_codes` (
+    `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT,
+    `aid` int(6) NOT NULL,
+    `code_hash` char(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    `used_at` int(11) DEFAULT NULL,
+    PRIMARY KEY (`id`),
+    KEY `aid` (`aid`)
+) ENGINE=InnoDB DEFAULT CHARSET={charset};
+
+-- Pending second sign-in step (#107): a browser that passed the password
+-- or Steam check and must still send a code (`verify`) or set 2FA up
+-- (`enroll`). Keyed on the SHA-256 of the `sbpp_2fa` cookie token.
+CREATE TABLE IF NOT EXISTS `{prefix}_auth_pending` (
+    `token_hash` char(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    `aid` int(6) NOT NULL,
+    `purpose` varchar(8) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    `maxlife` int(11) NOT NULL,
+    `redirect` varchar(255) NOT NULL DEFAULT '',
+    `attempts` int(10) UNSIGNED NOT NULL DEFAULT 0,
+    `expires` int(11) NOT NULL,
+    PRIMARY KEY (`token_hash`),
+    KEY `aid` (`aid`),
+    KEY `expires` (`expires`)
+) ENGINE=InnoDB DEFAULT CHARSET={charset};
+
 -- Player notes scratchpad surfaced by the player-detail drawer (#1165).
 -- Notes are scoped per Steam ID so an admin can pin context that survives
 -- ban-row churn (a re-ban or unban makes a new bid — notes follow the

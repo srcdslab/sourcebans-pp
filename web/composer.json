@@ -27,7 +27,9 @@
         "ext-pdo": "*",
         "ext-openssl": "*",
         "php": ">=8.5",
-        "maennchen/zipstream-php": "^3.2"
+        "maennchen/zipstream-php": "^3.2",
+        "bacon/bacon-qr-code": "^3.0",
+        "ext-sodium": "*"
     },
 
     "autoload": {

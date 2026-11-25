@@ -280,6 +280,95 @@
     </section>
 
     {* -- Change email card -------------------------------------------- *}
+    {* Two-factor authentication (#107). Every action asks for the current
+       password or a current code; the handlers only ever touch the
+       caller's own account. *}
+    <section class="card" data-testid="account-2fa" data-enabled="{if $twofa_enabled}1{else}0{/if}">
+        <div class="card__header">
+            <div>
+                <h3>Two-factor authentication</h3>
+                {if $twofa_enabled}
+                    <p data-testid="account-2fa-status">On. {$twofa_recovery_left} recovery code{if $twofa_recovery_left != 1}s{/if} left.
+                        Every sign-in, with a password or with Steam, asks for a code from your authenticator app.</p>
+                {else}
+                    <p data-testid="account-2fa-status">Off. Turn it on to ask for a code from an authenticator app at every sign-in, with a password or with Steam.</p>
+                {/if}
+                {if $twofa_required}
+                    <p class="text-xs text-muted" data-testid="account-2fa-required">The panel settings require two-factor authentication for your account.</p>
+                {/if}
+            </div>
+        </div>
+        <div class="card__body space-y-4">
+            <div id="account-2fa-codes-wrap" data-testid="account-2fa-codes" hidden>
+                <p class="text-sm"><strong>Save your recovery codes.</strong> Each one signs you in once if you lose your phone. They are shown only now.</p>
+                <pre id="account-2fa-codes" class="mt-2" style="font-size:var(--fs-sm);line-height:1.6;user-select:all"></pre>
+            </div>
+            {if $twofa_enabled}
+                <form id="account-2fa-regen-form" class="space-y-3" autocomplete="off" novalidate>
+                    {csrf_field}
+                    <div>
+                        <label class="label" for="account-2fa-regen-code">Code from your app</label>
+                        <input class="input" type="text" inputmode="numeric" autocomplete="one-time-code"
+                               id="account-2fa-regen-code" name="code" maxlength="8"
+                               data-testid="account-2fa-regen-code" required>
+                    </div>
+                    <div class="flex justify-end">
+                        <button class="btn btn--secondary" type="submit" data-testid="account-2fa-regen">New recovery codes</button>
+                    </div>
+                </form>
+                {if !$twofa_required}
+                    <form id="account-2fa-disable-form" class="space-y-3" autocomplete="off" novalidate>
+                        {csrf_field}
+                        <div>
+                            <label class="label" for="account-2fa-disable-password">Current password</label>
+                            <input class="input" type="password" autocomplete="current-password"
+                                   id="account-2fa-disable-password" name="password"
+                                   data-testid="account-2fa-disable-password" required>
+                        </div>
+                        <div>
+                            <label class="label" for="account-2fa-disable-code">Code from your app, or a recovery code</label>
+                            <input class="input" type="text" autocomplete="one-time-code"
+                                   id="account-2fa-disable-code" name="code" maxlength="24"
+                                   data-testid="account-2fa-disable-code" required>
+                        </div>
+                        <div class="flex justify-end">
+                            <button class="btn btn--danger" type="submit" data-testid="account-2fa-disable">Turn off</button>
+                        </div>
+                    </form>
+                {/if}
+            {else}
+                <form id="account-2fa-setup-form" class="space-y-3" autocomplete="off" novalidate>
+                    {csrf_field}
+                    <div>
+                        <label class="label" for="account-2fa-password">Current password</label>
+                        <input class="input" type="password" autocomplete="current-password"
+                               id="account-2fa-password" name="password"
+                               data-testid="account-2fa-password" required>
+                    </div>
+                    <div class="flex justify-end">
+                        <button class="btn btn--primary" type="submit" data-testid="account-2fa-setup">Set up</button>
+                    </div>
+                </form>
+                <form id="account-2fa-confirm-form" class="space-y-3" autocomplete="off" novalidate hidden>
+                    {csrf_field}
+                    <p class="text-sm">Scan the QR code with an authenticator app (Aegis, 2FAS, Google Authenticator, 1Password…), then enter the 6-digit code it shows.</p>
+                    <img id="account-2fa-qr" data-testid="account-2fa-qr" alt="QR code for your authenticator app" width="200" height="200" style="background:#fff;padding:.5rem;border-radius:var(--radius-md)">
+                    <p class="text-xs text-muted">Can't scan it? Enter this key: <code id="account-2fa-secret" data-testid="account-2fa-secret" style="word-break:break-all"></code></p>
+                    <div>
+                        <label class="label" for="account-2fa-code">Code from your app</label>
+                        <input class="input" type="text" inputmode="numeric" autocomplete="one-time-code"
+                               id="account-2fa-code" name="code" maxlength="8"
+                               data-testid="account-2fa-code" required>
+                    </div>
+                    <div class="flex justify-end">
+                        <button class="btn btn--primary" type="submit" data-testid="account-2fa-confirm">Turn on</button>
+                    </div>
+                </form>
+            {/if}
+            <p id="account-2fa-msg" class="text-xs" role="alert" data-testid="account-2fa-msg" style="color:var(--danger);min-height:1em"></p>
+        </div>
+    </section>
+
     <section class="card" data-testid="account-change-email">
         <div class="card__header">
             <div>
@@ -839,5 +928,81 @@
         });
     });
 })();
+</script>
+{/literal}
+
+{literal}
+<script>
+// Two-factor section (#107).
+(function () {
+    'use strict';
+    var msg = document.getElementById('account-2fa-msg');
+    if (!msg) return;
+    function setBusy(btn, busy) {
+        if (!btn) return;
+        var S = window.SBPP;
+        if (S && typeof S.setBusy === 'function') S.setBusy(btn, busy);
+        else btn.disabled = busy === undefined ? true : !!busy;
+    }
+    function fail(btn, res) {
+        setBusy(btn, false);
+        msg.textContent = (res && res.error && res.error.message) || 'Something went wrong. Try again.';
+    }
+    function showCodes(codes) {
+        document.getElementById('account-2fa-codes').textContent = codes.join('\n');
+        document.getElementById('account-2fa-codes-wrap').hidden = false;
+    }
+    function bind(formId, action, params, done) {
+        var form = document.getElementById(formId);
+        if (!form) return;
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            msg.textContent = '';
+            var btn = form.querySelector('button[type="submit"]');
+            setBusy(btn, true);
+            sb.api.call(action, params(form)).then(function (res) {
+                if (res && res.redirect) return;
+                if (!res || res.ok !== true) { fail(btn, res); return; }
+                setBusy(btn, false);
+                done(form, res.data || {});
+            }, function () { fail(btn, null); });
+        });
+    }
+    function val(form, name) {
+        var el = form.querySelector('[name="' + name + '"]');
+        return el ? el.value : '';
+    }
+
+    bind('account-2fa-setup-form', Actions.Account2faSetupStart, function (f) {
+        return { password: val(f, 'password') };
+    }, function (form, data) {
+        var qr = document.getElementById('account-2fa-qr');
+        // A data: URI in an <img>: the SVG is never parsed as page markup.
+        if (qr && typeof data.qr === 'string' && data.qr.indexOf('data:image/svg+xml;base64,') === 0) qr.src = data.qr;
+        document.getElementById('account-2fa-secret').textContent = String(data.secret || '').replace(/(....)/g, '$1 ').trim();
+        form.hidden = true;
+        document.getElementById('account-2fa-confirm-form').hidden = false;
+    });
+    bind('account-2fa-confirm-form', Actions.Account2faSetupConfirm, function (f) {
+        return { code: val(f, 'code') };
+    }, function (form, data) {
+        form.hidden = true;
+        showCodes(data.recovery_codes || []);
+        if (window.SBPP && window.SBPP.showToast) {
+            window.SBPP.showToast({ kind: 'success', title: 'Two-factor on', body: 'Your other sessions were signed out. Save your recovery codes.' });
+        }
+    });
+    bind('account-2fa-regen-form', Actions.Account2faRecoveryCodes, function (f) {
+        return { code: val(f, 'code') };
+    }, function (form, data) {
+        form.reset();
+        showCodes(data.recovery_codes || []);
+    });
+    bind('account-2fa-disable-form', Actions.Account2faDisable, function (f) {
+        return { password: val(f, 'password'), code: val(f, 'code') };
+    }, function () {
+        window.location.reload();
+    });
+}());
 </script>
 {/literal}

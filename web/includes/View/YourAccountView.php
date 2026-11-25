@@ -59,6 +59,12 @@ final class YourAccountView extends View
         public readonly int $min_pass_len,
         public readonly array $api_tokens,
         public readonly bool $can_generate_password = false,
+        /** Two-factor is on for this admin (#107). */
+        public readonly bool $twofa_enabled = false,
+        /** The `auth.2fa.require` setting covers this admin: 2FA can't be turned off. */
+        public readonly bool $twofa_required = false,
+        /** Unused recovery codes left. */
+        public readonly int $twofa_recovery_left = 0,
     ) {
     }
 }

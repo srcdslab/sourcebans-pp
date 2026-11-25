@@ -109,12 +109,6 @@ parameters:
 			path: includes/Mail/Mail.php
 
 		-
-			message: '#^Property Sbpp\\View\\AdminFeaturesView\:\:\$can_owner is never referenced in template "page_admin_settings_features\.tpl"\.$#'
-			identifier: sbpp.view.unusedProperty
-			count: 1
-			path: includes/View/AdminFeaturesView.php
-
-		-
 			message: '#^Property Sbpp\\View\\AdminSettingsView\:\:\$can_owner is never referenced in template "page_admin_settings_settings\.tpl"\.$#'
 			identifier: sbpp.view.unusedProperty
 			count: 1

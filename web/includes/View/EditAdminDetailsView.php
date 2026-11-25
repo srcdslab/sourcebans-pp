@@ -32,6 +32,9 @@ final class EditAdminDetailsView extends View
         public readonly string $email,
         public readonly bool $a_spass,
         public readonly bool $change_pass,
+        /** Owner editing another admin who has 2FA on: show the reset card (#107). */
+        public readonly bool $can_reset_2fa = false,
+        public readonly int $admin_id = 0,
     ) {
     }
 }

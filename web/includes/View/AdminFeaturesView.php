@@ -33,6 +33,8 @@ final class AdminFeaturesView extends View
         public readonly bool $enable_normallogin,
         public readonly bool $enable_publiccomments,
         public readonly bool $telemetry_enabled,
+        /** `auth.2fa.require`: `off`, `owners` or `all` (#107). */
+        public readonly string $twofa_require = 'off',
     ) {
     }
 }

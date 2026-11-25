@@ -234,6 +234,21 @@ if ($canSettings && isset($_POST['settingsGroup'])) {
             (" . $steamloginopt  . ", 'config.enablesteamlogin'),
             (" . $normalloginopt . ", 'config.enablenormallogin'),
             (" . $telemetryNew   . ", 'telemetry.enabled')")->execute();
+        // Two-factor requirement (#107): Owner only, logged on its own.
+        $twofaNew = (string) ($_POST['twofa_require'] ?? '');
+        $twofaOld = \Sbpp\Auth\TwoFactor::requirement();
+        if ($userbank->HasAccess(WebPermission::Owner)
+            && in_array($twofaNew, [\Sbpp\Auth\TwoFactor::REQUIRE_OFF, \Sbpp\Auth\TwoFactor::REQUIRE_OWNERS, \Sbpp\Auth\TwoFactor::REQUIRE_ALL], true)
+            && $twofaNew !== $twofaOld
+        ) {
+            $GLOBALS['PDO']->query("REPLACE INTO `:prefix_settings` (`value`, `setting`) VALUES (?, '" . \Sbpp\Auth\TwoFactor::SETTING . "')")
+                ->execute([$twofaNew]);
+            Log::add(
+                LogType::Warning,
+                'Two-factor requirement',
+                sprintf('Two-factor requirement changed from "%s" to "%s" by %s.', $twofaOld, $twofaNew, (string) $userbank->GetProperty('user')),
+            );
+        }
         Log::add(LogType::Message, 'Settings updated', 'Feature toggles were updated.');
         $savedSection = 'features';
     }
@@ -407,6 +422,7 @@ if ($section === 'themes') {
         enable_normallogin:    Config::getBool('config.enablenormallogin'),
         enable_publiccomments: Config::getBool('config.enablepubliccomments'),
         telemetry_enabled:     Config::getBool('telemetry.enabled'),
+        twofa_require:         \Sbpp\Auth\TwoFactor::requirement(),
     ));
 } else {
     $rawCustomReasons = Config::getBool('bans.customreasons')

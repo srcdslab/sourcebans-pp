@@ -2,13 +2,20 @@
 
 namespace Sbpp\Auth\Handler;
 
-use Sbpp\Auth\Auth;
 use Sbpp\Config;
 use Sbpp\Db\Database;
 
+/**
+ * Checks a username + password. It no longer starts the session itself
+ * (#107): the caller passes {@see aid()} / {@see maxlife()} to
+ * {@see \Sbpp\Auth\TwoFactor::completePrimary()}, which asks for the
+ * second factor first when the admin has one.
+ */
 final class NormalAuthHandler
 {
     private bool $result = false;
+    private int $aid = 0;
+    private int $maxlife = 0;
 
     public function __construct(
         private Database $dbs,
@@ -25,11 +32,13 @@ final class NormalAuthHandler
         if (!empty($password) && (!empty($user['password']) || $user['password'] !== null)) {
             if ($this->checkPassword($password, $user['password'])) {
                 $this->result = true;
-                Auth::login($user['aid'], $maxlife);
             } elseif ($this->legacyPasswordCheck($password, $user['password'])) {
                 $this->result = true;
                 $this->updatePasswordHash($password, $user['aid']);
-                Auth::login($user['aid'], $maxlife);
+            }
+            if ($this->result) {
+                $this->aid = (int) $user['aid'];
+                $this->maxlife = (int) $maxlife;
             }
         }
     }
@@ -37,6 +46,18 @@ final class NormalAuthHandler
     public function getResult(): bool
     {
         return $this->result;
+    }
+
+    /** The admin the password belongs to (0 unless {@see getResult()}). */
+    public function aid(): int
+    {
+        return $this->aid;
+    }
+
+    /** Session lifetime in seconds (remember-me aware). */
+    public function maxlife(): int
+    {
+        return $this->maxlife;
     }
 
     private function checkPassword(string $password, string $hash): bool

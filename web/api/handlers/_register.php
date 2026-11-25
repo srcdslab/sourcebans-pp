@@ -24,6 +24,11 @@ require_once __DIR__ . '/system.php';
 // ---- public actions (no auth required) --------------------------------
 Api::register('auth.login',         'api_auth_login',         0, false, true);
 Api::register('auth.lost_password', 'api_auth_lost_password', 0, false, true);
+// Second sign-in step (#107): no session yet, only the pending cookie.
+Api::register('auth.2fa_verify',         'api_auth_2fa_verify',         0, false, true);
+Api::register('auth.2fa_enroll_start',   'api_auth_2fa_enroll_start',   0, false, true);
+Api::register('auth.2fa_enroll_confirm', 'api_auth_2fa_enroll_confirm', 0, false, true);
+Api::register('auth.2fa_cancel',         'api_auth_2fa_cancel',         0, false, true);
 // bans.detail mirrors the public ban-list page's reach: any visitor can
 // click a ban row in the right-side drawer (#1123 C1). Player IP, admin
 // name, removed-by and comments are gated *inside* the handler against
@@ -57,6 +62,11 @@ Api::register('account.change_email',       'api_account_change_email');
 Api::register('account.tokens_list',        'api_account_tokens_list');
 Api::register('account.tokens_create',      'api_account_tokens_create');
 Api::register('account.tokens_revoke',      'api_account_tokens_revoke');
+// Two-factor on the caller's own account (#107).
+Api::register('account.2fa_setup_start',    'api_account_2fa_setup_start');
+Api::register('account.2fa_setup_confirm',  'api_account_2fa_setup_confirm');
+Api::register('account.2fa_disable',        'api_account_2fa_disable');
+Api::register('account.2fa_recovery_codes', 'api_account_2fa_recovery_codes');
 
 // ---- admins -----------------------------------------------------------
 Api::register('admins.add',               'api_admins_add',               ADMIN_OWNER | ADMIN_ADD_ADMINS);
@@ -66,6 +76,7 @@ Api::register('admins.reactivate',        'api_admins_reactivate',        ADMIN_
 Api::register('admins.bulk',              'api_admins_bulk',              ADMIN_OWNER | ADMIN_DELETE_ADMINS | ADMIN_EDIT_ADMINS);
 Api::register('admins.edit_perms',        'api_admins_edit_perms',        ADMIN_OWNER | ADMIN_EDIT_ADMINS);
 Api::register('admins.generate_password', 'api_admins_generate_password', 0, true);
+Api::register('admins.2fa_reset',         'api_admins_2fa_reset',         ADMIN_OWNER);
 
 // ---- auth groups (SteamCommunity ban features) ------------------------
 Api::register('bans.add',                 'api_bans_add',                  ADMIN_OWNER | ADMIN_ADD_BAN);

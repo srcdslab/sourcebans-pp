@@ -233,3 +233,120 @@ function api_account_tokens_revoke(array $params): array
     Log::add(LogType::Message, 'API token revoked', 'API token #' . $id . ' revoked.');
     return ['revoked' => $id];
 }
+
+// ---- Two-factor on the caller's own account (#107) ---------------------
+//
+// Always the caller's own aid: no `aid` parameter, so one admin can't
+// touch another's second factor here (Owners use admins.2fa_reset).
+
+/**
+ * Count one password / code attempt on the caller's `2fa:` counter before
+ * checking it, so a stolen session can't brute-force the password or a
+ * code here (10 per 15 minutes, shared with the sign-in second step).
+ */
+function _api_account_2fa_gate(): void
+{
+    global $userbank;
+    try {
+        $hit = (new \Sbpp\Auth\LoginThrottle($GLOBALS['PDO']))->hit(
+            '2fa:' . $userbank->GetAid(),
+            \Sbpp\Auth\TwoFactor::ACCOUNT_LIMIT,
+            \Sbpp\Auth\LoginThrottle::WINDOW_SECONDS,
+            time(),
+        );
+    } catch (\Sbpp\Auth\ThrottleUnavailable $e) {
+        error_log('[sbpp] two-factor change refused, sign-in counters unavailable: ' . $e->getMessage());
+        throw $e->tableMissing
+            ? new ApiError('unavailable', "The panel's database needs updating: ask the panel owner to run the updater.")
+            : new ApiError('unavailable', 'This could not be checked right now. Try again in a moment.');
+    }
+    if ($hit->blocked()) {
+        throw new ApiError('locked', 'Too many wrong attempts. Try again in about ' . max(1, (int) ceil($hit->retryAfter / 60)) . ' minutes.');
+    }
+}
+
+/** The current password, checked for the calling admin. */
+function _api_account_2fa_check_password(string $password): void
+{
+    global $userbank;
+    _api_account_2fa_gate();
+    if ($password === '' || !$userbank->isCurrentPasswordValid($userbank->GetAid(), $password)) {
+        throw new ApiError('bad_password', "Current password doesn't match.", 'password');
+    }
+}
+
+function api_account_2fa_setup_start(array $params): array
+{
+    global $userbank;
+    _api_account_2fa_check_password((string) ($params['password'] ?? ''));
+    $setup = (new \Sbpp\Auth\TwoFactor($GLOBALS['PDO']))->beginSetup($userbank->GetAid(), (string) $userbank->GetProperty('user'));
+    if ($setup === null) {
+        throw new ApiError('already_enabled', 'Two-factor authentication is already on.');
+    }
+    return [
+        'secret' => $setup['secret'],
+        'uri'    => $setup['uri'],
+        'qr'     => \Sbpp\Security\QrCode::svgDataUri($setup['uri']),
+    ];
+}
+
+function api_account_2fa_setup_confirm(array $params): array
+{
+    global $userbank;
+    $aid = $userbank->GetAid();
+    _api_account_2fa_gate();
+    $codes = (new \Sbpp\Auth\TwoFactor($GLOBALS['PDO']))->confirmSetup($aid, (string) ($params['code'] ?? ''), time());
+    if ($codes === null) {
+        throw new ApiError('invalid_code', "That code isn't valid. Check the time on your phone and try the next one.", 'code');
+    }
+    // Sessions opened before 2FA was on end; this one stays.
+    _api_account_2fa_end_other_sessions($aid);
+    return ['recovery_codes' => $codes];
+}
+
+function api_account_2fa_disable(array $params): array
+{
+    global $userbank;
+    $aid = $userbank->GetAid();
+    $tf = new \Sbpp\Auth\TwoFactor($GLOBALS['PDO']);
+    if ($tf->isRequiredFor($aid)) {
+        throw new ApiError('required', 'Two-factor authentication is required for your account by the panel settings.');
+    }
+    // One attempt (password + code) takes one slot on `2fa:<aid>`: the
+    // password check already took it.
+    _api_account_2fa_check_password((string) ($params['password'] ?? ''));
+    $code = (string) ($params['code'] ?? '');
+    $now = time();
+    if (!$tf->checkTotp($aid, $code, $now) && !$tf->useRecoveryCode($aid, $code, $now)) {
+        throw new ApiError('invalid_code', "That code isn't valid.", 'code');
+    }
+    $tf->disable($aid);
+    _api_account_2fa_end_other_sessions($aid);
+    Log::add(LogType::Message, 'Two-factor disabled', sprintf('Admin "%s" turned off two-factor authentication.', (string) $userbank->GetProperty('user')));
+    return ['disabled' => true];
+}
+
+function api_account_2fa_recovery_codes(array $params): array
+{
+    global $userbank;
+    $aid = $userbank->GetAid();
+    $tf = new \Sbpp\Auth\TwoFactor($GLOBALS['PDO']);
+    if (!$tf->isEnrolled($aid)) {
+        throw new ApiError('not_enabled', 'Two-factor authentication is off.');
+    }
+    _api_account_2fa_gate();
+    if (!$tf->checkTotp($aid, (string) ($params['code'] ?? ''), time())) {
+        throw new ApiError('invalid_code', "That code isn't valid.", 'code');
+    }
+    $codes = $tf->regenerateRecoveryCodes($aid);
+    Log::add(LogType::Message, 'Two-factor recovery codes', sprintf('Admin "%s" generated new recovery codes.', (string) $userbank->GetProperty('user')));
+    return ['recovery_codes' => $codes];
+}
+
+/** End every session of `$aid` but the current one. */
+function _api_account_2fa_end_other_sessions(int $aid): void
+{
+    $token = \Sbpp\Auth\Auth::verify();
+    $jti = $token instanceof \Lcobucci\JWT\UnencryptedToken ? (string) $token->claims()->get('jti') : '';
+    \Sbpp\Auth\Auth::revokeOtherSessions($aid, $jti);
+}

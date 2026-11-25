@@ -35,6 +35,8 @@ const SEED_ANNOUNCEMENTS_INSIDE_CONTAINER =
     '/var/www/html/web/tests/e2e/scripts/seed-announcements-e2e.php';
 const SEED_LOSTPASSWORD_INSIDE_CONTAINER =
     '/var/www/html/web/tests/e2e/scripts/seed-lostpassword-e2e.php';
+const SEED_2FA_ADMIN_INSIDE_CONTAINER =
+    '/var/www/html/web/tests/e2e/scripts/seed-2fa-admin-e2e.php';
 const SEED_LOSTPASSWORD_ENUM_ADMIN_INSIDE_CONTAINER =
     '/var/www/html/web/tests/e2e/scripts/seed-lostpassword-enum-admin-e2e.php';
 const SET_SETTING_INSIDE_CONTAINER =
@@ -973,4 +975,31 @@ export async function clearTestEmailThrottleE2e(): Promise<void> {
         maxBuffer: 1 * 1024 * 1024,
         cwd: inContainer ? undefined : process.cwd(),
     });
+}
+
+/**
+ * #107: a dedicated admin for the two-factor spec (turning 2FA on ends
+ * the admin's other sessions, so it must never be the shared `admin`).
+ * Re-running with the same name starts from a clean account.
+ */
+export async function seed2faAdminE2e(user: string): Promise<{ user: string; password: string }> {
+    const inContainer = process.env.E2E_IN_CONTAINER === '1';
+    const cmd = inContainer ? 'php' : 'docker';
+    const cmdArgs = inContainer
+        ? [SEED_2FA_ADMIN_INSIDE_CONTAINER, user]
+        : ['compose', 'exec', '-T', 'web', 'php', SEED_2FA_ADMIN_INSIDE_CONTAINER, user];
+    const { stdout, stderr } = await execFileP(cmd, cmdArgs, {
+        maxBuffer: 1 * 1024 * 1024,
+        cwd: inContainer ? undefined : process.cwd(),
+    });
+    try {
+        const parsed = JSON.parse(stdout.trim()) as { user: string; password: string };
+        if (typeof parsed.user !== 'string' || typeof parsed.password !== 'string') {
+            throw new Error('missing user/password keys');
+        }
+        return parsed;
+    } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new Error(`seed-2fa-admin-e2e.php: malformed stdout (${msg})\nstdout:\n${stdout}\nstderr:\n${stderr}`);
+    }
 }

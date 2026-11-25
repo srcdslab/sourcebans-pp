@@ -255,6 +255,24 @@ Auth::init($GLOBALS['PDO']);
 
 $userbank = new CUserManager(Auth::verify());
 
+// Two-factor required but not set up (#107): a session opened before the
+// `auth.2fa.require` setting covered this admin ends here. The next
+// sign-in goes through the setup step. The updater skips it (the tables
+// may not exist yet); a database error leaves the session alone, since
+// it only ever adds this restriction.
+if ($userbank->is_logged_in() && !defined('IS_UPDATE')) {
+    try {
+        $twoFactorGate = new \Sbpp\Auth\TwoFactor($GLOBALS['PDO']);
+        if ($twoFactorGate->isRequiredFor($userbank->GetAid()) && !$twoFactorGate->isEnrolled($userbank->GetAid())) {
+            Auth::logout();
+            $userbank = new CUserManager(null);
+        }
+    } catch (\PDOException) {
+        // Migration 820 not run yet: no admin can have 2FA or be required to.
+    }
+    unset($twoFactorGate);
+}
+
 // ---------------------------------------------------
 // Bind a CSRF token to the session (must run before any form is
 // rendered so the token is available, and before any state-changing

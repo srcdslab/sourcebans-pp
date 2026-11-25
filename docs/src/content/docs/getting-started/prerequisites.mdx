@@ -97,14 +97,15 @@ some CJK characters fail to insert and the plugin logs a SQL error.
   - `openssl`: TLS for SMTP and the panel's session tokens
   - `xml`
   - `mbstring`
+  - `sodium`: encrypts two-factor secrets (bundled with PHP on most hosts)
 
 You can confirm them all in one command:
 
 ```sh
-php -m | grep -E '^(pdo_mysql|openssl|xml|mbstring)$'
+php -m | grep -E '^(pdo_mysql|openssl|xml|mbstring|sodium)$'
 ```
 
-You should see all four printed back. If any are missing, install
+You should see all five printed back. If any are missing, install
 your distro's `php-<name>` package for that version (e.g.
 `php8.5-mbstring`). If `pdo_mysql` is the missing one,
 [Driver not found](/troubleshooting/could-not-find-driver/) has the
