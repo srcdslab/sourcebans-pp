@@ -181,7 +181,16 @@
         var btn = document.getElementById('edit-admin-2fa-reset');
         if (!btn) return;
         btn.addEventListener('click', function () {
-            if (!window.confirm('Turn off two-factor authentication for this admin and end their sessions?')) return;
+            var confirmFn = window.SBPP && typeof window.SBPP.confirm === 'function' ? window.SBPP.confirm : null;
+            if (!confirmFn) return;
+            confirmFn({
+                title: 'Reset two-factor',
+                body: 'Turn off two-factor authentication for this admin and end their sessions?',
+                confirmLabel: 'Reset',
+                danger: true
+            }).then(function (ok) { if (ok) reset(); });
+        });
+        function reset() {
             if (window.SBPP && window.SBPP.setBusy) window.SBPP.setBusy(btn, true); else btn.disabled = true;
             sb.api.call(Actions.Admins2faReset, { aid: parseInt(btn.getAttribute('data-aid') || '0', 10) }).then(function (res) {
                 if (res && res.ok === true) {
@@ -193,7 +202,7 @@
                 if (window.SBPP && window.SBPP.setBusy) window.SBPP.setBusy(btn, false); else btn.disabled = false;
                 if (window.SBPP && window.SBPP.showToast) window.SBPP.showToast({ kind: 'error', title: 'Reset failed', body: (res && res.error && res.error.message) || 'Try again.' });
             });
-        });
+        }
     }());
     </script>
     {/literal}
