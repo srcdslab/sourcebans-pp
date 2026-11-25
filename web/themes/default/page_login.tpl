@@ -291,12 +291,24 @@
     var PK = window.SBPP_PASSKEYS;
     if (passkeyBtn && PK && PK.supported()) {
         passkeyBtn.hidden = false;
+        // An error envelope (not a redirect): release the button and say why.
+        var passkeyError = function (res) {
+            setBusy(passkeyBtn, false);
+            var text = (res && res.error && res.error.message) || 'Something went wrong. Try again.';
+            if (window.SBPP && typeof window.SBPP.showToast === 'function') {
+                window.SBPP.showToast({ kind: 'error', title: 'Passkey sign-in failed', body: text });
+            }
+        };
         passkeyBtn.addEventListener('click', function () {
             setBusy(passkeyBtn, true);
             sb.api.call(Actions.AuthPasskeyLoginStart, {}).then(function (res) {
-                if (!res || res.ok !== true || !res.data) { setBusy(passkeyBtn, false); return null; }
+                if (res && res.redirect) return null;
+                if (!res || res.ok !== true || !res.data) { passkeyError(res); return null; }
                 return PK.get(res.data.options).then(function (credential) {
                     return sb.api.call(Actions.AuthPasskeyLoginFinish, { credential: credential, redirect: '' });
+                }).then(function (r) {
+                    if (r && r.redirect) return;
+                    passkeyError(r);
                 });
             }).catch(function () {
                 // Cancelled in the browser dialog, or no passkey for this site.

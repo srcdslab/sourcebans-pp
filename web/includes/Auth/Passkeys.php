@@ -84,6 +84,36 @@ final class Passkeys
         return self::panelOrigin() !== null;
     }
 
+    /**
+     * Whether the updater created the passkey tables (migration 821). Code
+     * deployed before the updater ran must not fail on them.
+     */
+    public function tablesExist(): bool
+    {
+        try {
+            $this->dbs->query('SELECT 1 FROM `:prefix_admin_passkeys` LIMIT 1');
+            $this->dbs->single();
+            $this->dbs->query('SELECT 1 FROM `:prefix_webauthn_challenges` LIMIT 1');
+            $this->dbs->single();
+            return true;
+        } catch (\PDOException $e) {
+            if (self::isMissingTable($e)) {
+                return false;
+            }
+            throw $e;
+        }
+    }
+
+    /** SQLSTATE 42S02 (ER_NO_SUCH_TABLE): the updater hasn't run yet. */
+    public static function isMissingTable(\PDOException $e): bool
+    {
+        $sqlState = is_array($e->errorInfo) ? (string) ($e->errorInfo[0] ?? '') : '';
+        if ($sqlState === '') {
+            $sqlState = (string) $e->getCode();
+        }
+        return $sqlState === '42S02';
+    }
+
     /** `scheme://host[:port]` of `SBPP_PANEL_URL`, or null. */
     public static function panelOrigin(): ?string
     {
@@ -263,6 +293,28 @@ final class Passkeys
     }
 
     // -- Management -----------------------------------------------------
+
+    /**
+     * Passkeys `$aid` can use right now: none while passkeys are off
+     * ({@see available()}) or before the updater created their table.
+     * This, not {@see count()}, decides whether a passkey counts as a
+     * second factor: a passkey that can't be offered must not open a step
+     * the admin can't answer.
+     */
+    public function usableCount(int $aid): int
+    {
+        if (!self::available()) {
+            return 0;
+        }
+        try {
+            return $this->count($aid);
+        } catch (\PDOException $e) {
+            if (self::isMissingTable($e)) {
+                return 0;
+            }
+            throw $e;
+        }
+    }
 
     public function count(int $aid): int
     {

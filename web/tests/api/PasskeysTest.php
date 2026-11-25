@@ -5,8 +5,10 @@
 
 namespace Sbpp\Tests\Api;
 
+use Sbpp\Auth\LoginThrottle;
 use Sbpp\Auth\Passkeys;
 use Sbpp\Auth\TwoFactor;
+use Sbpp\Security\Totp;
 use Sbpp\Tests\ApiTestCase;
 use Sbpp\Tests\Fixture;
 
@@ -255,6 +257,145 @@ final class PasskeysTest extends ApiTestCase
         $this->assertSame(0, (new Passkeys($GLOBALS['PDO']))->count($otherAid));
     }
 
+    // -- Passkeys off, updater not run, limits --------------------------
+
+    public function testPasskeysStopCountingAsASecondFactorWhenTheyAreOff(): void
+    {
+        $this->registerFor(Fixture::adminAid());
+        $tf = new TwoFactor($GLOBALS['PDO']);
+        $this->assertTrue($tf->hasSecondFactor(Fixture::adminAid()));
+
+        // SBPP_PANEL_URL removed or moved: the passkey can't be offered.
+        Passkeys::overrideOriginForTests(null);
+
+        $this->assertSame(1, (new Passkeys($GLOBALS['PDO']))->count(Fixture::adminAid()));
+        $this->assertFalse($tf->hasSecondFactor(Fixture::adminAid()), 'No second step with nothing to answer.');
+        $env = $this->api('auth.login', ['username' => 'admin', 'password' => 'admin']);
+        $this->assertSame('?', $env['redirect'] ?? null, json_encode($env));
+    }
+
+    public function testAPasskeyCanBeRemovedWhilePasskeysAreOff(): void
+    {
+        $this->registerFor(Fixture::adminAid());
+        $id = (new Passkeys($GLOBALS['PDO']))->listFor(Fixture::adminAid())[0]['id'];
+        Passkeys::overrideOriginForTests(null);
+        $this->setRequirement(TwoFactor::REQUIRE_ALL);
+        $this->loginAsAdmin();
+
+        $env = $this->api('account.passkey_remove', ['id' => $id, 'password' => 'admin']);
+
+        $this->assertTrue($env['ok'] ?? false, json_encode($env));
+        $this->assertSame(0, (new Passkeys($GLOBALS['PDO']))->count(Fixture::adminAid()));
+    }
+
+    public function testTurningTheAppOffKeepsTheRecoveryCodesWhilePasskeysRemain(): void
+    {
+        $aid = Fixture::adminAid();
+        $this->registerFor($aid);
+        $tf = new TwoFactor($GLOBALS['PDO']);
+        $setup = $tf->beginSetup($aid, 'admin');
+        $this->assertNotNull($setup);
+        $this->assertNotNull($tf->confirmSetup($aid, Totp::code($setup['secret'], Totp::step(time())), time()));
+        $this->loginAsAdmin();
+
+        $env = $this->api('account.2fa_disable', ['password' => 'admin', 'code' => Totp::code($setup['secret'], Totp::step(time()) + 1)]);
+
+        $this->assertTrue($env['ok'] ?? false, json_encode($env));
+        $this->assertFalse($tf->isEnrolled($aid));
+        $this->assertSame(TwoFactor::RECOVERY_CODES, $tf->recoveryCodesLeft($aid), 'The way back in after losing the passkey devices.');
+
+        // No app left to read a code from: the password confirms new codes.
+        $this->assertSame('bad_password', $this->api('account.2fa_recovery_codes', ['password' => 'x'])['error']['code'] ?? null);
+        $regen = $this->api('account.2fa_recovery_codes', ['password' => 'admin']);
+        $this->assertTrue($regen['ok'] ?? false, json_encode($regen));
+        $this->assertCount(TwoFactor::RECOVERY_CODES, $regen['data']['recovery_codes']);
+    }
+
+    public function testRecoveryCodesNeedASecondFactor(): void
+    {
+        $this->loginAsAdmin();
+
+        $env = $this->api('account.2fa_recovery_codes', ['password' => 'admin']);
+
+        $this->assertSame('not_enabled', $env['error']['code'] ?? null);
+    }
+
+    public function testPasswordlessSignInFollowsThePasswordSignInSetting(): void
+    {
+        $key = $this->registerFor(Fixture::adminAid());
+        $options = $this->api('auth.passkey_login_start', [])['data']['options'];
+        $this->setSetting('config.enablenormallogin', '0');
+
+        $this->assertSame('disabled', $this->api('auth.passkey_login_start', [])['error']['code'] ?? null);
+        $env = $this->api('auth.passkey_login_finish', ['credential' => $key->assert($options, self::ORIGIN, 1)]);
+        $this->assertSame('disabled', $env['error']['code'] ?? null);
+        $this->assertSame(0, $this->sessions());
+    }
+
+    public function testManagingPasskeysDoesNotUseUpTheSecondStepAttempts(): void
+    {
+        $this->loginAsAdmin();
+        for ($i = 0; $i < TwoFactor::ACCOUNT_LIMIT + 2; $i++) {
+            $env = $this->api('account.passkey_register_start', ['password' => 'admin']);
+            $this->assertTrue($env['ok'] ?? false, "attempt {$i}: " . json_encode($env));
+        }
+        $this->assertSame(0, (int) ($this->row('auth_throttle', ['throttle_key' => '2fa:' . Fixture::adminAid()])['attempts'] ?? 0));
+
+        // A wrong password still counts.
+        $this->assertSame('bad_password', $this->api('account.passkey_register_start', ['password' => 'x'])['error']['code'] ?? null);
+        $this->assertSame(1, (int) ($this->row('auth_throttle', ['throttle_key' => '2fa:' . Fixture::adminAid()])['attempts'] ?? 0));
+    }
+
+    public function testPasswordlessStartTakesAnAddressSlot(): void
+    {
+        $previousAddr = $_SERVER['REMOTE_ADDR'] ?? null;
+        $_SERVER['REMOTE_ADDR'] = '203.0.113.7';
+        try {
+            for ($i = 0; $i < LoginThrottle::ipLimit(); $i++) {
+                // No cookie sent back: each call stores a new challenge row.
+                unset($_COOKIE[Passkeys::CHALLENGE_COOKIE]);
+                $this->assertTrue($this->api('auth.passkey_login_start', [])['ok'] ?? false, "call {$i}");
+            }
+            unset($_COOKIE[Passkeys::CHALLENGE_COOKIE]);
+
+            $env = $this->api('auth.passkey_login_start', []);
+
+            $this->assertStringStartsWith('?p=login&m=locked', (string) ($env['redirect'] ?? ''), json_encode($env));
+            $rows = (int) Fixture::rawPdo()->query('SELECT COUNT(*) FROM `' . DB_PREFIX . '_webauthn_challenges`')->fetchColumn();
+            $this->assertSame(LoginThrottle::ipLimit(), $rows, 'One challenge row per counted call, no more.');
+        } finally {
+            if ($previousAddr === null) {
+                unset($_SERVER['REMOTE_ADDR']);
+            } else {
+                $_SERVER['REMOTE_ADDR'] = $previousAddr;
+            }
+        }
+    }
+
+    public function testBeforeTheUpdaterPasskeysCountAsNoneAndSaySo(): void
+    {
+        $pdo = Fixture::rawPdo();
+        $table = '`' . DB_PREFIX . '_admin_passkeys`';
+        $moved = '`' . DB_PREFIX . '_admin_passkeys_moved`';
+        $pdo->exec("RENAME TABLE {$table} TO {$moved}");
+        try {
+            $passkeys = new Passkeys($GLOBALS['PDO']);
+            $this->assertFalse($passkeys->tablesExist());
+            $this->assertSame(0, $passkeys->usableCount(Fixture::adminAid()));
+            $this->setRequirement(TwoFactor::REQUIRE_ALL);
+            $tf = new TwoFactor($GLOBALS['PDO']);
+            // The init.php gate: a required admin without TOTP is still
+            // signed out, the missing table doesn't make it fail open.
+            $this->assertTrue($tf->isRequiredFor(Fixture::adminAid()) && !$tf->hasSecondFactor(Fixture::adminAid()));
+
+            $this->assertSame('?p=login&m=unavailable', $this->api('auth.passkey_login_start', [])['redirect'] ?? null);
+            $this->loginAsAdmin();
+            $this->assertSame('unavailable', $this->api('account.passkey_register_start', ['password' => 'admin'])['error']['code'] ?? null);
+        } finally {
+            $pdo->exec("RENAME TABLE {$moved} TO {$table}");
+        }
+    }
+
     // -- Helpers --------------------------------------------------------
 
     /** Register a soft passkey for `$aid` through the service (not the API, which needs a session). */
@@ -279,8 +420,13 @@ final class PasskeysTest extends ApiTestCase
 
     private function setRequirement(string $value): void
     {
+        $this->setSetting(TwoFactor::SETTING, $value);
+    }
+
+    private function setSetting(string $setting, string $value): void
+    {
         Fixture::rawPdo()->prepare('REPLACE INTO `' . DB_PREFIX . '_settings` (setting, value) VALUES (?, ?)')
-            ->execute([TwoFactor::SETTING, $value]);
+            ->execute([$setting, $value]);
         \Config::init($GLOBALS['PDO']);
     }
 
@@ -337,8 +483,10 @@ final class SoftAuthenticator
             [1, 2],                                             // kty: EC2
             [3, -7],                                            // alg: ES256
             [-1, 1],                                            // crv: P-256
-            [-2, self::bytes($details['ec']['x'])],
-            [-3, self::bytes($details['ec']['y'])],
+            // OpenSSL drops leading zero bytes; COSE wants 32 (about 1 key
+            // in 128 has a short coordinate, and the library refuses it).
+            [-2, self::bytes(str_pad($details['ec']['x'], 32, "\0", STR_PAD_LEFT))],
+            [-3, self::bytes(str_pad($details['ec']['y'], 32, "\0", STR_PAD_LEFT))],
         ]);
         $authData = hash('sha256', (string) $options['rp']['id'], true)
             . chr(0x41 | ($this->userVerified ? 0x04 : 0))      // UP + AT (+ UV)

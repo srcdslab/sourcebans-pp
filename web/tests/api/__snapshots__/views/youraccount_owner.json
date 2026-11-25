@@ -87,6 +87,7 @@
         "twofa_required": false,
         "twofa_recovery_left": 0,
         "passkeys_available": false,
+        "passkeys_needs_update": false,
         "passkeys": []
     }
 }

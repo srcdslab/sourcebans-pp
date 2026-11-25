@@ -1193,8 +1193,14 @@ The contract:
   panelOrigin()`); a challenge is consumed (deleted) before the answer
   is checked; user verification is required on every ceremony; the
   library's counter check stays on (a counter that goes backwards is a
-  cloned authenticator). "Has two-factor" means TOTP **or** a passkey:
-  use `TwoFactor::hasSecondFactor()`, not `isEnrolled()` (TOTP only).
+  cloned authenticator). "Has two-factor" means TOTP **or** a usable
+  passkey: use `TwoFactor::hasSecondFactor()`, not `isEnrolled()` (TOTP
+  only), and `Passkeys::usableCount()`, not `count()`, wherever a
+  passkey stands for a factor (0 while `SBPP_PANEL_URL` is unset or
+  before migration 821, so nobody is sent to a step they can't answer
+  and the `auth.2fa.require` gate doesn't fail open). Passwordless
+  passkey sign-in follows `config.enablenormallogin`; its start takes
+  the `ip:` slot (each call stores a challenge row).
 - **Key identifier counters the way the lookup compares.** A
   counter keyed on the raw string lets `Admin` / `ádmin` / `admin `
   each get a fresh budget against the one account

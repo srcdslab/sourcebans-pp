@@ -73,13 +73,16 @@ final class TwoFactor
     }
 
     /**
-     * Whether the admin has any second factor: TOTP, or a passkey (#108).
-     * This, not {@see isEnrolled()}, decides whether a sign-in needs a
-     * second step and whether `auth.2fa.require` is met.
+     * Whether the admin has a second factor they can use: TOTP, or a
+     * passkey (#108) while passkeys are on. This, not {@see isEnrolled()},
+     * decides whether a sign-in needs a second step and whether
+     * `auth.2fa.require` is met. Passkeys stop counting when
+     * `SBPP_PANEL_URL` is unset or changes ({@see Passkeys::usableCount()}),
+     * so a passkey-only admin isn't sent to a step with nothing to answer.
      */
     public function hasSecondFactor(int $aid): bool
     {
-        return $this->isEnrolled($aid) || (new Passkeys($this->dbs))->count($aid) > 0;
+        return $this->isEnrolled($aid) || (new Passkeys($this->dbs))->usableCount($aid) > 0;
     }
 
     /** Whether TOTP is on (a confirmed authenticator app). */
@@ -154,11 +157,11 @@ final class TwoFactor
     public function pendingPasskeyOptions(): ?array
     {
         $pending = $this->pending();
-        if ($pending === null || $pending['purpose'] !== self::PURPOSE_VERIFY || !Passkeys::available()) {
+        if ($pending === null || $pending['purpose'] !== self::PURPOSE_VERIFY) {
             return null;
         }
         $passkeys = new Passkeys($this->dbs);
-        if ($passkeys->count($pending['aid']) === 0) {
+        if ($passkeys->usableCount($pending['aid']) === 0) {
             return null;
         }
         return $passkeys->requestOptions(Passkeys::PURPOSE_SECOND, $pending['aid']);
@@ -563,15 +566,21 @@ final class TwoFactor
         (new Passkeys($this->dbs))->removeAll($aid);
     }
 
-    /** Turn TOTP off for an admin (recovery codes and pending steps go too). */
-    public function disable(int $aid): void
+    /**
+     * Turn TOTP off for an admin; pending steps go too. The recovery codes
+     * go as well, unless `$keepRecoveryCodes`: an admin who keeps passkeys
+     * still needs them to sign in after losing those devices (#108).
+     */
+    public function disable(int $aid, bool $keepRecoveryCodes = false): void
     {
         $this->dbs->query('DELETE FROM `:prefix_admin_totp` WHERE aid = :aid');
         $this->dbs->bind(':aid', $aid);
         $this->dbs->execute();
-        $this->dbs->query('DELETE FROM `:prefix_admin_recovery_codes` WHERE aid = :aid');
-        $this->dbs->bind(':aid', $aid);
-        $this->dbs->execute();
+        if (!$keepRecoveryCodes) {
+            $this->dbs->query('DELETE FROM `:prefix_admin_recovery_codes` WHERE aid = :aid');
+            $this->dbs->bind(':aid', $aid);
+            $this->dbs->execute();
+        }
         $this->dbs->query('DELETE FROM `:prefix_auth_pending` WHERE aid = :aid');
         $this->dbs->bind(':aid', $aid);
         $this->dbs->execute();

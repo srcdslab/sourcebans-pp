@@ -24,7 +24,14 @@ Legend:
 03. ? web: new tables :prefix_admin_passkeys and
         :prefix_webauthn_challenges (migration 821); new dependency
         web-auth/webauthn-lib (#108)
-04. ? theme: 2.0.8 (passkey buttons, Your account Passkeys section)
+04. * web: passwordless passkey sign-in follows "Username/password login"
+        and counts on the per-address limit; passkeys stop counting as a
+        second factor while SBPP_PANEL_URL is unset, and can still be
+        removed; turning the authenticator app off keeps the recovery
+        codes while passkeys remain (#108)
+05. ? web: the chrome scripts load with a ?v= stamp, so an update is
+        never run against a cached api-contract.js (#108)
+06. ? theme: 2.0.8 (passkey buttons, Your account Passkeys section)
 ```
 
 (25/11/26): Version 2.2.22-srcdslab

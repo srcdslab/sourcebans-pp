@@ -381,6 +381,18 @@ $theme->assign('csrf_field_name', CSRF::FIELD_NAME);
 // path; the public-facing equivalent is just "themes/<theme>" because
 // web/index.php is the document root.
 $theme->assign('theme_url', 'themes/' . $theme_name);
+// `?v=` on the chrome scripts (core/header.tpl), from their size and
+// modification time: a browser or proxy that cached an older copy (the
+// Caddy example caches *.js for a year) fetches the new one after an
+// update. A stale api-contract.js has no `Actions` entry for a new
+// action, and every button calling it breaks.
+$scriptsStamp = '';
+foreach (['api-contract.js', 'sb.js', 'api.js', 'passkeys.js'] as $chromeScript) {
+    $chromeScriptPath = ROOT . 'scripts/' . $chromeScript;
+    $scriptsStamp .= $chromeScript . ':' . (int) @filemtime($chromeScriptPath) . ':' . (int) @filesize($chromeScriptPath) . ';';
+}
+$theme->assign('scripts_version', substr(hash('sha256', $scriptsStamp), 0, 10));
+unset($scriptsStamp, $chromeScript, $chromeScriptPath);
 
 if ((isset($_GET['debug']) && $_GET['debug'] == 1) || DEBUG_MODE) {
     $theme->setForceCompile(true);

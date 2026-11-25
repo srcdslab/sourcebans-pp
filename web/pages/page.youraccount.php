@@ -29,6 +29,12 @@ $webExtraFlags = (int) $userbank->GetProperty("extraflags");
 $twoFactor = new \Sbpp\Auth\TwoFactor($GLOBALS['PDO']);
 $myAid     = (int) $userbank->GetAid();
 
+// Passkeys (#108). Before the updater created their tables the card says
+// so instead of the page failing. The list is shown even while passkeys
+// are off (SBPP_PANEL_URL unset or changed), so they can still be removed.
+$passkeyStore  = new \Sbpp\Auth\Passkeys($GLOBALS['PDO']);
+$passkeyTables = $passkeyStore->tablesExist();
+
 \Sbpp\View\Renderer::render($theme, new \Sbpp\View\YourAccountView(
     srvpwset:                $srvpwset,
     email:                   (string) ($res['email'] ?? ''),
@@ -41,6 +47,7 @@ $myAid     = (int) $userbank->GetAid();
     twofa_enabled:           $twoFactor->isEnrolled($myAid),
     twofa_required:          $twoFactor->isRequiredFor($myAid),
     twofa_recovery_left:     $twoFactor->recoveryCodesLeft($myAid),
-    passkeys_available:      \Sbpp\Auth\Passkeys::available(),
-    passkeys:                (new \Sbpp\Auth\Passkeys($GLOBALS['PDO']))->listFor($myAid),
+    passkeys_available:      \Sbpp\Auth\Passkeys::available() && $passkeyTables,
+    passkeys_needs_update:   !$passkeyTables,
+    passkeys:                $passkeyTables ? $passkeyStore->listFor($myAid) : [],
 ));

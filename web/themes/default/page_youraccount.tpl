@@ -379,41 +379,56 @@
             </div>
         </div>
         <div class="card__body space-y-4">
-            {if !$passkeys_available}
-                <p class="text-sm text-muted" data-testid="account-passkeys-unavailable">Passkeys need the panel URL (<code>SBPP_PANEL_URL</code>, https) to be set. Ask the panel owner.</p>
-            {else}
-                <div id="account-passkey-codes-wrap" hidden>
-                    <p class="text-sm"><strong>Save your recovery codes.</strong> Each one signs you in once if you lose your devices. They are shown only now.</p>
-                    <pre id="account-passkey-codes" class="mt-2" style="font-size:var(--fs-sm);line-height:1.6;user-select:all"></pre>
-                </div>
-                {if $passkeys}
-                    <ul class="space-y-2" data-testid="account-passkeys-list" style="list-style:none;padding:0;margin:0">
-                        {foreach $passkeys as $pk}
-                            <li class="flex items-center justify-between gap-2" data-testid="account-passkey-row" data-id="{$pk.id}">
-                                <span class="text-sm"><strong>{$pk.name}</strong>
-                                    <span class="text-xs text-muted">added {$pk.created|date_format:"%Y-%m-%d"}{if $pk.last_used}, last used {$pk.last_used|date_format:"%Y-%m-%d"}{/if}</span>
-                                </span>
-                                <button type="button" class="btn btn--ghost btn--sm" data-passkey-remove="{$pk.id}" data-testid="account-passkey-remove">Remove</button>
-                            </li>
-                        {/foreach}
-                    </ul>
-                {else}
-                    <p class="text-sm text-muted" data-testid="account-passkeys-empty">No passkeys yet.</p>
+            {if $passkeys_needs_update}
+                <p class="text-sm text-muted" data-testid="account-passkeys-unavailable">Passkeys need a database update. Ask the panel owner to run the updater.</p>
+            {elseif !$passkeys_available}
+                <p class="text-sm text-muted" data-testid="account-passkeys-unavailable">Passkeys need the panel URL (<code>SBPP_PANEL_URL</code>, https) to be set. Ask the panel owner.{if $passkeys} Until then your passkeys can't be used, but you can remove them.{/if}</p>
+            {/if}
+            <div id="account-passkey-codes-wrap" data-testid="account-passkey-codes" hidden>
+                <p class="text-sm"><strong>Save your recovery codes.</strong> Each one signs you in once if you lose your devices. They are shown only now.</p>
+                <pre id="account-passkey-codes" class="mt-2" style="font-size:var(--fs-sm);line-height:1.6;user-select:all"></pre>
+            </div>
+            {if $passkeys}
+                <ul class="space-y-2" data-testid="account-passkeys-list" style="list-style:none;padding:0;margin:0">
+                    {foreach $passkeys as $pk}
+                        <li class="flex items-center justify-between gap-2" data-testid="account-passkey-row" data-id="{$pk.id}">
+                            <span class="text-sm"><strong>{$pk.name}</strong>
+                                <span class="text-xs text-muted">added {$pk.created|date_format:"%Y-%m-%d"}{if $pk.last_used}, last used {$pk.last_used|date_format:"%Y-%m-%d"}{/if}</span>
+                            </span>
+                            <button type="button" class="btn btn--ghost btn--sm" data-passkey-remove="{$pk.id}" data-testid="account-passkey-remove">Remove</button>
+                        </li>
+                    {/foreach}
+                </ul>
+                {* Passkeys without an authenticator app: the recovery codes
+                   are managed here, with the current password. *}
+                {if $passkeys_available and !$twofa_enabled}
+                    <p class="text-sm" data-testid="account-passkey-recovery-left">{$twofa_recovery_left} recovery code{if $twofa_recovery_left != 1}s{/if} left.</p>
                 {/if}
+            {elseif $passkeys_available}
+                <p class="text-sm text-muted" data-testid="account-passkeys-empty">No passkeys yet.</p>
+            {/if}
+            {if $passkeys_available or $passkeys}
                 <form id="account-passkey-form" class="space-y-3" autocomplete="off" novalidate>
                     {csrf_field}
-                    <div>
-                        <label class="label" for="account-passkey-name">Name</label>
-                        <input class="input" type="text" id="account-passkey-name" name="name" maxlength="64"
-                               placeholder="e.g. Work laptop" data-testid="account-passkey-name">
-                    </div>
+                    {if $passkeys_available}
+                        <div>
+                            <label class="label" for="account-passkey-name">Name</label>
+                            <input class="input" type="text" id="account-passkey-name" name="name" maxlength="64"
+                                   placeholder="e.g. Work laptop" data-testid="account-passkey-name">
+                        </div>
+                    {/if}
                     <div>
                         <label class="label" for="account-passkey-password">Current password</label>
                         <input class="input" type="password" autocomplete="current-password"
                                id="account-passkey-password" name="password" data-testid="account-passkey-password" required>
                     </div>
-                    <div class="flex justify-end">
-                        <button class="btn btn--primary" type="submit" data-testid="account-passkey-add">Add a passkey</button>
+                    <div class="flex justify-end gap-2">
+                        {if $passkeys_available and $passkeys and !$twofa_enabled}
+                            <button class="btn btn--secondary" type="button" id="account-passkey-regen" data-testid="account-passkey-regen">New recovery codes</button>
+                        {/if}
+                        {if $passkeys_available}
+                            <button class="btn btn--primary" type="submit" data-testid="account-passkey-add">Add a passkey</button>
+                        {/if}
                     </div>
                 </form>
             {/if}
@@ -1075,17 +1090,34 @@
         else btn.disabled = busy === undefined ? true : !!busy;
     }
     function fail(btn, text) { setBusy(btn, false); msg.textContent = text || 'Something went wrong. Try again.'; }
+    function showCodes(codes) {
+        document.getElementById('account-passkey-codes').textContent = codes.join('\n');
+        document.getElementById('account-passkey-codes-wrap').hidden = false;
+    }
+    // The password field of the form below (masked), not a prompt().
+    function password() {
+        var pwField = document.getElementById('account-passkey-password');
+        var value = pwField ? pwField.value : '';
+        if (!value) {
+            msg.textContent = 'Enter your current password in the field below first.';
+            if (pwField) pwField.focus();
+        }
+        return value;
+    }
+    var addBtn = form ? form.querySelector('[data-testid="account-passkey-add"]') : null;
     if (form) {
-        if (!PK || !PK.supported()) {
+        if (addBtn && (!PK || !PK.supported())) {
             // Keep the password field: removing a passkey still needs it.
             msg.textContent = "This browser can't create passkeys.";
-            var addBtn = form.querySelector('[data-testid="account-passkey-add"]');
-            if (addBtn) addBtn.hidden = true;
+            addBtn.hidden = true;
         }
         form.addEventListener('submit', function (e) {
             e.preventDefault();
             msg.textContent = '';
-            var btn = form.querySelector('button[type="submit"]');
+            // Passkeys off (only Remove is offered), or no WebAuthn here:
+            // Enter in the password field must not start a registration.
+            if (!addBtn || addBtn.hidden || !PK) return;
+            var btn = addBtn;
             var name = form.querySelector('[name="name"]').value;
             setBusy(btn, true);
             sb.api.call(Actions.AccountPasskeyRegisterStart, { password: form.querySelector('[name="password"]').value }).then(function (res) {
@@ -1096,8 +1128,7 @@
                     if (!r || r.ok !== true) { fail(btn, r && r.error && r.error.message); return; }
                     var codes = (r.data && r.data.recovery_codes) || [];
                     if (codes.length) {
-                        document.getElementById('account-passkey-codes').textContent = codes.join('\n');
-                        document.getElementById('account-passkey-codes-wrap').hidden = false;
+                        showCodes(codes);
                         form.hidden = true;
                         return;
                     }
@@ -1106,21 +1137,31 @@
             }).catch(function () { fail(btn, 'The passkey was not created (cancelled or not allowed).'); });
         });
     }
+    var regen = document.getElementById('account-passkey-regen');
+    if (regen) {
+        regen.addEventListener('click', function () {
+            msg.textContent = '';
+            var pw = password();
+            if (!pw) return;
+            setBusy(regen, true);
+            sb.api.call(Actions.Account2faRecoveryCodes, { password: pw }).then(function (res) {
+                if (!res || res.ok !== true) { fail(regen, res && res.error && res.error.message); return; }
+                setBusy(regen, false);
+                if (form) form.reset();
+                showCodes((res.data && res.data.recovery_codes) || []);
+            }, function () { fail(regen, null); });
+        });
+    }
     document.querySelectorAll('[data-passkey-remove]').forEach(function (btn) {
         btn.addEventListener('click', function () {
-            // The password field of the form above (masked), not a prompt().
-            var pwField = document.getElementById('account-passkey-password');
-            var password = pwField ? pwField.value : '';
-            if (!password) {
-                msg.textContent = 'Enter your current password in the field below, then select Remove again.';
-                if (pwField) pwField.focus();
-                return;
-            }
+            msg.textContent = '';
+            var pw = password();
+            if (!pw) return;
             setBusy(btn, true);
-            sb.api.call(Actions.AccountPasskeyRemove, { id: parseInt(btn.getAttribute('data-passkey-remove') || '0', 10), password: password }).then(function (res) {
+            sb.api.call(Actions.AccountPasskeyRemove, { id: parseInt(btn.getAttribute('data-passkey-remove') || '0', 10), password: pw }).then(function (res) {
                 if (!res || res.ok !== true) { fail(btn, res && res.error && res.error.message); return; }
                 window.location.reload();
-            });
+            }, function () { fail(btn, null); });
         });
     });
 }());

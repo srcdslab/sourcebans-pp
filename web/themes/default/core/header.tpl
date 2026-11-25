@@ -126,10 +126,11 @@
     })();
     </script>
     <link rel="stylesheet" href="{$theme_url}/css/theme.css">
-    <script src="./scripts/api-contract.js"></script>
-    <script src="./scripts/sb.js"></script>
-    <script src="./scripts/api.js"></script>
-    <script src="./scripts/passkeys.js"></script>
+    {* `?v=` changes when the files do (web/init.php): no stale copy after an update. *}
+    <script src="./scripts/api-contract.js?v={$scripts_version}"></script>
+    <script src="./scripts/sb.js?v={$scripts_version}"></script>
+    <script src="./scripts/api.js?v={$scripts_version}"></script>
+    <script src="./scripts/passkeys.js?v={$scripts_version}"></script>
 </head>
 <body>
 <div class="app">

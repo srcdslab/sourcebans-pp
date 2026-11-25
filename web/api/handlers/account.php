@@ -275,10 +275,24 @@ function _api_account_2fa_check_password(string $password): void
     }
 }
 
+/**
+ * A check where the password is the only secret (no code follows): a
+ * correct password gives its `2fa:<aid>` slot back, so setting up devices
+ * doesn't use up the attempts the sign-in second step shares (#108). Not
+ * for checks followed by a code: that would let the code be retried
+ * without limit by someone who knows the password.
+ */
+function _api_account_check_password_only(string $password): void
+{
+    global $userbank;
+    _api_account_2fa_check_password($password);
+    (new \Sbpp\Auth\LoginThrottle($GLOBALS['PDO']))->release('2fa:' . $userbank->GetAid());
+}
+
 function api_account_2fa_setup_start(array $params): array
 {
     global $userbank;
-    _api_account_2fa_check_password((string) ($params['password'] ?? ''));
+    _api_account_check_password_only((string) ($params['password'] ?? ''));
     $setup = (new \Sbpp\Auth\TwoFactor($GLOBALS['PDO']))->beginSetup($userbank->GetAid(), (string) $userbank->GetProperty('user'));
     if ($setup === null) {
         throw new ApiError('already_enabled', 'Two-factor authentication is already on.');
@@ -309,8 +323,10 @@ function api_account_2fa_disable(array $params): array
     global $userbank;
     $aid = $userbank->GetAid();
     $tf = new \Sbpp\Auth\TwoFactor($GLOBALS['PDO']);
-    // Required by the setting: TOTP may go only if a passkey stays (#108).
-    if ($tf->isRequiredFor($aid) && (new \Sbpp\Auth\Passkeys($GLOBALS['PDO']))->count($aid) === 0) {
+    // Required by the setting: TOTP may go only if a usable passkey stays
+    // (#108); one the panel can't offer (SBPP_PANEL_URL unset) doesn't count.
+    $passkeysLeft = (new \Sbpp\Auth\Passkeys($GLOBALS['PDO']))->usableCount($aid);
+    if ($tf->isRequiredFor($aid) && $passkeysLeft === 0) {
         throw new ApiError('required', 'Two-factor authentication is required for your account by the panel settings. Add a passkey first if you want to turn the authenticator app off.');
     }
     // One attempt (password + code) takes one slot on `2fa:<aid>`: the
@@ -321,7 +337,9 @@ function api_account_2fa_disable(array $params): array
     if (!$tf->checkTotp($aid, $code, $now) && !$tf->useRecoveryCode($aid, $code, $now)) {
         throw new ApiError('invalid_code', "That code isn't valid.", 'code');
     }
-    $tf->disable($aid);
+    // With passkeys left, the recovery codes stay: they are the way back
+    // in after losing those devices.
+    $tf->disable($aid, keepRecoveryCodes: $passkeysLeft > 0);
     _api_account_2fa_end_other_sessions($aid);
     Log::add(LogType::Message, 'Two-factor disabled', sprintf('Admin "%s" turned off two-factor authentication.', (string) $userbank->GetProperty('user')));
     return ['disabled' => true];
@@ -332,12 +350,17 @@ function api_account_2fa_recovery_codes(array $params): array
     global $userbank;
     $aid = $userbank->GetAid();
     $tf = new \Sbpp\Auth\TwoFactor($GLOBALS['PDO']);
-    if (!$tf->isEnrolled($aid)) {
+    if ($tf->isEnrolled($aid)) {
+        _api_account_2fa_gate();
+        if (!$tf->checkTotp($aid, (string) ($params['code'] ?? ''), time())) {
+            throw new ApiError('invalid_code', "That code isn't valid.", 'code');
+        }
+    } elseif ((new \Sbpp\Auth\Passkeys($GLOBALS['PDO']))->usableCount($aid) > 0) {
+        // Passkeys only (#108): no app to read a code from, the current
+        // password confirms it (this session already passed a passkey).
+        _api_account_check_password_only((string) ($params['password'] ?? ''));
+    } else {
         throw new ApiError('not_enabled', 'Two-factor authentication is off.');
-    }
-    _api_account_2fa_gate();
-    if (!$tf->checkTotp($aid, (string) ($params['code'] ?? ''), time())) {
-        throw new ApiError('invalid_code', "That code isn't valid.", 'code');
     }
     $codes = $tf->regenerateRecoveryCodes($aid);
     Log::add(LogType::Message, 'Two-factor recovery codes', sprintf('Admin "%s" generated new recovery codes.', (string) $userbank->GetProperty('user')));
@@ -359,13 +382,22 @@ function _api_account_passkeys_available(): void
     if (!\Sbpp\Auth\Passkeys::available()) {
         throw new ApiError('unavailable', 'Passkeys need SBPP_PANEL_URL to be set (https). Ask the panel owner.');
     }
+    _api_account_passkeys_tables();
+}
+
+/** Code deployed before the updater ran: say so instead of a server error. */
+function _api_account_passkeys_tables(): void
+{
+    if (!(new \Sbpp\Auth\Passkeys($GLOBALS['PDO']))->tablesExist()) {
+        throw new ApiError('unavailable', "The panel's database needs updating: ask the panel owner to run the updater.");
+    }
 }
 
 function api_account_passkey_register_start(array $params): array
 {
     global $userbank;
     _api_account_passkeys_available();
-    _api_account_2fa_check_password((string) ($params['password'] ?? ''));
+    _api_account_check_password_only((string) ($params['password'] ?? ''));
     $passkeys = new \Sbpp\Auth\Passkeys($GLOBALS['PDO']);
     if ($passkeys->count($userbank->GetAid()) >= \Sbpp\Auth\Passkeys::MAX_PER_ADMIN) {
         throw new ApiError('too_many', 'You already have ' . \Sbpp\Auth\Passkeys::MAX_PER_ADMIN . ' passkeys. Remove one first.');
@@ -400,10 +432,14 @@ function api_account_passkey_remove(array $params): array
 {
     global $userbank;
     $aid = $userbank->GetAid();
-    _api_account_2fa_check_password((string) ($params['password'] ?? ''));
+    // No SBPP_PANEL_URL check: a passkey the panel can't use any more must
+    // still be removable.
+    _api_account_passkeys_tables();
+    _api_account_check_password_only((string) ($params['password'] ?? ''));
     $passkeys = new \Sbpp\Auth\Passkeys($GLOBALS['PDO']);
     $tf = new \Sbpp\Auth\TwoFactor($GLOBALS['PDO']);
-    if ($tf->isRequiredFor($aid) && !$tf->isEnrolled($aid) && $passkeys->count($aid) <= 1) {
+    // The last usable passkey of an admin the setting covers, without TOTP.
+    if ($tf->isRequiredFor($aid) && !$tf->isEnrolled($aid) && $passkeys->usableCount($aid) === 1) {
         throw new ApiError('required', 'Two-factor authentication is required for your account: set up an authenticator app or add another passkey first.');
     }
     if (!$passkeys->remove($aid, (int) ($params['id'] ?? 0))) {

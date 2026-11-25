@@ -40,18 +40,29 @@ two-factor authentication on its own.
 Passkeys need **`SBPP_PANEL_URL`** set to the panel's `https://`
 address (see [Updating](/updating/#set-the-panel-url-for-emailed-links)):
 the browser ties each passkey to that address. Without it, the
-Passkeys section says so and the button doesn't show.
+Passkeys section says so and the button doesn't show. Passkeys added
+earlier then stop counting as a second factor (the sign-in doesn't ask
+for one it can't offer) until the address is set again; they can still
+be removed.
 
 - **Add one:** **Your account → Passkeys**, give it a name, enter your
   current password, select **Add a passkey** and follow the browser.
   If it is your first second factor, save the recovery codes shown.
 - **Sign in:** **Sign in with a passkey** on the login page. No
-  username or password.
+  username or password. It follows the **Username/password login**
+  setting (Admin Panel → Settings → Features):
+  with password sign-in turned off, passkey sign-in is off too (the
+  passkey second step after Steam still works). Each try counts on the
+  same per-address limit as a password.
 - **As the second step:** after a password or Steam sign-in, **Use a
   passkey** instead of typing a code.
 - **Remove one:** enter your current password in the Passkeys section,
   then **Remove**. Adding or removing a passkey signs your other
   browsers out.
+- **Recovery codes:** turning the authenticator app off keeps your
+  recovery codes while you have passkeys. Without the app, get new
+  ones from the Passkeys section with your current password (**New
+  recovery codes**).
 
 A passkey meets the **Require two-factor authentication** setting: an
 admin with only passkeys isn't asked to set up an authenticator app.

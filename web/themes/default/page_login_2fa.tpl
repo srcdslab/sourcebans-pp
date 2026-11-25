@@ -174,7 +174,12 @@
             errorLine.textContent = '';
             setBusy(pkBtn, true);
             sb.api.call(Actions.Auth2faPasskeyStart, {}).then(function (res) {
-                if (!res || res.ok !== true || !res.data) { setBusy(pkBtn, false); return null; }
+                if (res && res.redirect) return null;
+                if (!res || res.ok !== true || !res.data) {
+                    setBusy(pkBtn, false);
+                    errorLine.textContent = (res && res.error && res.error.message) || 'Something went wrong. Try again.';
+                    return null;
+                }
                 return PK.get(res.data.options).then(function (credential) {
                     return sb.api.call(Actions.Auth2faPasskeyFinish, { credential: credential });
                 }).then(function (r) {
