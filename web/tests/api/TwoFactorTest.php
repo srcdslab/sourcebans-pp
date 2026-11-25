@@ -289,6 +289,22 @@ final class TwoFactorTest extends ApiTestCase
         $this->assertSame('locked', $env['error']['code'] ?? null, 'A stolen session cannot brute-force codes here.');
     }
 
+    public function testTurnOffAttemptCountsOnce(): void
+    {
+        $secret = $this->enroll();
+        $this->loginAsAdmin();
+        // Password + wrong code, ACCOUNT_LIMIT - 1 times: one slot each, so
+        // the last slot is still free for the right code.
+        for ($i = 1; $i < TwoFactor::ACCOUNT_LIMIT; $i++) {
+            $env = $this->api('account.2fa_disable', ['password' => 'admin', 'code' => '000000']);
+            $this->assertSame('invalid_code', $env['error']['code'] ?? null, "attempt {$i}");
+        }
+
+        $ok = $this->api('account.2fa_disable', ['password' => 'admin', 'code' => $this->codeFor($secret, 1)]);
+
+        $this->assertTrue($ok['ok'] ?? false, json_encode($ok));
+    }
+
     public function testNewRecoveryCodesReplaceTheOldOnes(): void
     {
         $secret = $this->enroll();

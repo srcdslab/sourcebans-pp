@@ -312,10 +312,11 @@ function api_account_2fa_disable(array $params): array
     if ($tf->isRequiredFor($aid)) {
         throw new ApiError('required', 'Two-factor authentication is required for your account by the panel settings.');
     }
+    // One attempt (password + code) takes one slot on `2fa:<aid>`: the
+    // password check already took it.
     _api_account_2fa_check_password((string) ($params['password'] ?? ''));
     $code = (string) ($params['code'] ?? '');
     $now = time();
-    _api_account_2fa_gate();
     if (!$tf->checkTotp($aid, $code, $now) && !$tf->useRecoveryCode($aid, $code, $now)) {
         throw new ApiError('invalid_code', "That code isn't valid.", 'code');
     }
