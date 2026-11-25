@@ -213,15 +213,20 @@
  */
 /**
  * Passwordless sign-in, step 2. A passkey with user verification is two
- * factors on its own: the session starts, `auth.2fa.require` is met. Failures
- * are counted on the address counter like passwords, and all answer the same.
+ * factors on its own: the session starts, `auth.2fa.require` is met. The
+ * attempt was counted on the address counter by step 1, and all failures
+ * answer the same.
  *
  * @typedef {Object} ApiAuthPasskeyLoginFinishRequest
  * @typedef {Object} ApiAuthPasskeyLoginFinishResponse
  */
 /**
  * Passwordless sign-in, step 1: options for any discoverable passkey of this
- * panel. Public; the same answer for everyone.
+ * panel. Public; the same answer for everyone.  Each call stores a challenge
+ * row, so it takes a slot on the address counter: an anonymous client can't
+ * fill `:prefix_webauthn_challenges`. Step 2 needs this step's challenge, so
+ * the slot taken here counts the whole attempt; step 2 gives it back on
+ * success.
  *
  * @typedef {Object} ApiAuthPasskeyLoginStartRequest
  * @typedef {Object} ApiAuthPasskeyLoginStartResponse
