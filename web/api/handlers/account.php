@@ -254,8 +254,11 @@ function _api_account_2fa_gate(): void
             \Sbpp\Auth\LoginThrottle::WINDOW_SECONDS,
             time(),
         );
-    } catch (\Sbpp\Auth\ThrottleUnavailable) {
-        throw new ApiError('unavailable', "The panel's database needs updating: ask the panel owner to run the updater.");
+    } catch (\Sbpp\Auth\ThrottleUnavailable $e) {
+        error_log('[sbpp] two-factor change refused, sign-in counters unavailable: ' . $e->getMessage());
+        throw $e->tableMissing
+            ? new ApiError('unavailable', "The panel's database needs updating: ask the panel owner to run the updater.")
+            : new ApiError('unavailable', 'This could not be checked right now. Try again in a moment.');
     }
     if ($hit->blocked()) {
         throw new ApiError('locked', 'Too many wrong attempts. Try again in about ' . max(1, (int) ceil($hit->retryAfter / 60)) . ' minutes.');

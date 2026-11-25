@@ -275,8 +275,12 @@ final class TwoFactor
                 }
             }
         } catch (ThrottleUnavailable $e) {
-            error_log('[sbpp] two-factor code refused, the sign-in counters are unavailable (run the updater): ' . $e->getMessage());
-            return ['ok' => false, 'error' => 'unavailable'];
+            error_log(sprintf(
+                '[sbpp] two-factor code refused, %s: %s',
+                $e->tableMissing ? 'the sign-in counter table is missing (run the updater)' : 'the sign-in counters could not be read or written',
+                $e->getMessage(),
+            ));
+            return ['ok' => false, 'error' => $e->tableMissing ? 'unavailable' : 'signin_error'];
         }
         return null;
     }

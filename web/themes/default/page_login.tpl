@@ -296,6 +296,7 @@
         steam_error:  { kind: 'error', title: 'Steam login failed', body: 'The panel could not reach Steam. Try again later. If it keeps failing, ask the panel owner to check the system log.' },
         locked:       { kind: 'error', title: 'Sign-in paused',     body: lockedBody },
         unavailable:  { kind: 'error', title: 'Sign-in unavailable', body: "Sign-in is unavailable until the panel's database is updated. Ask the panel owner to run the updater." },
+        signin_error: { kind: 'error', title: 'Sign-in unavailable', body: 'Sign-in could not be checked right now. Try again in a moment; if it keeps failing, ask the panel owner to check the web server error log.' },
         '2fa_expired': { kind: 'info', title: 'Sign in again',      body: 'The two-factor step expired or had too many wrong codes. Sign in again.' }
     };
     var msg = msgs[m];
