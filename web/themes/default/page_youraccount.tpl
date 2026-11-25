@@ -1031,7 +1031,7 @@
         var qr = document.getElementById('account-2fa-qr');
         // A data: URI in an <img>: the SVG is never parsed as page markup.
         if (qr && typeof data.qr === 'string' && data.qr.indexOf('data:image/svg+xml;base64,') === 0) qr.src = data.qr;
-        document.getElementById('account-2fa-secret').textContent = String(data.secret || '').replace(/(.{4})/g, '$1 ').trim();
+        document.getElementById('account-2fa-secret').textContent = String(data.secret || '').replace(/(....)/g, '$1 ').trim();
         form.hidden = true;
         document.getElementById('account-2fa-confirm-form').hidden = false;
     });

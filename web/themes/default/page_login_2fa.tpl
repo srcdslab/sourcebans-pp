@@ -139,7 +139,7 @@
                 qr.style.display = 'block';
             }
             var secret = document.getElementById('twofaSecret');
-            if (secret) secret.textContent = String(res.data.secret || '').replace(/(.{4})/g, '$1 ').trim();
+            if (secret) secret.textContent = String(res.data.secret || '').replace(/(....)/g, '$1 ').trim();
         });
     }
 
