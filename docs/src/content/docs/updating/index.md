@@ -108,6 +108,13 @@ On Docker, set `SBPP_PANEL_URL` in `.env` instead. Password reset
 links now also expire after 1 hour. Links requested before the update
 no longer work: request a new one.
 
+### Passkeys
+
+Releases after 2.2.22-srcdslab let admins sign in with a passkey
+(migration 821). Passkeys only work when `SBPP_PANEL_URL` is set to
+the panel's `https://` address. See
+[Two-factor authentication → Passkeys](/configuring/two-factor/#passkeys).
+
 ### Two-factor authentication
 
 Releases after 2.2.21-srcdslab add two-factor authentication (TOTP),

@@ -57,6 +57,10 @@ final class PermissionMatrixTest extends TestCase
             'account.2fa_setup_confirm'   => ['perm' => 0, 'requireAdmin' => false, 'public' => false],
             'account.2fa_disable'         => ['perm' => 0, 'requireAdmin' => false, 'public' => false],
             'account.2fa_recovery_codes'  => ['perm' => 0, 'requireAdmin' => false, 'public' => false],
+            // #108: own account only.
+            'account.passkey_register_start'  => ['perm' => 0, 'requireAdmin' => false, 'public' => false],
+            'account.passkey_register_finish' => ['perm' => 0, 'requireAdmin' => false, 'public' => false],
+            'account.passkey_remove'          => ['perm' => 0, 'requireAdmin' => false, 'public' => false],
 
             // -- admins.
             'admins.add'                  => ['perm' => ADMIN_OWNER | ADMIN_ADD_ADMINS,    'requireAdmin' => false, 'public' => false],
@@ -77,6 +81,11 @@ final class PermissionMatrixTest extends TestCase
             'auth.2fa_enroll_start'       => ['perm' => 0, 'requireAdmin' => false, 'public' => true],
             'auth.2fa_enroll_confirm'     => ['perm' => 0, 'requireAdmin' => false, 'public' => true],
             'auth.2fa_cancel'             => ['perm' => 0, 'requireAdmin' => false, 'public' => true],
+            // #108: passwordless sign-in and the passkey second step.
+            'auth.passkey_login_start'    => ['perm' => 0, 'requireAdmin' => false, 'public' => true],
+            'auth.passkey_login_finish'   => ['perm' => 0, 'requireAdmin' => false, 'public' => true],
+            'auth.2fa_passkey_start'      => ['perm' => 0, 'requireAdmin' => false, 'public' => true],
+            'auth.2fa_passkey_finish'     => ['perm' => 0, 'requireAdmin' => false, 'public' => true],
 
             // -- bans.
             'bans.add'                    => ['perm' => ADMIN_OWNER | ADMIN_ADD_BAN, 'requireAdmin' => false, 'public' => false],

@@ -129,6 +129,7 @@
     <script src="./scripts/api-contract.js"></script>
     <script src="./scripts/sb.js"></script>
     <script src="./scripts/api.js"></script>
+    <script src="./scripts/passkeys.js"></script>
 </head>
 <body>
 <div class="app">

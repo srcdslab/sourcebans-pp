@@ -229,7 +229,10 @@ permissions).
 The panel's runtime PHP dependencies (`smarty/smarty`, `lcobucci/jwt`,
 `league/commonmark`, `maxmind-db/reader`, `xpaw/php-source-query-class`,
 `symfony/mailer`, `maennchen/zipstream-php`, `bacon/bacon-qr-code`
-(BSD-2-Clause, with its dependency `dasprid/enum`, BSD-2-Clause)) are declared in `web/composer.json` and resolved
+(BSD-2-Clause, with its dependency `dasprid/enum`, BSD-2-Clause),
+`web-auth/webauthn-lib` (MIT, with `web-auth/cose-lib`,
+`spomky-labs/cbor-php`, `spomky-labs/pki-framework` and Symfony
+components)) are declared in `web/composer.json` and resolved
 via Composer at install time. Each retains its upstream licence
 under `web/includes/vendor/<package>/LICENSE.md` (or equivalent).
 This file does not duplicate those licences; consult the vendored

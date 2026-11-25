@@ -85,6 +85,8 @@
         "can_generate_password": false,
         "twofa_enabled": false,
         "twofa_required": false,
-        "twofa_recovery_left": 0
+        "twofa_recovery_left": 0,
+        "passkeys_available": false,
+        "passkeys": []
     }
 }

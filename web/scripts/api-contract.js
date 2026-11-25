@@ -52,6 +52,18 @@
  * @typedef {Object} ApiAccountCheckSrvPasswordResponse
  */
 /**
+ * @typedef {Object} ApiAccountPasskeyRegisterFinishRequest
+ * @typedef {Object} ApiAccountPasskeyRegisterFinishResponse
+ */
+/**
+ * @typedef {Object} ApiAccountPasskeyRegisterStartRequest
+ * @typedef {Object} ApiAccountPasskeyRegisterStartResponse
+ */
+/**
+ * @typedef {Object} ApiAccountPasskeyRemoveRequest
+ * @typedef {Object} ApiAccountPasskeyRemoveResponse
+ */
+/**
  * @typedef {Object} ApiAccountTokensCreateRequest
  * @typedef {{id: number, name: string, token: string, token_prefix: string, created: number, expires_at: number|null}} ApiAccountTokensCreateResponse
  */
@@ -152,6 +164,14 @@
  * @typedef {Object} ApiAuth2faEnrollStartResponse
  */
 /**
+ * @typedef {Object} ApiAuth2faPasskeyFinishRequest
+ * @typedef {Object} ApiAuth2faPasskeyFinishResponse
+ */
+/**
+ * @typedef {Object} ApiAuth2faPasskeyStartRequest
+ * @typedef {Object} ApiAuth2faPasskeyStartResponse
+ */
+/**
  * @typedef {Object} ApiAuth2faVerifyRequest
  * @typedef {Object} ApiAuth2faVerifyResponse
  */
@@ -190,6 +210,21 @@
  *
  * @typedef {Object} ApiAuthLostPasswordRequest
  * @typedef {Object} ApiAuthLostPasswordResponse
+ */
+/**
+ * Passwordless sign-in, step 2. A passkey with user verification is two
+ * factors on its own: the session starts, `auth.2fa.require` is met. Failures
+ * are counted on the address counter like passwords, and all answer the same.
+ *
+ * @typedef {Object} ApiAuthPasskeyLoginFinishRequest
+ * @typedef {Object} ApiAuthPasskeyLoginFinishResponse
+ */
+/**
+ * Passwordless sign-in, step 1: options for any discoverable passkey of this
+ * panel. Public; the same answer for everyone.
+ *
+ * @typedef {Object} ApiAuthPasskeyLoginStartRequest
+ * @typedef {Object} ApiAuthPasskeyLoginStartResponse
  */
 /**
  * @typedef {Object} ApiBansAddRequest
@@ -744,6 +779,9 @@ var Actions = Object.freeze({
     AccountChangeSrvPassword: 'account.change_srv_password',
     AccountCheckPassword: 'account.check_password',
     AccountCheckSrvPassword: 'account.check_srv_password',
+    AccountPasskeyRegisterFinish: 'account.passkey_register_finish',
+    AccountPasskeyRegisterStart: 'account.passkey_register_start',
+    AccountPasskeyRemove: 'account.passkey_remove',
     AccountTokensCreate: 'account.tokens_create',
     AccountTokensList: 'account.tokens_list',
     AccountTokensRevoke: 'account.tokens_revoke',
@@ -758,9 +796,13 @@ var Actions = Object.freeze({
     Auth2faCancel: 'auth.2fa_cancel',
     Auth2faEnrollConfirm: 'auth.2fa_enroll_confirm',
     Auth2faEnrollStart: 'auth.2fa_enroll_start',
+    Auth2faPasskeyFinish: 'auth.2fa_passkey_finish',
+    Auth2faPasskeyStart: 'auth.2fa_passkey_start',
     Auth2faVerify: 'auth.2fa_verify',
     AuthLogin: 'auth.login',
     AuthLostPassword: 'auth.lost_password',
+    AuthPasskeyLoginFinish: 'auth.passkey_login_finish',
+    AuthPasskeyLoginStart: 'auth.passkey_login_start',
     BansAdd: 'bans.add',
     BansAddComment: 'bans.add_comment',
     BansBanFriends: 'bans.ban_friends',

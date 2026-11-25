@@ -13,7 +13,7 @@ use Sbpp\Security\SecretBox;
 use Sbpp\Security\Totp;
 
 /**
- * Two-factor authentication (TOTP, #107).
+ * Two-factor authentication (TOTP, #107; passkeys as a second factor, #108).
  *
  * Every sign-in method (password, Steam) ends in {@see completePrimary()}.
  * An admin with 2FA gets no session there: the browser gets a short-lived
@@ -72,6 +72,17 @@ final class TwoFactor
         };
     }
 
+    /**
+     * Whether the admin has any second factor: TOTP, or a passkey (#108).
+     * This, not {@see isEnrolled()}, decides whether a sign-in needs a
+     * second step and whether `auth.2fa.require` is met.
+     */
+    public function hasSecondFactor(int $aid): bool
+    {
+        return $this->isEnrolled($aid) || (new Passkeys($this->dbs))->count($aid) > 0;
+    }
+
+    /** Whether TOTP is on (a confirmed authenticator app). */
     public function isEnrolled(int $aid): bool
     {
         $this->dbs->query('SELECT 1 FROM `:prefix_admin_totp` WHERE aid = :aid AND confirmed_at IS NOT NULL');
@@ -112,7 +123,7 @@ final class TwoFactor
      */
     public function completePrimary(int $aid, int $maxlife, string $redirect): string
     {
-        if ($this->isEnrolled($aid)) {
+        if ($this->hasSecondFactor($aid)) {
             $this->openPending($aid, self::PURPOSE_VERIFY, $maxlife, $redirect);
             return '?p=login&step=2fa';
         }
@@ -122,6 +133,60 @@ final class TwoFactor
         }
         Auth::login($aid, $maxlife);
         return '?' . $redirect;
+    }
+
+    /**
+     * A sign-in that is already two factors on its own: a passkey with
+     * user verification (#108). Starts the session; never call
+     * `Auth::login()` from a sign-in path directly (see AGENTS.md).
+     */
+    public function completeStrong(int $aid, int $maxlife): void
+    {
+        Auth::login($aid, $maxlife);
+    }
+
+    /**
+     * Passkey options for this browser's `verify` pending step: only the
+     * pending admin's passkeys (#108). Null without such a step.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function pendingPasskeyOptions(): ?array
+    {
+        $pending = $this->pending();
+        if ($pending === null || $pending['purpose'] !== self::PURPOSE_VERIFY || !Passkeys::available()) {
+            return null;
+        }
+        $passkeys = new Passkeys($this->dbs);
+        if ($passkeys->count($pending['aid']) === 0) {
+            return null;
+        }
+        return $passkeys->requestOptions(Passkeys::PURPOSE_SECOND, $pending['aid']);
+    }
+
+    /**
+     * Answer this browser's `verify` pending step with a passkey (#108).
+     * Counted like a code.
+     *
+     * @param array<string, mixed> $credential
+     * @return array{ok: true, redirect: string}|array{ok: false, error: string, retry_after?: int}
+     */
+    public function verifyPendingWithPasskey(array $credential, int $now): array
+    {
+        $pending = $this->pending();
+        if ($pending === null || $pending['purpose'] !== self::PURPOSE_VERIFY) {
+            return ['ok' => false, 'error' => 'expired'];
+        }
+        $gate = $this->takeAttempt($pending, $now);
+        if ($gate !== null) {
+            return $gate;
+        }
+        $aid = (new Passkeys($this->dbs))->finishAssertion(Passkeys::PURPOSE_SECOND, $credential, $pending['aid'], $now);
+        if ($aid !== $pending['aid']) {
+            return ['ok' => false, 'error' => 'invalid_passkey'];
+        }
+        $this->succeed($pending);
+        return ['ok' => true, 'redirect' => '?' . $pending['redirect']];
     }
 
     /**
@@ -484,7 +549,17 @@ final class TwoFactor
         return $codes;
     }
 
-    /** Turn 2FA off for an admin (their own request, or an Owner's reset). */
+    /**
+     * Remove every second factor of an admin: an Owner's reset, or the
+     * admin being deleted. TOTP, recovery codes, pending steps, passkeys.
+     */
+    public function resetAll(int $aid): void
+    {
+        $this->disable($aid);
+        (new Passkeys($this->dbs))->removeAll($aid);
+    }
+
+    /** Turn TOTP off for an admin (recovery codes and pending steps go too). */
     public function disable(int $aid): void
     {
         $this->dbs->query('DELETE FROM `:prefix_admin_totp` WHERE aid = :aid');

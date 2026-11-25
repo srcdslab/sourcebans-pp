@@ -99,6 +99,7 @@ web/
 │   ├── Auth/JWT.php          Sbpp\Auth\JWT — token encode/decode
 │   ├── Auth/Host.php         Sbpp\Auth\Host — hostname helper, panelUrl() (SBPP_PANEL_URL) for emailed links
 │   ├── Auth/LoginThrottle.php  Sbpp\Auth\LoginThrottle — failed sign-in counters per address, username, device (#97, #106)
+│   ├── Auth/Passkeys.php       Sbpp\Auth\Passkeys — WebAuthn passkeys: registration, passwordless sign-in, second step (#108)
 │   ├── Auth/TwoFactor.php      Sbpp\Auth\TwoFactor — TOTP second step, setup, recovery codes, `auth.2fa.require` (#107)
 │   ├── Auth/DeviceCookie.php   Sbpp\Auth\DeviceCookie — signed `sbpp_device` cookie: per-browser login budget (#106)
 │   ├── Auth/Handler/         Sbpp\Auth\Handler\{Normal,Steam}AuthHandler — login handlers
@@ -432,6 +433,16 @@ also requires BanSubmissions / BanProtests; DELETE is Owner via
   Your account (`account.2fa_*`, own account only, password or code
   re-checked and counted) sets it up, regenerates codes or turns it
   off; an Owner resets another admin with `admins.2fa_reset`.
+- Passkeys (#108): `Sbpp\Auth\Passkeys` wraps web-auth/webauthn-lib.
+  The RP ID and the only accepted origin come from `SBPP_PANEL_URL`
+  (passkeys are off without it). Options are created server-side, the
+  challenge stored in `sb_webauthn_challenges` (keyed on the `sbpp_wa`
+  cookie, 5 minutes, deleted when answered), and `web/scripts/passkeys.js`
+  only converts between base64url and ArrayBuffers. Passwordless
+  sign-in (`auth.passkey_login_*`, discoverable credentials, user
+  verification required) calls `TwoFactor::completeStrong()`; a passkey
+  can also answer the pending second step (`auth.2fa_passkey_*`), and
+  "has a second factor" is TOTP or at least one passkey.
 - `Sbpp\Auth\JWT::validate()` rejects tampered tokens and enforces
   `exp` / `nbf` / `iat` via `LooseValidAt` (30s leeway).
   `Auth::gc()` garbage-collects `sb_login_tokens` rows not accessed for
@@ -1125,6 +1136,8 @@ in dev/CI). Major tables:
 | `sb_login_tokens`           | Live browser sessions: JWT id (`jti`) → admin (`aid`), last-accessed for GC. |
 | `sb_admin_totp`             | One row per admin with 2FA: sealed TOTP secret, `confirmed_at` (NULL during setup), last accepted 30-second step (#107). |
 | `sb_admin_recovery_codes`   | SHA-256 of single-use 2FA recovery codes, `used_at` when spent (#107). |
+| `sb_admin_passkeys`         | Passkeys: admin, SHA-256 of the credential id, name, the library's credential record JSON (public key, counter, user handle), created / last used (#108). |
+| `sb_webauthn_challenges`    | Single-use WebAuthn challenges: cookie token hash → purpose, admin, options JSON, expiry (#108). |
 | `sb_auth_pending`           | Pending second sign-in step: token hash → admin, purpose (`verify` / `enroll`), attempts, expiry (#107). |
 | `sb_auth_throttle`          | Failed sign-in counters, one row per typed key (`ip:` address, `n:` username weight, `d:` device cookie, `lpi:` / `lpa:` password reset), each with its own window end (#97, #106; replaced `sb_login_throttle` in migration 819). |
 | `sb_notes`                  | Per-Steam-ID admin scratchpad (Notes tab in the player drawer, #1165). |

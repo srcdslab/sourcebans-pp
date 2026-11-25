@@ -306,8 +306,9 @@ function api_account_2fa_disable(array $params): array
     global $userbank;
     $aid = $userbank->GetAid();
     $tf = new \Sbpp\Auth\TwoFactor($GLOBALS['PDO']);
-    if ($tf->isRequiredFor($aid)) {
-        throw new ApiError('required', 'Two-factor authentication is required for your account by the panel settings.');
+    // Required by the setting: TOTP may go only if a passkey stays (#108).
+    if ($tf->isRequiredFor($aid) && (new \Sbpp\Auth\Passkeys($GLOBALS['PDO']))->count($aid) === 0) {
+        throw new ApiError('required', 'Two-factor authentication is required for your account by the panel settings. Add a passkey first if you want to turn the authenticator app off.');
     }
     _api_account_2fa_check_password((string) ($params['password'] ?? ''));
     $code = (string) ($params['code'] ?? '');
@@ -345,4 +346,66 @@ function _api_account_2fa_end_other_sessions(int $aid): void
     $token = \Sbpp\Auth\Auth::verify();
     $jti = $token instanceof \Lcobucci\JWT\UnencryptedToken ? (string) $token->claims()->get('jti') : '';
     \Sbpp\Auth\Auth::revokeOtherSessions($aid, $jti);
+}
+
+// ---- Passkeys on the caller's own account (#108) -----------------------
+
+function _api_account_passkeys_available(): void
+{
+    if (!\Sbpp\Auth\Passkeys::available()) {
+        throw new ApiError('unavailable', 'Passkeys need SBPP_PANEL_URL to be set (https). Ask the panel owner.');
+    }
+}
+
+function api_account_passkey_register_start(array $params): array
+{
+    global $userbank;
+    _api_account_passkeys_available();
+    _api_account_2fa_check_password((string) ($params['password'] ?? ''));
+    $passkeys = new \Sbpp\Auth\Passkeys($GLOBALS['PDO']);
+    if ($passkeys->count($userbank->GetAid()) >= \Sbpp\Auth\Passkeys::MAX_PER_ADMIN) {
+        throw new ApiError('too_many', 'You already have ' . \Sbpp\Auth\Passkeys::MAX_PER_ADMIN . ' passkeys. Remove one first.');
+    }
+    return ['options' => $passkeys->registrationOptions($userbank->GetAid(), (string) $userbank->GetProperty('user'))];
+}
+
+function api_account_passkey_register_finish(array $params): array
+{
+    global $userbank;
+    _api_account_passkeys_available();
+    $aid = $userbank->GetAid();
+    $credential = $params['credential'] ?? null;
+    if (!is_array($credential)) {
+        throw new ApiError('invalid_passkey', 'The browser sent no passkey.');
+    }
+    $id = (new \Sbpp\Auth\Passkeys($GLOBALS['PDO']))->finishRegistration($aid, $credential, (string) ($params['name'] ?? ''), time());
+    if ($id === null) {
+        throw new ApiError('invalid_passkey', "The passkey couldn't be verified. Try again.");
+    }
+
+    // The first second factor of an admin without recovery codes gets
+    // some, shown once.
+    $tf = new \Sbpp\Auth\TwoFactor($GLOBALS['PDO']);
+    $codes = $tf->recoveryCodesLeft($aid) === 0 ? $tf->regenerateRecoveryCodes($aid) : [];
+    _api_account_2fa_end_other_sessions($aid);
+    Log::add(LogType::Message, 'Passkey added', sprintf('Admin "%s" added a passkey.', (string) $userbank->GetProperty('user')));
+    return ['id' => $id, 'recovery_codes' => $codes];
+}
+
+function api_account_passkey_remove(array $params): array
+{
+    global $userbank;
+    $aid = $userbank->GetAid();
+    _api_account_2fa_check_password((string) ($params['password'] ?? ''));
+    $passkeys = new \Sbpp\Auth\Passkeys($GLOBALS['PDO']);
+    $tf = new \Sbpp\Auth\TwoFactor($GLOBALS['PDO']);
+    if ($tf->isRequiredFor($aid) && !$tf->isEnrolled($aid) && $passkeys->count($aid) <= 1) {
+        throw new ApiError('required', 'Two-factor authentication is required for your account: set up an authenticator app or add another passkey first.');
+    }
+    if (!$passkeys->remove($aid, (int) ($params['id'] ?? 0))) {
+        throw new ApiError('not_found', 'Passkey not found.');
+    }
+    _api_account_2fa_end_other_sessions($aid);
+    Log::add(LogType::Message, 'Passkey removed', sprintf('Admin "%s" removed a passkey.', (string) $userbank->GetProperty('user')));
+    return ['removed' => true];
 }

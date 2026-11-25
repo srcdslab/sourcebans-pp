@@ -233,7 +233,7 @@ if (isset($_POST['adminname'])) {
     // #107: only an Owner resets another admin's 2FA (admins.2fa_reset).
     can_reset_2fa: $isOwnerEditor && !$isSelfEdit
         && \Sbpp\Security\OwnerGuard::canModifyAdmin($adminId)
-        && (new \Sbpp\Auth\TwoFactor($GLOBALS['PDO']))->isEnrolled($adminId),
+        && (new \Sbpp\Auth\TwoFactor($GLOBALS['PDO']))->hasSecondFactor($adminId),
     admin_id: $adminId,
 ));
 

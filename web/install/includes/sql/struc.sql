@@ -322,6 +322,34 @@ CREATE TABLE IF NOT EXISTS `{prefix}_auth_pending` (
     KEY `expires` (`expires`)
 ) ENGINE=InnoDB DEFAULT CHARSET={charset};
 
+-- Passkeys (WebAuthn, #108), see Sbpp\Auth\Passkeys. `record` is the
+-- web-auth/webauthn-lib credential record as JSON (public key, counter,
+-- user handle); `credential_hash` is the SHA-256 of the raw credential id.
+CREATE TABLE IF NOT EXISTS `{prefix}_admin_passkeys` (
+    `id` int(10) UNSIGNED NOT NULL AUTO_INCREMENT,
+    `aid` int(6) NOT NULL,
+    `credential_hash` char(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    `name` varchar(64) NOT NULL,
+    `record` text NOT NULL,
+    `created` int(11) NOT NULL,
+    `last_used` int(11) DEFAULT NULL,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `credential_hash` (`credential_hash`),
+    KEY `aid` (`aid`)
+) ENGINE=InnoDB DEFAULT CHARSET={charset};
+
+-- Single-use WebAuthn challenges (#108), keyed on the SHA-256 of the
+-- `sbpp_wa` cookie token; `options` is the JSON the browser was given.
+CREATE TABLE IF NOT EXISTS `{prefix}_webauthn_challenges` (
+    `token_hash` char(64) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    `purpose` varchar(16) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
+    `aid` int(6) NOT NULL DEFAULT 0,
+    `options` text NOT NULL,
+    `expires` int(11) NOT NULL,
+    PRIMARY KEY (`token_hash`),
+    KEY `expires` (`expires`)
+) ENGINE=InnoDB DEFAULT CHARSET={charset};
+
 -- Player notes scratchpad surfaced by the player-detail drawer (#1165).
 -- Notes are scoped per Steam ID so an admin can pin context that survives
 -- ban-row churn (a re-ban or unban makes a new bid — notes follow the

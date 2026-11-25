@@ -263,7 +263,7 @@ $userbank = new CUserManager(Auth::verify());
 if ($userbank->is_logged_in() && !defined('IS_UPDATE')) {
     try {
         $twoFactorGate = new \Sbpp\Auth\TwoFactor($GLOBALS['PDO']);
-        if ($twoFactorGate->isRequiredFor($userbank->GetAid()) && !$twoFactorGate->isEnrolled($userbank->GetAid())) {
+        if ($twoFactorGate->isRequiredFor($userbank->GetAid()) && !$twoFactorGate->hasSecondFactor($userbank->GetAid())) {
             Auth::logout();
             $userbank = new CUserManager(null);
         }

@@ -51,7 +51,7 @@ $pdo->query('SELECT aid FROM `:prefix_admins` WHERE user = :user');
 $pdo->bind(':user', $user);
 $old = $pdo->single();
 if (is_array($old)) {
-    foreach (['admin_totp', 'admin_recovery_codes', 'auth_pending', 'login_tokens'] as $table) {
+    foreach (['admin_totp', 'admin_recovery_codes', 'auth_pending', 'admin_passkeys', 'login_tokens'] as $table) {
         $pdo->query("DELETE FROM `:prefix_{$table}` WHERE aid = :aid");
         $pdo->bind(':aid', (int) $old['aid']);
         $pdo->execute();

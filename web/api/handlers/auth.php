@@ -189,6 +189,95 @@ function api_auth_2fa_enroll_confirm(array $params): array
     return ['recovery_codes' => $res['recovery_codes'], 'next' => $res['redirect']];
 }
 
+// ---- Passkeys (#108) ------------------------------------------------------
+
+/**
+ * Passwordless sign-in, step 1: options for any discoverable passkey of
+ * this panel. Public; the same answer for everyone.
+ */
+function api_auth_passkey_login_start(array $params): array
+{
+    if (!\Sbpp\Auth\Passkeys::available()) {
+        throw new ApiError('unavailable', 'Passkeys are not set up on this panel.');
+    }
+    return ['options' => (new \Sbpp\Auth\Passkeys($GLOBALS['PDO']))->requestOptions(\Sbpp\Auth\Passkeys::PURPOSE_LOGIN, null)];
+}
+
+/**
+ * Passwordless sign-in, step 2. A passkey with user verification is two
+ * factors on its own: the session starts, `auth.2fa.require` is met.
+ * Failures are counted on the address counter like passwords, and all
+ * answer the same.
+ */
+function api_auth_passkey_login_finish(array $params): array
+{
+    if (!\Sbpp\Auth\Passkeys::available()) {
+        throw new ApiError('unavailable', 'Passkeys are not set up on this panel.');
+    }
+    $now = time();
+    $throttle = new LoginThrottle($GLOBALS['PDO']);
+    $ipKey = LoginThrottle::addressKey((string) ($_SERVER['REMOTE_ADDR'] ?? ''));
+    $ipCounter = $ipKey !== null && LoginThrottle::ipLimit() > 0 ? 'ip:' . $ipKey : null;
+    try {
+        if ($ipCounter !== null) {
+            $hit = $throttle->hit($ipCounter, LoginThrottle::ipLimit(), LoginThrottle::WINDOW_SECONDS, $now);
+            if ($hit->blocked()) {
+                return _api_auth_locked_redirect($hit->retryAfter);
+            }
+        }
+    } catch (ThrottleUnavailable $e) {
+        error_log('[sbpp] passkey sign-in refused, the sign-in counters are unavailable (run the updater): ' . $e->getMessage());
+        return Api::redirect('?p=login&m=unavailable');
+    }
+
+    $credential = $params['credential'] ?? null;
+    $aid = is_array($credential)
+        ? (new \Sbpp\Auth\Passkeys($GLOBALS['PDO']))->finishAssertion(\Sbpp\Auth\Passkeys::PURPOSE_LOGIN, $credential, null, $now)
+        : null;
+    if ($aid === null || !_api_auth_admin_enabled($aid)) {
+        return Api::redirect('?p=login&m=passkey_failed');
+    }
+
+    if ($ipCounter !== null) {
+        $throttle->release($ipCounter);
+    }
+    (new TwoFactor($GLOBALS['PDO']))->completeStrong($aid, (int) Config::get('auth.maxlife') * 60);
+    return Api::redirect('?' . (string) ($params['redirect'] ?? ''));
+}
+
+/** Soft-retired admins (`enabled = 0`) can't sign in with a passkey either. */
+function _api_auth_admin_enabled(int $aid): bool
+{
+    $enabled = \Sbpp\Auth\AdminsSchema::hasEnabledColumn($GLOBALS['PDO']) ? ', enabled' : '';
+    $GLOBALS['PDO']->query("SELECT aid{$enabled} FROM `:prefix_admins` WHERE aid = :aid");
+    $GLOBALS['PDO']->bind(':aid', $aid);
+    $row = $GLOBALS['PDO']->single();
+    return is_array($row) && (int) ($row['enabled'] ?? 1) === 1;
+}
+
+/** Second step with a passkey: options for the pending admin's passkeys. */
+function api_auth_2fa_passkey_start(array $params): array
+{
+    $options = (new TwoFactor($GLOBALS['PDO']))->pendingPasskeyOptions();
+    if ($options === null) {
+        return Api::redirect('?p=login&m=2fa_expired');
+    }
+    return ['options' => $options];
+}
+
+function api_auth_2fa_passkey_finish(array $params): array
+{
+    $credential = $params['credential'] ?? null;
+    $res = (new TwoFactor($GLOBALS['PDO']))->verifyPendingWithPasskey(is_array($credential) ? $credential : [], time());
+    if ($res['ok'] !== true) {
+        if ($res['error'] === 'invalid_passkey') {
+            throw new ApiError('invalid_passkey', "That passkey couldn't be verified. Try again, or use a code.");
+        }
+        return _api_auth_2fa_failure($res);
+    }
+    return Api::redirect($res['redirect']);
+}
+
 function api_auth_2fa_cancel(array $params): array
 {
     (new TwoFactor($GLOBALS['PDO']))->closePending();

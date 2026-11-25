@@ -1,6 +1,6 @@
 ---
 title: Two-factor authentication
-description: Ask admins for a code from an authenticator app at every sign-in, with a password or with Steam, and require it for Owners or for everyone.
+description: Ask admins for a code from an authenticator app or a passkey at every sign-in, with a password or with Steam, sign in with a passkey alone, and require two-factor for Owners or for everyone.
 sidebar:
   order: 4
   label: Two-factor authentication
@@ -29,6 +29,33 @@ Authenticator, Microsoft Authenticator, 1Password, Bitwarden…
 </Steps>
 
 Turning 2FA on or off signs your other browsers out.
+
+## Passkeys
+
+A passkey signs in with the device's screen lock (fingerprint, face,
+PIN) or a security key, without a password. It is bound to the panel's
+address, so a fake login page can't use it. A passkey counts as
+two-factor authentication on its own.
+
+Passkeys need **`SBPP_PANEL_URL`** set to the panel's `https://`
+address (see [Updating](/updating/#set-the-panel-url-for-emailed-links)):
+the browser ties each passkey to that address. Without it, the
+Passkeys section says so and the button doesn't show.
+
+- **Add one:** **Your account → Passkeys**, give it a name, enter your
+  current password, select **Add a passkey** and follow the browser.
+  If it is your first second factor, save the recovery codes shown.
+- **Sign in:** **Sign in with a passkey** on the login page. No
+  username or password.
+- **As the second step:** after a password or Steam sign-in, **Use a
+  passkey** instead of typing a code.
+- **Remove one:** enter your current password in the Passkeys section,
+  then **Remove**. Adding or removing a passkey signs your other
+  browsers out.
+
+A passkey meets the **Require two-factor authentication** setting: an
+admin with only passkeys isn't asked to set up an authenticator app.
+The last second factor of a covered admin can't be removed.
 
 ## Sign in
 
@@ -62,8 +89,8 @@ account** before you turn the requirement on.
   again from **Your account** to set up the new phone.
 - Without one: an Owner opens the admin (**Admin Panel → Admins →
   Edit details**) and selects **Reset two-factor**. That turns 2FA off
-  and signs the admin out; if the setting covers them, they set it up
-  again at the next sign-in. An Owner can't reset their own 2FA this
+  and signs the admin out, and removes their passkeys too; if the
+  setting covers them, they set it up again at the next sign-in. An Owner can't reset their own 2FA this
   way, and only an Owner can reset another Owner.
 
 ## Limits and logs

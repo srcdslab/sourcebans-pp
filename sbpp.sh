@@ -176,6 +176,9 @@ case "$cmd" in
             stash=/var/www/html/web/config.php.e2e-stash
             [ ! -f \$stash ] && cp \$cfg \$stash
             sed -i \"s/define('DB_NAME', '[^']*');/define('DB_NAME', '${e2e_db}');/\" \$cfg
+            # Passkeys (#108) take their relying party ID and origin from
+            # SBPP_PANEL_URL only: point it at the URL the browser uses.
+            grep -q SBPP_PANEL_URL \$cfg || sed -i \"s|^define('DB_NAME', |if (!defined('SBPP_PANEL_URL')) { define('SBPP_PANEL_URL', '${E2E_BASE_URL:-http://localhost}'); }\\ndefine('DB_NAME', |\" \$cfg
         "
         restore_panel_db() {
             dc exec -T web bash -c '

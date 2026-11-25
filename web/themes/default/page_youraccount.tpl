@@ -369,6 +369,58 @@
         </div>
     </section>
 
+    {* Passkeys (#108): sign in without a password (PIN / biometrics on
+       the device), or answer the two-factor step. *}
+    <section class="card" data-testid="account-passkeys">
+        <div class="card__header">
+            <div>
+                <h3>Passkeys</h3>
+                <p>Sign in with your device's screen lock or a security key instead of a password. A passkey also counts as two-factor authentication.</p>
+            </div>
+        </div>
+        <div class="card__body space-y-4">
+            {if !$passkeys_available}
+                <p class="text-sm text-muted" data-testid="account-passkeys-unavailable">Passkeys need the panel URL (<code>SBPP_PANEL_URL</code>, https) to be set. Ask the panel owner.</p>
+            {else}
+                <div id="account-passkey-codes-wrap" hidden>
+                    <p class="text-sm"><strong>Save your recovery codes.</strong> Each one signs you in once if you lose your devices. They are shown only now.</p>
+                    <pre id="account-passkey-codes" class="mt-2" style="font-size:var(--fs-sm);line-height:1.6;user-select:all"></pre>
+                </div>
+                {if $passkeys}
+                    <ul class="space-y-2" data-testid="account-passkeys-list" style="list-style:none;padding:0;margin:0">
+                        {foreach $passkeys as $pk}
+                            <li class="flex items-center justify-between gap-2" data-testid="account-passkey-row" data-id="{$pk.id}">
+                                <span class="text-sm"><strong>{$pk.name}</strong>
+                                    <span class="text-xs text-muted">added {$pk.created|date_format:"%Y-%m-%d"}{if $pk.last_used}, last used {$pk.last_used|date_format:"%Y-%m-%d"}{/if}</span>
+                                </span>
+                                <button type="button" class="btn btn--ghost btn--sm" data-passkey-remove="{$pk.id}" data-testid="account-passkey-remove">Remove</button>
+                            </li>
+                        {/foreach}
+                    </ul>
+                {else}
+                    <p class="text-sm text-muted" data-testid="account-passkeys-empty">No passkeys yet.</p>
+                {/if}
+                <form id="account-passkey-form" class="space-y-3" autocomplete="off" novalidate>
+                    {csrf_field}
+                    <div>
+                        <label class="label" for="account-passkey-name">Name</label>
+                        <input class="input" type="text" id="account-passkey-name" name="name" maxlength="64"
+                               placeholder="e.g. Work laptop" data-testid="account-passkey-name">
+                    </div>
+                    <div>
+                        <label class="label" for="account-passkey-password">Current password</label>
+                        <input class="input" type="password" autocomplete="current-password"
+                               id="account-passkey-password" name="password" data-testid="account-passkey-password" required>
+                    </div>
+                    <div class="flex justify-end">
+                        <button class="btn btn--primary" type="submit" data-testid="account-passkey-add">Add a passkey</button>
+                    </div>
+                </form>
+            {/if}
+            <p id="account-passkey-msg" class="text-xs" role="alert" data-testid="account-passkey-msg" style="color:var(--danger);min-height:1em"></p>
+        </div>
+    </section>
+
     <section class="card" data-testid="account-change-email">
         <div class="card__header">
             <div>
@@ -1002,6 +1054,74 @@
         return { password: val(f, 'password'), code: val(f, 'code') };
     }, function () {
         window.location.reload();
+    });
+}());
+</script>
+{/literal}
+
+{literal}
+<script>
+// Passkeys section (#108).
+(function () {
+    'use strict';
+    var msg = document.getElementById('account-passkey-msg');
+    var form = document.getElementById('account-passkey-form');
+    var PK = window.SBPP_PASSKEYS;
+    if (!msg) return;
+    function setBusy(btn, busy) {
+        if (!btn) return;
+        var S = window.SBPP;
+        if (S && typeof S.setBusy === 'function') S.setBusy(btn, busy);
+        else btn.disabled = busy === undefined ? true : !!busy;
+    }
+    function fail(btn, text) { setBusy(btn, false); msg.textContent = text || 'Something went wrong. Try again.'; }
+    if (form) {
+        if (!PK || !PK.supported()) {
+            // Keep the password field: removing a passkey still needs it.
+            msg.textContent = "This browser can't create passkeys.";
+            var addBtn = form.querySelector('[data-testid="account-passkey-add"]');
+            if (addBtn) addBtn.hidden = true;
+        }
+        form.addEventListener('submit', function (e) {
+            e.preventDefault();
+            msg.textContent = '';
+            var btn = form.querySelector('button[type="submit"]');
+            var name = form.querySelector('[name="name"]').value;
+            setBusy(btn, true);
+            sb.api.call(Actions.AccountPasskeyRegisterStart, { password: form.querySelector('[name="password"]').value }).then(function (res) {
+                if (!res || res.ok !== true || !res.data) { fail(btn, res && res.error && res.error.message); return; }
+                return PK.create(res.data.options).then(function (credential) {
+                    return sb.api.call(Actions.AccountPasskeyRegisterFinish, { credential: credential, name: name });
+                }).then(function (r) {
+                    if (!r || r.ok !== true) { fail(btn, r && r.error && r.error.message); return; }
+                    var codes = (r.data && r.data.recovery_codes) || [];
+                    if (codes.length) {
+                        document.getElementById('account-passkey-codes').textContent = codes.join('\n');
+                        document.getElementById('account-passkey-codes-wrap').hidden = false;
+                        form.hidden = true;
+                        return;
+                    }
+                    window.location.reload();
+                });
+            }).catch(function () { fail(btn, 'The passkey was not created (cancelled or not allowed).'); });
+        });
+    }
+    document.querySelectorAll('[data-passkey-remove]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            // The password field of the form above (masked), not a prompt().
+            var pwField = document.getElementById('account-passkey-password');
+            var password = pwField ? pwField.value : '';
+            if (!password) {
+                msg.textContent = 'Enter your current password in the field below, then select Remove again.';
+                if (pwField) pwField.focus();
+                return;
+            }
+            setBusy(btn, true);
+            sb.api.call(Actions.AccountPasskeyRemove, { id: parseInt(btn.getAttribute('data-passkey-remove') || '0', 10), password: password }).then(function (res) {
+                if (!res || res.ok !== true) { fail(btn, res && res.error && res.error.message); return; }
+                window.location.reload();
+            });
+        });
     });
 }());
 </script>

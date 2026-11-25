@@ -41,4 +41,6 @@ $myAid     = (int) $userbank->GetAid();
     twofa_enabled:           $twoFactor->isEnrolled($myAid),
     twofa_required:          $twoFactor->isRequiredFor($myAid),
     twofa_recovery_left:     $twoFactor->recoveryCodesLeft($myAid),
+    passkeys_available:      \Sbpp\Auth\Passkeys::available(),
+    passkeys:                (new \Sbpp\Auth\Passkeys($GLOBALS['PDO']))->listFor($myAid),
 ));

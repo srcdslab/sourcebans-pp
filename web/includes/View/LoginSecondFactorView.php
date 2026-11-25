@@ -25,6 +25,10 @@ final class LoginSecondFactorView extends View
         /** `verify` or `enroll` ({@see \Sbpp\Auth\TwoFactor::PURPOSE_VERIFY}). */
         public readonly string $mode,
         public readonly string $brand_logo_url,
+        /** `verify`: the admin has passkeys and they are configured (#108). */
+        public readonly bool $passkey_show = false,
+        /** `verify`: a code can be typed (TOTP on, or recovery codes left). */
+        public readonly bool $code_show = true,
     ) {
     }
 

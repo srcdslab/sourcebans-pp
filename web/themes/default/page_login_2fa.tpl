@@ -47,10 +47,18 @@
                 </div>
             -{else}-
                 <h1 class="m-0" style="font-size:var(--fs-2xl);font-weight:600">Two-factor authentication</h1>
-                <p class="text-sm text-muted mt-2">Enter the 6-digit code from your authenticator app, or one of your recovery codes.</p>
+                <p class="text-sm text-muted mt-2">
+                    -{if $code_show}-Enter the 6-digit code from your authenticator app, or one of your recovery codes.-{/if}-
+                    -{if $passkey_show}- Or confirm with one of your passkeys.-{/if}-
+                </p>
+                -{if $passkey_show}-
+                    <button type="button" class="btn btn--secondary mt-4" id="twofaPasskey" data-testid="login-2fa-passkey" hidden style="width:100%">
+                        <i data-lucide="key-round" aria-hidden="true"></i> Use a passkey
+                    </button>
+                -{/if}-
             -{/if}-
 
-            <form id="twofaForm" class="space-y-3 mt-4" data-testid="login-2fa-form" data-mode="-{$mode}-" novalidate autocomplete="off">
+            <form id="twofaForm" class="space-y-3 mt-4" data-testid="login-2fa-form" data-mode="-{$mode}-" novalidate autocomplete="off"-{if !$code_show}- hidden-{/if}->
                 -{csrf_field}-
                 <div>
                     <label class="label" for="twofaCode">Code</label>
@@ -156,6 +164,27 @@
             }
         }, function () { showError(null); });
     });
+
+    // Passkey as the second step (#108).
+    var pkBtn = document.getElementById('twofaPasskey');
+    var PK = window.SBPP_PASSKEYS;
+    if (pkBtn && PK && PK.supported()) {
+        pkBtn.hidden = false;
+        pkBtn.addEventListener('click', function () {
+            errorLine.textContent = '';
+            setBusy(pkBtn, true);
+            sb.api.call(Actions.Auth2faPasskeyStart, {}).then(function (res) {
+                if (!res || res.ok !== true || !res.data) { setBusy(pkBtn, false); return null; }
+                return PK.get(res.data.options).then(function (credential) {
+                    return sb.api.call(Actions.Auth2faPasskeyFinish, { credential: credential });
+                }).then(function (r) {
+                    if (r && r.redirect) return;
+                    setBusy(pkBtn, false);
+                    errorLine.textContent = (r && r.error && r.error.message) || 'Something went wrong. Try again.';
+                });
+            }).catch(function () { setBusy(pkBtn, false); });
+        });
+    }
 
     var cancel = document.getElementById('twofaCancel');
     if (cancel) {
