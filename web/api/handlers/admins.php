@@ -78,7 +78,7 @@ function api_admins_remove(array $params): array
     if ($ok) {
         Auth::revokeAllForAdmin($aid);
         // A later admin must never inherit this one's 2FA (#107).
-        (new \Sbpp\Auth\TwoFactor($GLOBALS['PDO']))->disable($aid);
+        (new \Sbpp\Auth\TwoFactor($GLOBALS['PDO']))->resetAll($aid);
         $allservers = _api_admins_rehash_sids($aid);
 
         $GLOBALS['PDO']->query("DELETE FROM `:prefix_admins_servers_groups` WHERE admin_id = :aid");
@@ -874,7 +874,8 @@ function api_admins_2fa_reset(array $params): array
         throw new ApiError('forbidden', 'Only an owner can change an owner.');
     }
 
-    (new \Sbpp\Auth\TwoFactor($GLOBALS['PDO']))->disable($aid);
+    // TOTP, recovery codes and passkeys (#108).
+    (new \Sbpp\Auth\TwoFactor($GLOBALS['PDO']))->resetAll($aid);
     Auth::revokeAllForAdmin($aid);
     Log::add(
         LogType::Warning,

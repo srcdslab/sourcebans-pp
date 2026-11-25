@@ -166,6 +166,12 @@ declare var $: (idOrEl: string | HTMLElement | null) => SbWrappedElement | null;
  * those legacy tab navs ship with the v2.0.0 per-page redesigns.
  */
 interface Window {
+    /** Passkey glue from `web/scripts/passkeys.js` (#108). */
+    SBPP_PASSKEYS?: {
+        supported: () => boolean;
+        create: (options: any) => Promise<Record<string, unknown>>;
+        get: (options: any) => Promise<Record<string, unknown>>;
+    };
     set_error?: (n: number) => void;
     SwapPane?: (n: number) => void;
     swapTab?: (tabNo: number | string) => void;

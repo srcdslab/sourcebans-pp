@@ -23,7 +23,11 @@ abstract class ApiTestCase extends TestCase
         $_SESSION = [];
         // A device cookie issued by a successful login (#106) would carry
         // into the next test and change which counter it hits.
-        unset($_COOKIE[\Sbpp\Auth\DeviceCookie::COOKIE], $_COOKIE[\Sbpp\Auth\TwoFactor::PENDING_COOKIE]);
+        unset(
+            $_COOKIE[\Sbpp\Auth\DeviceCookie::COOKIE],
+            $_COOKIE[\Sbpp\Auth\TwoFactor::PENDING_COOKIE],
+            $_COOKIE[\Sbpp\Auth\Passkeys::CHALLENGE_COOKIE],
+        );
         \CSRF::init();
         $GLOBALS['userbank'] = new \CUserManager(null);
         $GLOBALS['username'] = 'tester';

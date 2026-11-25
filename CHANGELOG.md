@@ -10,6 +10,30 @@ Legend:
 ? = Other stuff
 ```
 
+(25/11/26): Version 2.2.23-srcdslab
+-----------------------
+```
+01. * web: passkeys (WebAuthn). Admins add them from Your account and
+        sign in with "Sign in with a passkey" (device screen lock or
+        security key, no password); a passkey counts as two-factor and
+        can also answer the second step after a password or Steam
+        sign-in (#108)
+02. * web: passkeys need SBPP_PANEL_URL (https): the relying party ID
+        and the allowed origin come from it, never from the request
+        (#108)
+03. ? web: new tables :prefix_admin_passkeys and
+        :prefix_webauthn_challenges (migration 821); new dependency
+        web-auth/webauthn-lib (#108)
+04. * web: passwordless passkey sign-in follows "Username/password login"
+        and counts on the per-address limit; passkeys stop counting as a
+        second factor while SBPP_PANEL_URL is unset, and can still be
+        removed; turning the authenticator app off keeps the recovery
+        codes while passkeys remain (#108)
+05. ? web: the chrome scripts load with a ?v= stamp, so an update is
+        never run against a cached api-contract.js (#108)
+06. ? theme: 2.0.8 (passkey buttons, Your account Passkeys section)
+```
+
 (25/11/26): Version 2.2.22-srcdslab
 -----------------------
 ```

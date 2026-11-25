@@ -29,6 +29,11 @@ Api::register('auth.2fa_verify',         'api_auth_2fa_verify',         0, false
 Api::register('auth.2fa_enroll_start',   'api_auth_2fa_enroll_start',   0, false, true);
 Api::register('auth.2fa_enroll_confirm', 'api_auth_2fa_enroll_confirm', 0, false, true);
 Api::register('auth.2fa_cancel',         'api_auth_2fa_cancel',         0, false, true);
+// Passkeys (#108): passwordless sign-in, and the second step.
+Api::register('auth.passkey_login_start',  'api_auth_passkey_login_start',  0, false, true);
+Api::register('auth.passkey_login_finish', 'api_auth_passkey_login_finish', 0, false, true);
+Api::register('auth.2fa_passkey_start',    'api_auth_2fa_passkey_start',    0, false, true);
+Api::register('auth.2fa_passkey_finish',   'api_auth_2fa_passkey_finish',   0, false, true);
 // bans.detail mirrors the public ban-list page's reach: any visitor can
 // click a ban row in the right-side drawer (#1123 C1). Player IP, admin
 // name, removed-by and comments are gated *inside* the handler against
@@ -67,6 +72,9 @@ Api::register('account.2fa_setup_start',    'api_account_2fa_setup_start');
 Api::register('account.2fa_setup_confirm',  'api_account_2fa_setup_confirm');
 Api::register('account.2fa_disable',        'api_account_2fa_disable');
 Api::register('account.2fa_recovery_codes', 'api_account_2fa_recovery_codes');
+Api::register('account.passkey_register_start',  'api_account_passkey_register_start');
+Api::register('account.passkey_register_finish', 'api_account_passkey_register_finish');
+Api::register('account.passkey_remove',          'api_account_passkey_remove');
 
 // ---- admins -----------------------------------------------------------
 Api::register('admins.add',               'api_admins_add',               ADMIN_OWNER | ADMIN_ADD_ADMINS);

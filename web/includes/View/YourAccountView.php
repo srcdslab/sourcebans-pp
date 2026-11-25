@@ -65,6 +65,12 @@ final class YourAccountView extends View
         public readonly bool $twofa_required = false,
         /** Unused recovery codes left. */
         public readonly int $twofa_recovery_left = 0,
+        /** Passkeys configured on this panel (`SBPP_PANEL_URL`, #108) and their tables created. */
+        public readonly bool $passkeys_available = false,
+        /** The updater hasn't created the passkey tables yet (#108). */
+        public readonly bool $passkeys_needs_update = false,
+        /** @var list<array{id: int, name: string, created: int, last_used: int|null}> */
+        public readonly array $passkeys = [],
     ) {
     }
 }

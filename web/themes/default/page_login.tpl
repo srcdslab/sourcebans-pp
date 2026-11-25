@@ -118,6 +118,19 @@
                 </a>
             -{/if}-
 
+            -{if $passkey_login_show}-
+                -{* #108: passwordless sign-in. Hidden until passkeys.js
+                   confirms the browser supports WebAuthn. *}-
+                <button type="button"
+                        class="btn btn--secondary"
+                        id="loginPasskey"
+                        data-testid="login-passkey"
+                        hidden
+                        style="width:100%;margin-top:1.5rem">
+                    <i data-lucide="key-round" aria-hidden="true"></i> Sign in with a passkey
+                </button>
+            -{/if}-
+
             -{if $steamlogin_show and $normallogin_show}-
                 <div class="login-shell__divider" aria-hidden="true">
                     <span>Or with credentials</span>
@@ -273,6 +286,37 @@
         });
     }
 
+    // ----- passkey sign-in (#108) --------------------------------------
+    var passkeyBtn = document.getElementById('loginPasskey');
+    var PK = window.SBPP_PASSKEYS;
+    if (passkeyBtn && PK && PK.supported()) {
+        passkeyBtn.hidden = false;
+        // An error envelope (not a redirect): release the button and say why.
+        var passkeyError = function (res) {
+            setBusy(passkeyBtn, false);
+            var text = (res && res.error && res.error.message) || 'Something went wrong. Try again.';
+            if (window.SBPP && typeof window.SBPP.showToast === 'function') {
+                window.SBPP.showToast({ kind: 'error', title: 'Passkey sign-in failed', body: text });
+            }
+        };
+        passkeyBtn.addEventListener('click', function () {
+            setBusy(passkeyBtn, true);
+            sb.api.call(Actions.AuthPasskeyLoginStart, {}).then(function (res) {
+                if (res && res.redirect) return null;
+                if (!res || res.ok !== true || !res.data) { passkeyError(res); return null; }
+                return PK.get(res.data.options).then(function (credential) {
+                    return sb.api.call(Actions.AuthPasskeyLoginFinish, { credential: credential, redirect: '' });
+                }).then(function (r) {
+                    if (r && r.redirect) return;
+                    passkeyError(r);
+                });
+            }).catch(function () {
+                // Cancelled in the browser dialog, or no passkey for this site.
+                setBusy(passkeyBtn, false);
+            });
+        });
+    }
+
     // ----- ?m=… query-param -> SBPP.showToast(...) -------------------
     // Replaces the legacy theme's per-message ShowBox() <script>
     // emitted from web/pages/page.login.php. Driving the toast
@@ -297,7 +341,8 @@
         locked:       { kind: 'error', title: 'Sign-in paused',     body: lockedBody },
         unavailable:  { kind: 'error', title: 'Sign-in unavailable', body: "Sign-in is unavailable until the panel's database is updated. Ask the panel owner to run the updater." },
         signin_error: { kind: 'error', title: 'Sign-in unavailable', body: 'Sign-in could not be checked right now. Try again in a moment; if it keeps failing, ask the panel owner to check the web server error log.' },
-        '2fa_expired': { kind: 'info', title: 'Sign in again',      body: 'The two-factor step expired or had too many wrong codes. Sign in again.' }
+        '2fa_expired': { kind: 'info', title: 'Sign in again',      body: 'The two-factor step expired or had too many wrong codes. Sign in again.' },
+        passkey_failed: { kind: 'error', title: 'Passkey sign-in failed', body: "That passkey couldn't be verified for this panel. Try again, or sign in another way." }
     };
     var msg = msgs[m];
     if (!msg) return;

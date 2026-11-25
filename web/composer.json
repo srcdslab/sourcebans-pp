@@ -29,7 +29,8 @@
         "php": ">=8.5",
         "maennchen/zipstream-php": "^3.2",
         "bacon/bacon-qr-code": "^3.0",
-        "ext-sodium": "*"
+        "ext-sodium": "*",
+        "web-auth/webauthn-lib": "^5.3"
     },
 
     "autoload": {

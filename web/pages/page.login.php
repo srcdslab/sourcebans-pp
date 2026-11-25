@@ -61,9 +61,13 @@ if ($step === '2fa' || $step === 'enroll') {
         echo "<script>window.location.href = 'index.php?p=login&m=2fa_expired';</script>";
         exit;
     }
+    $tf = new \Sbpp\Auth\TwoFactor($GLOBALS['PDO']);
+    $isVerify = $wanted === \Sbpp\Auth\TwoFactor::PURPOSE_VERIFY;
     $secondFactorView = new \Sbpp\View\LoginSecondFactorView(
         mode: $wanted,
         brand_logo_url: $brandLogoUrl,
+        passkey_show: $isVerify && (new \Sbpp\Auth\Passkeys($GLOBALS['PDO']))->usableCount($pending['aid']) > 0,
+        code_show: !$isVerify || $tf->isEnrolled($pending['aid']) || $tf->recoveryCodesLeft($pending['aid']) > 0,
     );
     $theme->setLeftDelimiter('-{');
     $theme->setRightDelimiter('}-');
@@ -78,6 +82,11 @@ $loginView = new \Sbpp\View\LoginView(
     steamlogin_show: Config::getBool('config.enablesteamlogin'),
     redir: "DoLogin('');",
     brand_logo_url: $brandLogoUrl,
+    // Passwordless passkey sign-in follows password sign-in (#108), and
+    // stays hidden until the updater created its tables.
+    passkey_login_show: \Sbpp\Auth\Passkeys::available()
+        && Config::getBool('config.enablenormallogin')
+        && (new \Sbpp\Auth\Passkeys($GLOBALS['PDO']))->tablesExist(),
 );
 
 // `page_login.tpl` renders with the custom `-{ … }-` delimiter pair so

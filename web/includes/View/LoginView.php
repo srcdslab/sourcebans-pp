@@ -76,6 +76,8 @@ final class LoginView extends View
         public readonly bool $steamlogin_show,
         public readonly string $redir,
         public readonly string $brand_logo_url,
+        /** Passkeys configured (`SBPP_PANEL_URL` set): show "Sign in with a passkey" (#108). */
+        public readonly bool $passkey_login_show = false,
     ) {
     }
 
