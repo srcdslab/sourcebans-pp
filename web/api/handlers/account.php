@@ -254,8 +254,11 @@ function _api_account_2fa_gate(): void
             \Sbpp\Auth\LoginThrottle::WINDOW_SECONDS,
             time(),
         );
-    } catch (\Sbpp\Auth\ThrottleUnavailable) {
-        throw new ApiError('unavailable', "The panel's database needs updating: ask the panel owner to run the updater.");
+    } catch (\Sbpp\Auth\ThrottleUnavailable $e) {
+        error_log('[sbpp] two-factor change refused, sign-in counters unavailable: ' . $e->getMessage());
+        throw $e->tableMissing
+            ? new ApiError('unavailable', "The panel's database needs updating: ask the panel owner to run the updater.")
+            : new ApiError('unavailable', 'This could not be checked right now. Try again in a moment.');
     }
     if ($hit->blocked()) {
         throw new ApiError('locked', 'Too many wrong attempts. Try again in about ' . max(1, (int) ceil($hit->retryAfter / 60)) . ' minutes.');
@@ -310,10 +313,11 @@ function api_account_2fa_disable(array $params): array
     if ($tf->isRequiredFor($aid) && (new \Sbpp\Auth\Passkeys($GLOBALS['PDO']))->count($aid) === 0) {
         throw new ApiError('required', 'Two-factor authentication is required for your account by the panel settings. Add a passkey first if you want to turn the authenticator app off.');
     }
+    // One attempt (password + code) takes one slot on `2fa:<aid>`: the
+    // password check already took it.
     _api_account_2fa_check_password((string) ($params['password'] ?? ''));
     $code = (string) ($params['code'] ?? '');
     $now = time();
-    _api_account_2fa_gate();
     if (!$tf->checkTotp($aid, $code, $now) && !$tf->useRecoveryCode($aid, $code, $now)) {
         throw new ApiError('invalid_code', "That code isn't valid.", 'code');
     }

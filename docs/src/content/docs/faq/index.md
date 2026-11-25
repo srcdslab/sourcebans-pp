@@ -204,6 +204,8 @@ Three limits apply to password logins, each over 15 minutes:
   (password or Steam) keeps a device cookie and has its own 5 attempts.
   An attacker filling the per-username limit doesn't lock it, so the
   admin's usual browser still gets in. Steam sign-in is never locked.
+  A browser keeps this for one admin only: when a second admin signs in
+  from the same browser, the cookie moves to them.
 - **Per address:** 20 failed logins from one IP address (or one IPv6
   /64) block logins from that address, for every account, until the
   15 minutes are up.
@@ -241,6 +243,12 @@ the updater hasn't run since the panel files were updated. Run it (see
 [Updating](/updating/)); on Docker, restart the container, which runs
 pending migrations. Password sign-in is refused until then, rather than
 letting attempts through uncounted. Steam sign-in keeps working.
+
+If the message says sign-in "could not be checked right now" instead,
+the table is there but the database refused the query (a timeout, a
+lost connection). It is usually gone on the next try; if it stays, the
+web server's error log has a line starting with `[sbpp]` that gives
+the cause.
 
 ### How do I customize the dashboard?
 

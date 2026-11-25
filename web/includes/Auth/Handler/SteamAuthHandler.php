@@ -106,8 +106,14 @@ final class SteamAuthHandler
                 $next = (new TwoFactor($this->dbs))->completePrimary((int) $result['aid'], (int) $maxlife, '');
             } catch (\PDOException $e) {
                 // Can't tell whether this admin has 2FA: refuse rather than skip it.
-                error_log('[sbpp] Steam sign-in refused, two-factor state unreadable (run the updater): ' . $e->getMessage());
-                header("Location: ".Host::complete()."/index.php?p=login&m=unavailable");
+                // Only a missing table is fixed by running the updater.
+                $tableMissing = ThrottleUnavailable::fromPdo('two-factor state', $e)->tableMissing;
+                error_log(sprintf(
+                    '[sbpp] Steam sign-in refused, two-factor state %s: %s',
+                    $tableMissing ? 'table is missing (run the updater)' : 'could not be read',
+                    $e->getMessage(),
+                ));
+                header("Location: ".Host::complete()."/index.php?p=login&m=" . ($tableMissing ? 'unavailable' : 'signin_error'));
                 return;
             }
             header("Location: ".Host::complete() . ($next === '?' ? '' : '/index.php' . $next));

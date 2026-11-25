@@ -7,6 +7,7 @@ namespace Sbpp\Tests\Api;
 
 use Sbpp\Auth\DeviceCookie;
 use Sbpp\Auth\LoginThrottle;
+use Sbpp\Auth\ThrottleUnavailable;
 use Sbpp\Tests\ApiTestCase;
 use Sbpp\Tests\Fixture;
 
@@ -293,6 +294,88 @@ final class LoginThrottleTest extends ApiTestCase
                 . ' PRIMARY KEY (`throttle_key`), KEY `expires` (`expires`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
             );
         }
+    }
+
+    public function testOtherDatabaseErrorsDoNotSayRunTheUpdater(): void
+    {
+        // A table that exists but can't be written stands in for a deadlock
+        // or a lock wait timeout: still refused, without "run the updater".
+        $table = DB_PREFIX . '_auth_throttle';
+        $pdo = Fixture::rawPdo();
+        $pdo->exec("DROP TABLE `{$table}`");
+        $pdo->exec("CREATE TABLE `{$table}` (`throttle_key` varchar(80) NOT NULL PRIMARY KEY) ENGINE=InnoDB");
+        try {
+            $env = $this->api('auth.login', ['username' => 'admin', 'password' => 'admin']);
+            $this->assertSame('?p=login&m=signin_error', $env['redirect'] ?? null);
+        } finally {
+            $pdo->exec("DROP TABLE `{$table}`");
+            $pdo->exec(
+                "CREATE TABLE `{$table}` (`throttle_key` varchar(80) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,"
+                . ' `attempts` int(10) UNSIGNED NOT NULL DEFAULT 0, `expires` int(11) NOT NULL,'
+                . ' PRIMARY KEY (`throttle_key`), KEY `expires` (`expires`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4'
+            );
+        }
+    }
+
+    public function testOnlyAMissingTableCountsAsTableMissing(): void
+    {
+        $missing = new \PDOException('Table does not exist');
+        $missing->errorInfo = ['42S02', 1146, "Table 'x.sb_auth_throttle' doesn't exist"];
+        $deadlock = new \PDOException('Deadlock');
+        $deadlock->errorInfo = ['40001', 1213, 'Deadlock found when trying to get lock'];
+
+        $this->assertTrue(ThrottleUnavailable::fromPdo('t', $missing)->tableMissing);
+        $this->assertFalse(ThrottleUnavailable::fromPdo('t', $deadlock)->tableMissing);
+    }
+
+    // -- Concurrency ----------------------------------------------------
+
+    public function testConcurrentHitsEachGetTheirOwnCount(): void
+    {
+        // The audit entry is written by the attempt that sees exactly
+        // limit + 1. Pre-fix, hit() read the row back after its write, so
+        // parallel attempts could all read a higher count and none saw
+        // limit + 1. Each attempt must get the count its own write made:
+        // over all of them, every number exactly once.
+        $workers = 6;
+        $hits = 30;
+        $key = 'test:concurrent';
+        $env = [
+            'PATH' => (string) getenv('PATH'),
+            'DB_HOST' => DB_HOST, 'DB_PORT' => (string) DB_PORT, 'DB_NAME' => DB_NAME,
+            'DB_USER' => DB_USER, 'DB_PASS' => DB_PASS, 'DB_PREFIX' => DB_PREFIX, 'DB_CHARSET' => DB_CHARSET,
+        ];
+        $startAt = sprintf('%.6F', microtime(true) + 1.5);
+
+        $procs = [];
+        for ($w = 0; $w < $workers; $w++) {
+            $pipes = [];
+            $proc = proc_open(
+                [PHP_BINARY, ROOT . 'tests/scripts/throttle-hit-worker.php', $key, (string) $hits, $startAt],
+                [1 => ['pipe', 'w'], 2 => ['pipe', 'w']],
+                $pipes,
+                null,
+                $env,
+            );
+            $this->assertIsResource($proc);
+            $procs[] = [$proc, $pipes];
+        }
+
+        $counts = [];
+        foreach ($procs as [$proc, $pipes]) {
+            $out = (string) stream_get_contents($pipes[1]);
+            $err = (string) stream_get_contents($pipes[2]);
+            fclose($pipes[1]);
+            fclose($pipes[2]);
+            $this->assertSame(0, proc_close($proc), $err);
+            foreach (preg_split('/\R/', trim($out)) ?: [] as $line) {
+                $counts[] = (int) $line;
+            }
+        }
+        sort($counts);
+
+        $this->assertSame(range(1, $workers * $hits), $counts);
+        $this->assertSame($workers * $hits, $this->attempts($key));
     }
 
     public function testCountersAreTakenBeforeThePasswordCheck(): void
