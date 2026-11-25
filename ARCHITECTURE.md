@@ -423,7 +423,8 @@ also requires BanSubmissions / BanProtests; DELETE is Owner via
   `Auth::login()`. With 2FA (a confirmed `sb_admin_totp` row) it
   writes an `sb_auth_pending` row (SHA-256 of a random token, 10
   minutes, 5 attempts) and sets the `sbpp_2fa` cookie (`HttpOnly`,
-  `SameSite=Strict`); `?p=login&step=2fa` renders
+  `SameSite=Lax`, so it survives the cross-site redirect back from
+  Steam); `?p=login&step=2fa` renders
   `LoginSecondFactorView`, which posts to the public `auth.2fa_verify`
   action. When `auth.2fa.require` (`off` / `owners` / `all`) covers an
   admin without 2FA, the pending row is an `enroll` one and the page
