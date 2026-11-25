@@ -25,10 +25,12 @@ Legend:
 03. ! web: password sign-in is refused, with "Sign-in unavailable",
         when the sign-in counter table is missing; before, the per-IP
         limit silently let every attempt through until the updater
-        ran (#106)
+        ran. Other database errors refuse it too, without telling to
+        run the updater (#106)
 04. * web: the system log gets one entry when an address, a username
         or a password-reset account goes over its limit, with a hint
-        when the address is a private one (reverse proxy) (#106)
+        when the address is a private one (reverse proxy), also when
+        the attempts arrive in parallel (#106)
 05. ! web: password reset requests are limited (5 per hour per
         address, 3 mails per hour per account), behind the same
         "check your email" answer (#106)

@@ -83,8 +83,10 @@ function api_auth_login(array $params): array
         $counter = $deviceNonce !== null ? DeviceCookie::counterKey($deviceNonce) : 'n:' . $nameKey;
         $hit = $throttle->hit($counter, LoginThrottle::ACCOUNT_LIMIT, LoginThrottle::WINDOW_SECONDS, $now);
     } catch (ThrottleUnavailable $e) {
-        error_log('[sbpp] password sign-in refused, the sign-in counters are unavailable (run the updater): ' . $e->getMessage());
-        return Api::redirect('?p=login&m=unavailable');
+        _api_auth_log_throttle_unavailable('password sign-in', $e);
+        // `unavailable` says "run the updater", which only fixes a missing
+        // table; any other database error is transient.
+        return Api::redirect('?p=login&m=' . ($e->tableMissing ? 'unavailable' : 'signin_error'));
     }
 
     if ($hit->blocked()) {
@@ -164,6 +166,18 @@ function _api_auth_log_account_throttled(string $user, bool $trustedDevice): voi
             LoginThrottle::ACCOUNT_LIMIT, $user, $minutes, $minutes,
         );
     Log::add(LogType::Warning, 'Sign-in locked', $message);
+}
+
+/**
+ * error_log() why a sign-in or reset was refused with the counters
+ * unavailable (#106). Not Log::add(): that writes to the same database.
+ */
+function _api_auth_log_throttle_unavailable(string $what, ThrottleUnavailable $e): void
+{
+    $cause = $e->tableMissing
+        ? 'the sign-in counter table is missing (run the updater)'
+        : 'the sign-in counters could not be read or written';
+    error_log(sprintf('[sbpp] %s refused, %s: %s', $what, $cause, $e->getMessage()));
 }
 
 /**
@@ -282,7 +296,7 @@ function api_auth_lost_password(array $params): array
             }
         }
     } catch (ThrottleUnavailable $e) {
-        error_log('[sbpp] password reset refused, the sign-in counters are unavailable (run the updater): ' . $e->getMessage());
+        _api_auth_log_throttle_unavailable('password reset', $e);
         return _api_auth_lost_password_generic_response();
     }
 
@@ -314,7 +328,7 @@ function api_auth_lost_password(array $params): array
             $now,
         );
     } catch (ThrottleUnavailable $e) {
-        error_log('[sbpp] password reset refused, the sign-in counters are unavailable (run the updater): ' . $e->getMessage());
+        _api_auth_log_throttle_unavailable('password reset', $e);
         return _api_auth_lost_password_generic_response();
     }
     if ($accountHit->blocked()) {
@@ -337,7 +351,7 @@ function api_auth_lost_password(array $params): array
 
     $storedEmail = (string) $row['email'];
     $validation  = Crypto::recoveryHash();
-    // The deadline is a PHP-side `Y-m-d H:i:s`, like `lockout_until`, so it
+    // The deadline is a PHP-side `Y-m-d H:i:s`, so it
     // compares in the same timezone `page.lostpassword.php` reads it in.
     $GLOBALS['PDO']->query("UPDATE `:prefix_admins` SET validate = :validate, validate_until = :until WHERE aid = :aid");
     $GLOBALS['PDO']->bind(':validate', $validation);

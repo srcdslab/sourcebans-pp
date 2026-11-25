@@ -34,9 +34,11 @@ use Sbpp\Db\Database;
  * client's (the Docker image's `mod_remoteip` with `SBPP_TRUSTED_PROXIES`),
  * otherwise every visitor shares the proxy's counter.
  *
- * A missing table raises {@see ThrottleUnavailable}: callers refuse the
- * sign-in. Pre-#106 it failed open, so a panel that never ran migration
- * 818 had no limit at all and nothing said so.
+ * Any database error raises {@see ThrottleUnavailable} and callers refuse
+ * the sign-in; {@see ThrottleUnavailable::$tableMissing} tells "run the
+ * updater" apart from a transient error. Pre-#106 it failed open, so a
+ * panel that never ran migration 818 had no limit at all and nothing said
+ * so.
  */
 final class LoginThrottle
 {
@@ -121,7 +123,7 @@ final class LoginThrottle
             $this->dbs->bind(':name', $name);
             $row = $this->dbs->single();
         } catch (\PDOException $e) {
-            throw new ThrottleUnavailable('username key: ' . $e->getMessage(), 0, $e);
+            throw ThrottleUnavailable::fromPdo('username key', $e);
         }
         $weight = is_array($row) ? (string) ($row['w'] ?? '') : '';
         return hash('sha256', $weight);
@@ -131,7 +133,7 @@ final class LoginThrottle
      * Count one attempt against `$key`. The returned hit says whether the
      * caller must refuse it (without checking the secret).
      *
-     * @throws ThrottleUnavailable when the table is missing (updater not run)
+     * @throws ThrottleUnavailable on any database error (updater not run, deadlock, ...)
      */
     public function hit(string $key, int $limit, int $window, int $now): ThrottleHit
     {
@@ -144,10 +146,18 @@ final class LoginThrottle
             // One statement, so concurrent attempts can't overwrite each
             // other's count. `attempts` is assigned first and reads the old
             // `expires`; `expires` then reads its own old value.
+            //
+            // LAST_INSERT_ID(expr) keeps the count this statement wrote on
+            // the connection, so the read below gets this attempt's own
+            // number. Reading the row back instead returned whatever
+            // concurrent attempts had made it since: two requests could
+            // both read limit + 2, and neither saw limit + 1, the one that
+            // writes the audit entry. The INSERT branch sets it too, or it
+            // would keep a value from an earlier statement.
             $this->dbs->query(
-                'INSERT INTO `:prefix_auth_throttle` (throttle_key, attempts, expires) VALUES (:k, 1, :exp)'
+                'INSERT INTO `:prefix_auth_throttle` (throttle_key, attempts, expires) VALUES (:k, LAST_INSERT_ID(1), :exp)'
                 . ' ON DUPLICATE KEY UPDATE'
-                . ' attempts = IF(expires <= :now, 1, attempts + 1),'
+                . ' attempts = LAST_INSERT_ID(IF(expires <= :now, 1, attempts + 1)),'
                 . ' expires = IF(expires <= :now2, :exp2, expires)'
             );
             $this->dbs->bindMultiple([
@@ -159,19 +169,21 @@ final class LoginThrottle
             ]);
             $this->dbs->execute();
 
-            // Read back after the write: a concurrent attempt can only make
-            // the count higher, never let this one through wrongly.
-            $this->dbs->query('SELECT attempts, expires FROM `:prefix_auth_throttle` WHERE throttle_key = :k');
+            // The window end is read from the row; it is null only if a
+            // concurrent gc() removed the row in between.
+            $this->dbs->query(
+                'SELECT LAST_INSERT_ID() AS n,'
+                . ' (SELECT expires FROM `:prefix_auth_throttle` WHERE throttle_key = :k) AS e'
+            );
             $this->dbs->bind(':k', $key);
             $row = $this->dbs->single();
         } catch (\PDOException $e) {
-            throw new ThrottleUnavailable('auth_throttle: ' . $e->getMessage(), 0, $e);
+            throw ThrottleUnavailable::fromPdo('auth_throttle', $e);
         }
 
-        if (!is_array($row)) {
-            return new ThrottleHit(1, $limit, 0);
-        }
-        return new ThrottleHit((int) $row['attempts'], $limit, max(1, (int) $row['expires'] - $now));
+        $count = is_array($row) ? (int) ($row['n'] ?? 1) : 1;
+        $expires = is_array($row) && $row['e'] !== null ? (int) $row['e'] : $now + $window;
+        return new ThrottleHit($count, $limit, max(1, $expires - $now));
     }
 
     /** Give back the attempt {@see hit()} counted: the sign-in succeeded. */
@@ -202,7 +214,7 @@ final class LoginThrottle
             $this->dbs->bind(':t', $this->dbs->getPrefix() . '_admins');
             $row = $this->dbs->single();
         } catch (\PDOException $e) {
-            throw new ThrottleUnavailable('admins.user collation: ' . $e->getMessage(), 0, $e);
+            throw ThrottleUnavailable::fromPdo('admins.user collation', $e);
         }
         $charset = is_array($row) ? (string) ($row['cs'] ?? '') : '';
         $collation = is_array($row) ? (string) ($row['co'] ?? '') : '';

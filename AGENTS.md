@@ -1154,10 +1154,16 @@ The contract:
   per-address limit before the identifier lookup so known and unknown
   identifiers get the same answer (#97).
 - **Never fail open.** When a counter can't be read or written
-  (`ThrottleUnavailable`: table missing because the updater hasn't
-  run), refuse the attempt with a message that is the same for every
-  identifier (`m=unavailable`), and `error_log()` the cause. Pre-#106
-  the per-address limit silently let every attempt through.
+  (`ThrottleUnavailable`), refuse the attempt with a message that is
+  the same for every identifier, and `error_log()` the cause. Only a
+  missing table (`$tableMissing`, SQLSTATE 42S02: the updater hasn't
+  run) says "run the updater" (`m=unavailable`); any other database
+  error is `m=signin_error`. Pre-#106 the per-address limit silently
+  let every attempt through.
+- **Read back your own count.** `LoginThrottle::hit()` stores the
+  count its upsert wrote with `LAST_INSERT_ID(expr)` and reads that,
+  not the row: a re-read sees later concurrent attempts too, so in a
+  flood no attempt saw `limit + 1` and the audit entry was skipped.
 - **A lockout must not lock out the owner.** Key per-identifier
   counters so that an attacker filling them leaves the legitimate
   user a way in: login charges browsers holding a valid

@@ -407,7 +407,9 @@ also requires BanSubmissions / BanProtests; DELETE is Owner via
     password or Steam sign-in) is charged on its own per-device counter
     instead (OWASP device cookies): filling the shared counter can't
     lock the real admin out. A missing table refuses the sign-in
-    (`m=unavailable`). The first refusal of each window writes one
+    (`m=unavailable`), any other database error too (`m=signin_error`).
+    Each attempt reads back its own count (`LAST_INSERT_ID(expr)`), so
+    exactly one attempt per window sees `limit + 1` and writes the
     audit-log entry. `:prefix_admins.attempts` / `lockout_until` are no
     longer read (cleared by migration 819).
   - `Sbpp\Auth\Handler\SteamAuthHandler` — OpenID via the third-party
