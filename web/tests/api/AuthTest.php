@@ -321,6 +321,54 @@ final class AuthTest extends ApiTestCase
             'the mail must go to the stored address of the row whose token was rolled');
     }
 
+    /**
+     * #106: at most RESET_ACCOUNT_LIMIT reset mails per account per hour.
+     * Past it the caller gets the same generic answer, no mail is sent
+     * and the pending link isn't rolled.
+     */
+    public function testLostPasswordSendsAtMostThreeMailsPerAccountPerHour(): void
+    {
+        $this->captureMail();
+        $envs = [];
+        for ($i = 0; $i < \Sbpp\Auth\LoginThrottle::RESET_ACCOUNT_LIMIT; $i++) {
+            $envs[] = $this->api('auth.lost_password', ['email' => 'admin@example.test']);
+        }
+        $this->assertCount(\Sbpp\Auth\LoginThrottle::RESET_ACCOUNT_LIMIT, $this->sentMail);
+        $token = $this->row('admins', ['user' => 'admin'])['validate'] ?? null;
+
+        $over = $this->api('auth.lost_password', ['email' => 'admin@example.test']);
+        $this->api('auth.lost_password', ['email' => 'admin@example.test']);
+
+        $this->assertSame($envs[0], $over, 'Same answer past the limit.');
+        $this->assertCount(\Sbpp\Auth\LoginThrottle::RESET_ACCOUNT_LIMIT, $this->sentMail, 'No mail past the limit.');
+        $this->assertSame($token, $this->row('admins', ['user' => 'admin'])['validate'] ?? null, 'The pending link stays valid.');
+        $this->assertSame(1, $this->countLogEntries('Password reset throttled'));
+    }
+
+    /**
+     * #106: reset requests are limited per address before the lookup, so
+     * the limit answers the same for known and unknown addresses.
+     */
+    public function testLostPasswordIsLimitedPerAddressBeforeTheLookup(): void
+    {
+        $server = $_SERVER;
+        $_SERVER['REMOTE_ADDR'] = '203.0.113.50';
+        try {
+            $this->captureMail();
+            for ($i = 0; $i < \Sbpp\Auth\LoginThrottle::RESET_IP_LIMIT; $i++) {
+                $this->api('auth.lost_password', ['email' => "nobody{$i}@example.test"]);
+            }
+            $env = $this->api('auth.lost_password', ['email' => 'admin@example.test']);
+
+            $this->assertTrue($env['ok'] ?? false);
+            $this->assertGenericLostPasswordEnvelope($env);
+            $this->assertCount(0, $this->sentMail, 'An address over its limit gets no mail sent.');
+            $this->assertNull($this->row('admins', ['user' => 'admin'])['validate'] ?? null);
+        } finally {
+            $_SERVER = $server;
+        }
+    }
+
     protected function tearDown(): void
     {
         Mailer::overrideTransportForTests(null);
@@ -474,12 +522,6 @@ final class AuthTest extends ApiTestCase
         // requested target so the panel resumes where the user came from.
         $this->assertSame('?p=home', $env['redirect'] ?? null);
         $this->assertSnapshot('auth/login_success_redirect', $env);
-
-        // The lockout counter must be reset to 0 once auth succeeds —
-        // a successful login wipes any prior failed attempts.
-        $row = $this->row('admins', ['user' => 'admin']);
-        $this->assertSame(0, (int)$row['attempts']);
-        $this->assertNull($row['lockout_until']);
     }
 
     public function testLoginEmptyPasswordRedirectsWithSpecificFlag(): void
@@ -524,10 +566,12 @@ final class AuthTest extends ApiTestCase
     }
 
     /**
-     * 5 wrong attempts puts the account in lockout. Subsequent login
-     * attempts (even with the correct password) get the lockout redirect
-     * until the timeout expires. This locks #1081's hardening into the
-     * wire contract.
+     * 5 wrong attempts lock the name for browsers without a device cookie
+     * for it. Subsequent attempts from them (even with the correct
+     * password) get the lockout redirect until the window ends. This
+     * locks #1081's hardening into the wire contract; the counter moved
+     * from `:prefix_admins.attempts` to `:prefix_auth_throttle` in #106
+     * (LoginThrottleTest covers it in detail).
      */
     public function testLoginLocksAccountAfterFiveFailedAttempts(): void
     {
@@ -535,9 +579,6 @@ final class AuthTest extends ApiTestCase
             $env = $this->api('auth.login', ['username' => 'admin', 'password' => 'wrong']);
             $this->assertFalse($env['ok'] ?? true, "attempt $i should fail");
         }
-        $row = $this->row('admins', ['user' => 'admin']);
-        $this->assertSame(5, (int)$row['attempts']);
-        $this->assertNotNull($row['lockout_until']);
 
         $env = $this->api('auth.login', ['username' => 'admin', 'password' => 'admin']);
         $this->assertFalse($env['ok'] ?? true);

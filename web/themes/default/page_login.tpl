@@ -283,7 +283,9 @@
     var m = params.get('m');
     if (!m) return;
     var time = parseInt(params.get('time') || '0', 10);
-    var lockedBody = 'Your account is temporarily locked due to too many failed login attempts. '
+    // `locked` is the same for every counter (address, username, device;
+    // #106) and for unknown usernames, so it must not say "your account".
+    var lockedBody = 'Too many failed sign-in attempts. '
                    + 'Please try again in approximately ' + time + ' minute'
                    + (time === 1 ? '' : 's') + '.';
     var msgs = {
@@ -292,7 +294,8 @@
         failed:       { kind: 'error', title: 'Login failed',       body: 'The username or password you supplied was incorrect. If you forgot your password, use the lost-password link below.' },
         steam_failed: { kind: 'error', title: 'Steam login failed', body: "Steam login was successful, but your SteamID isn't associated with any account." },
         steam_error:  { kind: 'error', title: 'Steam login failed', body: 'The panel could not reach Steam. Try again later. If it keeps failing, ask the panel owner to check the system log.' },
-        locked:       { kind: 'error', title: 'Account locked',     body: lockedBody }
+        locked:       { kind: 'error', title: 'Sign-in paused',     body: lockedBody },
+        unavailable:  { kind: 'error', title: 'Sign-in unavailable', body: "Password sign-in is unavailable until the panel's database is updated. Ask the panel owner to run the updater." }
     };
     var msg = msgs[m];
     if (!msg) return;

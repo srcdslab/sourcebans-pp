@@ -4,7 +4,10 @@ namespace Sbpp\Auth\Handler;
 
 use LightOpenID;
 use Sbpp\Auth\Auth;
+use Sbpp\Auth\DeviceCookie;
 use Sbpp\Auth\Host;
+use Sbpp\Auth\LoginThrottle;
+use Sbpp\Auth\ThrottleUnavailable;
 use Sbpp\Config;
 use Sbpp\Db\Database;
 
@@ -90,18 +93,34 @@ final class SteamAuthHandler
         $enabledGate = \Sbpp\Auth\AdminsSchema::hasEnabledColumn($this->dbs)
             ? ' AND enabled = 1'
             : '';
-        $this->dbs->query("SELECT aid FROM `:prefix_admins` WHERE authid = :authid{$enabledGate}");
+        $this->dbs->query("SELECT aid, user FROM `:prefix_admins` WHERE authid = :authid{$enabledGate}");
         $this->dbs->bind(':authid', $steamid);
         $result = $this->dbs->single();
 
         if (!empty($result['aid'])) {
             $maxlife = Config::get('auth.maxlife.steam') * 60;
             Auth::login($result['aid'], $maxlife);
+            $this->issueDeviceCookie((string) $result['user']);
             header("Location: ".Host::complete());
             return;
         }
 
         header("Location: ".Host::complete()."/index.php?p=login&m=steam_failed");
+    }
+
+    /**
+     * A Steam sign-in proves the account as well as a password does, so
+     * this browser also gets a device cookie (#106): password sign-in
+     * from it keeps working while the name is locked for other browsers.
+     */
+    private function issueDeviceCookie(string $user): void
+    {
+        try {
+            $nameKey = (new LoginThrottle($this->dbs))->nameKey($user, true);
+        } catch (ThrottleUnavailable) {
+            return;
+        }
+        DeviceCookie::issue($nameKey, time());
     }
 }
 

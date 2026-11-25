@@ -431,7 +431,8 @@ matching its directory. PSR-4 autoloads from `web/includes/` →
 | `Sbpp\Auth\UserManager`                  | session / user-state (was `CUserManager`) |
 | `Sbpp\Auth\Auth`                         | login flow                            |
 | `Sbpp\Auth\Host`                         | hostname helper; `panelUrl()` for emailed links (`SBPP_PANEL_URL`, #95) |
-| `Sbpp\Auth\LoginThrottle`                | failed password logins per client address, reserved before the password check (#97) |
+| `Sbpp\Auth\LoginThrottle`                | failed sign-in counters (`:prefix_auth_throttle`) per address, username weight and device cookie, plus password-reset counters; each slot taken before the secret is checked (#97, #106). Throws `ThrottleUnavailable` when the table is missing: callers refuse, never fail open |
+| `Sbpp\Auth\DeviceCookie`                 | signed `sbpp_device` cookie issued on every successful sign-in; chooses the per-device counter so an attacker can't lock the real admin out (#106) |
 | `Sbpp\Auth\JWT`                          | token encode/decode                   |
 | `Sbpp\Auth\Handler\NormalAuthHandler`    | password login handler                |
 | `Sbpp\Auth\Handler\SteamAuthHandler`     | Steam OpenID login handler            |
@@ -1100,20 +1101,19 @@ The contract:
   a side-channel into "this is an unknown email" visible to
   anyone who can read the audit log.
 
-  Residual log-DoS surface (documented, NOT closed by #1456):
-  the matched-branch SMTP-failure path emits a log entry per
-  call. An attacker who knows a single registered email AND
-  catches the panel with broken SMTP can hammer the endpoint
-  to flood `:prefix_log` (and, as a side effect, roll the
-  legitimate user's outstanding `validate` token on every
-  request, invalidating any reset link in flight). Closing that
-  channel cleanly requires a per-(IP × email) rate limiter the
-  panel doesn't currently have. The pragmatic mitigation today
-  is the implicit one — SMTP failures should be rare on a
-  healthy deployment, and the audit-log table is acceptably
-  sized for the access pattern — but the surface is a tracking
-  follow-up; do not depend on it remaining quiet under attack.
-- **DB writes only happen on the matched branch.** Never UPDATE
+  The matched-branch SMTP-failure path emits a log entry per
+  call. Since #106 `auth.lost_password` is limited per address
+  (`lpi:`, before the lookup) and per account (`lpa:`, 3 per hour),
+  so an attacker who knows a registered email can no longer flood
+  `:prefix_log` or keep rolling the owner's `validate` token. Past
+  either limit the handler returns the generic envelope and sends
+  nothing; the account limit writes one `Password reset throttled`
+  entry per window.
+- **DB writes only happen on the matched branch.** (One exception:
+  the `n:` login counter is written for unknown usernames too, on
+  purpose, so `m=locked` can't tell real names from unknown ones; the
+  per-address counter is taken first and bounds how many rows one
+  client can create, and rows expire after 15 minutes.) Never UPDATE
   or INSERT a row keyed on an attacker-supplied identifier when the
   identifier didn't match — that's both a write amplification
   vector (DoS the DB by hammering with random emails) AND would
@@ -1153,6 +1153,21 @@ The contract:
   increment: parallel requests all pass a separate check. Apply any
   per-address limit before the identifier lookup so known and unknown
   identifiers get the same answer (#97).
+- **Never fail open.** When a counter can't be read or written
+  (`ThrottleUnavailable`: table missing because the updater hasn't
+  run), refuse the attempt with a message that is the same for every
+  identifier (`m=unavailable`), and `error_log()` the cause. Pre-#106
+  the per-address limit silently let every attempt through.
+- **A lockout must not lock out the owner.** Key per-identifier
+  counters so that an attacker filling them leaves the legitimate
+  user a way in: login charges browsers holding a valid
+  `DeviceCookie` for the name on their own `d:` counter, and Steam
+  sign-in is never counted (#106).
+- **Key identifier counters the way the lookup compares.** A
+  counter keyed on the raw string lets `Admin` / `ádmin` / `admin `
+  each get a fresh budget against the one account
+  `WHERE user = :user` matches. `LoginThrottle::nameKey()` hashes the
+  `user` column's collation weight (`WEIGHT_STRING`).
 - **Build mailed links with `Host::panelUrl()`.** It returns
   `SBPP_PANEL_URL` (config.php or env) when set, and only falls back
   to the request's `Host` header, which the client controls (#95).
@@ -1200,10 +1215,14 @@ unknown-user branch also runs `password_verify()` against
 `API_AUTH_TIMING_DUMMY_HASH` so it pays the same bcrypt cost as a known
 account; keep that constant at the cost `password_hash(PASSWORD_BCRYPT)`
 uses (`AuthTest::testTimingDummyHashIsAValidCurrentCostBcryptHash` pins
-it). Residual: `m=locked` still implies the account exists (only real
-accounts lock). Closing it needs per-IP throttling the panel doesn't
-have. Regression guards: `AuthTest::testLoginEmptyPasswordIsIdenticalForKnownAndUnknownUsers`
-/ `testLoginWrongPasswordIsIdenticalForKnownAndUnknownUsers`.
+it). Since #106 `m=locked` no longer implies the account exists:
+unknown usernames lock on the same `n:` counter after the same 5
+failures, and a locked name answers before any password check for both.
+Regression guards: `AuthTest::testLoginEmptyPasswordIsIdenticalForKnownAndUnknownUsers`
+/ `testLoginWrongPasswordIsIdenticalForKnownAndUnknownUsers` +
+`LoginThrottleTest` (`testUnknownNamesLockLikeRealOnesSoLockedIsNoOracle`,
+the collation-variant tests, the device-cookie tests, the fail-closed
+test).
 Do not silently introduce a NEW public auth surface that branches on
 per-account state; every new endpoint added here goes through the
 response-uniformity contract above.
@@ -5026,7 +5045,7 @@ the spec, target a 1920px viewport, not 1440px.
 | Add a JSON action                      | `web/api/handlers/_register.php` + `web/api/handlers/<topic>.php` |
 | Add or change a REST v1 route          | `web/includes/Rest/Routes.php` + handler in `Sbpp\Rest\*`. Same-PR OpenAPI (`web/api/openapi-v1.yaml`) and a row in `web/tests/api/RestPermissionMatrixTest.php`. Operator docs: `docs/src/content/docs/configuring/rest-api.mdx`. Entry: `web/api/v1.php`. PAT mint UI: Your Account + `account.tokens_*` RPC. Do not authenticate REST with the panel cookie. |
 | Soft-retire / hard-delete admins, keep ban+comm issuer names, or bulk-select on the admins list (#1509) | Soft-retire: `admins.enabled` + `admins.deactivate` / `admins.reactivate` in `web/api/handlers/admins.php` (Active/Inactive chips + dialogs in `page_admin_admins_list.tpl`). Hard delete still snapshots `bans.admin_name` / `comms.admin_name` before DELETE (migration `811.php`). Issuer display: `COALESCE(NULLIF(*.admin_name, ''), AD.user)` → template paints **Unknown**, never "deleted admin" on the Admin cell (comments still say "deleted admin" per #1500). Bulk: `admins.bulk` (`op` = `deactivate` \| `reactivate` \| `remove` \| `set_web_group` \| `set_srv_group`, partial `applied`/`skipped`) + checkbox column / sticky bar in `page_admin_admins_list.tpl`. Guards: no self on deactivate/remove; owners skipped. Tests: `AdminsTest` + `AdminEnabledAttributionTest` + `admin-deactivate-bulk.spec.ts`. |
-| Add or audit a publicly-reachable, unauthenticated auth surface (anything in `web/api/handlers/auth.php` or sibling registered as `requireAuth: false`) without leaking per-account state | The reference shape is `api_auth_lost_password` + `_api_auth_lost_password_generic_response` in `web/api/handlers/auth.php` (#1456). All reachable branches MUST return the same envelope; operator-side toggles (e.g. `config.enablenormallogin`) MAY surface as a per-toggle error code because the value is the same for every caller. The pre-#1456 shape branched on `not_registered` / `mail_failed` and let an unauthenticated visitor enumerate registered admin emails one request at a time by reading the painted toast back. See "Public auth surfaces: response-shape uniformity" in Conventions for the full contract (audit-log discipline, DB-write gating, SMTP gating, the documented response-time residual risk) + the matching Anti-patterns entry. Regression guards: `web/tests/api/AuthTest.php::testLostPasswordResponseIsIdenticalForKnownAndUnknownEmail` (byte-for-byte wire assertion) + `web/tests/api/__snapshots__/auth/lost_password_generic.json` (locked envelope) + `web/tests/e2e/specs/flows/lostpassword-toast.spec.ts` (chrome-side parity: same painted toast for known + unknown emails). `api_auth_login` follows the same rule since #59 (empty-password check before the user lookup, dummy bcrypt verify for unknown users); only `m=locked` still implies existence (documented residual). |
+| Add or audit a publicly-reachable, unauthenticated auth surface (anything in `web/api/handlers/auth.php` or sibling registered as `requireAuth: false`) without leaking per-account state | The reference shape is `api_auth_lost_password` + `_api_auth_lost_password_generic_response` in `web/api/handlers/auth.php` (#1456). All reachable branches MUST return the same envelope; operator-side toggles (e.g. `config.enablenormallogin`) MAY surface as a per-toggle error code because the value is the same for every caller. The pre-#1456 shape branched on `not_registered` / `mail_failed` and let an unauthenticated visitor enumerate registered admin emails one request at a time by reading the painted toast back. See "Public auth surfaces: response-shape uniformity" in Conventions for the full contract (audit-log discipline, DB-write gating, SMTP gating, the documented response-time residual risk) + the matching Anti-patterns entry. Regression guards: `web/tests/api/AuthTest.php::testLostPasswordResponseIsIdenticalForKnownAndUnknownEmail` (byte-for-byte wire assertion) + `web/tests/api/__snapshots__/auth/lost_password_generic.json` (locked envelope) + `web/tests/e2e/specs/flows/lostpassword-toast.spec.ts` (chrome-side parity: same painted toast for known + unknown emails). `api_auth_login` follows the same rule since #59 (empty-password check before the user lookup, dummy bcrypt verify for unknown users); `m=locked` is no oracle either since #106 (unknown usernames lock on the same counter); every counter takes its slot before the secret check and refuses when the table is missing (`LoginThrottleTest`). |
 | Resolve / override the JSON-API endpoint URL the client-side `sb.api.call(...)` POSTs to | `web/scripts/api.js` (`resolveEndpoint()` — runs once at script-load, computes `new URL('../api.php', document.currentScript.src).href`). The script lives at `/scripts/api.js` regardless of which page loads it, so resolving `../api.php` against the script's own URL lands on the panel-root `/api.php` for top-level page renders, iframe-routed surfaces (`pages/admin.kickit.php` / `pages/admin.blockit.php`), AND subdir installs (`https://host/sourcebans/` → script at `…/scripts/api.js` → endpoint at `…/api.php`). The endpoint stays writable on `sb.api` so callers can swap it; do not edit the resolver to a bare `'./api.php'` literal — that's the pre-#1433 regression shape that 404s every iframe round-trip (`./api.php` resolves against the iframe's document URL `/pages/admin.kickit.php` → `/pages/api.php`, no such route). **Load via static `<script src="…">` only** — `document.currentScript` is `null` when the script is appended programmatically (`document.createElement('script')`, `<script>document.write(...)</script>`, async loaders, ES-module `import()`), and a null `currentScript` collapses `SCRIPT_SRC` to the empty string and silently falls back to the bare-relative `./api.php` — i.e. the exact pre-#1433 bug. The three static load sites in the default theme are `core/header.tpl` (top-level panel chrome → `./scripts/api.js`), `page_kickit.tpl`, and `page_blockit.tpl` (iframe surfaces → `../scripts/api.js`); a theme fork that wants to lazy-load needs its own paired endpoint resolver. Pinned by `web/tests/integration/ApiJsEndpointResolutionTest.php` (static) + `web/tests/e2e/specs/flows/kickit-iframe.spec.ts` (runtime). |
 | Stamp `SB_VERSION` / `MAJOR_REVISION` before compiling SourceMod plugins | `game/addons/sourcemod/scripting/scripts/resolve-plugin-version.sh` → `include/sbpp_version.inc` (included from `sourcebanspp.inc` + `sbpp_checker.sp`). Tiers: `SBPP_RELEASE_VERSION` (release tag in `release.yml`) → `web/configs/version.json` → `git describe` → `dev`. Checked-in `sbpp_version.inc` is the direct-compile fallback. Regression: `web/tests/integration/PluginVersionResolveTest.php`. |
 | Validate a server-address input (IPv4 / IPv6 / hostname) on either Add-Server (`api_servers_add`) or Edit-Server (`admin.edit.server.php`) | Shared validator pattern: `filter_var($x, FILTER_VALIDATE_IP) \|\| filter_var($x, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME)`. Both surfaces MUST share the same predicate so a value either round-trips through Add AND Edit or fails on both (#1433); pre-fix the JSON dispatcher ran IP-only while the page handler ran a too-loose hand-rolled `^[a-zA-Z0-9.\-]+$` regex. The matching schema-width gate (`strlen($x) > 64`, surfacing as `validation` envelope or `$validationErrors['address']`) is paired with the IP/hostname check because `:prefix_servers.ip` is `VARCHAR(64) NOT NULL` (see `web/install/includes/sql/struc.sql`) — well below RFC 1035's 253-char hostname max, and MariaDB strict mode would otherwise raise `SQLSTATE[22001] 1406 Data too long for column 'ip'` mid-INSERT (generic 500 + no audit-log entry). Bumping the column to `VARCHAR(255)` is a paired schema-migration follow-up. Pinned by `web/tests/api/ServersTest.php::testAddAcceptsHostname` / `testAddAcceptsFqdn` / `testAddAcceptsBareIPv6` / `testAddRejectsAddressExceedingSchemaWidth` / `testAddRefusesDuplicateHostnamePort` / `testAddRejectsWhitespaceInAddress`. |

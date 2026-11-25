@@ -269,15 +269,16 @@ CREATE TABLE IF NOT EXISTS `{prefix}_login_tokens` (
     KEY `aid` (`aid`)
 ) ENGINE=InnoDB DEFAULT CHARSET={charset};
 
--- Failed password logins per client address (#97), see
--- Sbpp\Auth\LoginThrottle. `ip` is the hex of the packed address (IPv6
--- cut to /64).
-CREATE TABLE IF NOT EXISTS `{prefix}_login_throttle` (
-    `ip` varchar(32) NOT NULL,
+-- Failed sign-in counters (#97, #106), see Sbpp\Auth\LoginThrottle: one
+-- row per client address (`ip:`), username (`n:`), device cookie (`d:`)
+-- or password reset counter (`lpi:` / `lpa:`). `expires` is the unix time
+-- the row's window ends.
+CREATE TABLE IF NOT EXISTS `{prefix}_auth_throttle` (
+    `throttle_key` varchar(80) CHARACTER SET ascii COLLATE ascii_bin NOT NULL,
     `attempts` int(10) UNSIGNED NOT NULL DEFAULT 0,
-    `window_start` int(11) NOT NULL,
-    PRIMARY KEY (`ip`),
-    KEY `window_start` (`window_start`)
+    `expires` int(11) NOT NULL,
+    PRIMARY KEY (`throttle_key`),
+    KEY `expires` (`expires`)
 ) ENGINE=InnoDB DEFAULT CHARSET={charset};
 
 -- Player notes scratchpad surfaced by the player-detail drawer (#1165).

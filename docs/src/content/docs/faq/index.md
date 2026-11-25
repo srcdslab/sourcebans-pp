@@ -194,19 +194,36 @@ setting is most often missing on Windows and minimal PHP builds.
 
 ### Login says "locked" for an account that isn't
 
-Two limits apply to password logins:
+The message is "Sign-in paused: too many failed sign-in attempts".
+Three limits apply to password logins, each over 15 minutes:
 
-- **Per account:** 5 wrong passwords lock that account for 10 minutes.
+- **Per username:** 5 wrong passwords for one username lock it for
+  browsers that never signed in as that admin. Unknown usernames lock
+  the same way, so the message doesn't tell whether an account exists.
+- **Per browser:** a browser that signed in as that admin before
+  (password or Steam) keeps a device cookie and has its own 5 attempts.
+  An attacker filling the per-username limit doesn't lock it, so the
+  admin's usual browser still gets in. Steam sign-in is never locked.
 - **Per address:** 20 failed logins from one IP address (or one IPv6
-  /64) in 15 minutes block logins from that address, for every
-  account, until the 15 minutes are up.
+  /64) block logins from that address, for every account, until the
+  15 minutes are up.
+
+Each limit writes one **Sign-in throttled** or **Sign-in locked** entry
+to the system log when it trips (Admin Panel → System Log), with the
+address in the Host column.
 
 The per-address limit needs the panel to see the visitor's real IP.
 Behind a reverse proxy (Cloudflare, Caddy, nginx), configure it to
 pass the client IP, or every visitor shares the proxy's address and
 one attacker blocks everyone. On Docker, set `SBPP_TRUSTED_PROXIES`.
 Elsewhere, configure your web server's real-IP module
-(`mod_remoteip`, nginx `real_ip`).
+(`mod_remoteip`, nginx `real_ip`). The **Sign-in throttled** log entry
+says so when the blocked address is a private one, which is usually the
+proxy.
+
+Password reset requests are limited too: 5 per hour per address, and
+3 reset mails per hour per account. Past that the form still says
+"check your email", but no mail is sent.
 
 To change the per-address limit, or turn it off with `0`, add this to
 `config.php` (or set the `SBPP_LOGIN_IP_LIMIT` env var on Docker):
@@ -214,6 +231,16 @@ To change the per-address limit, or turn it off with `0`, add this to
 ```php
 define('SBPP_LOGIN_IP_LIMIT', 50);
 ```
+
+`0` also turns off the per-address limit on password reset requests.
+
+### Login says "Sign-in unavailable"
+
+The panel's database is missing the table that counts failed sign-ins:
+the updater hasn't run since the panel files were updated. Run it (see
+[Updating](/updating/)); on Docker, restart the container, which runs
+pending migrations. Password sign-in is refused until then, rather than
+letting attempts through uncounted. Steam sign-in keeps working.
 
 ### How do I customize the dashboard?
 

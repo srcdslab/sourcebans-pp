@@ -10,34 +10,54 @@ namespace Sbpp\Auth;
 use Sbpp\Db\Database;
 
 /**
- * Per-address limit on password logins (#97), next to the per-account
- * lockout in `api_auth_login`. The account lockout alone let one client
- * try a password against every username without tripping anything.
+ * Failed sign-in counters (#97, #106), one row per key in
+ * `:prefix_auth_throttle`:
  *
- * Fixed window: at most {@see limit()} unsuccessful attempts per address
- * per {@see WINDOW_SECONDS}. An attempt is counted before the password is
- * checked ({@see reserve()}) and given back when the login succeeds
- * ({@see release()}), so parallel requests can't all slip under the limit.
+ * - `ip:<address>`: password logins from one client address (IPv6 cut
+ *   to its /64), {@see ipLimit()} per {@see WINDOW_SECONDS}.
+ * - `n:<name>`: password logins for one username from clients without a
+ *   device cookie for it ({@see DeviceCookie}), {@see ACCOUNT_LIMIT} per
+ *   window. Keyed on the submitted name, so unknown names lock exactly
+ *   like real ones and `m=locked` says nothing about whether the account
+ *   exists.
+ * - `d:<device>`: password logins from one browser holding a device
+ *   cookie for that name, {@see ACCOUNT_LIMIT} per window. The admin's
+ *   usual browser keeps its own budget while the name is locked for
+ *   everyone else: an attacker can't lock the real admin out.
+ * - `lpi:<address>` / `lpa:<aid>`: password reset requests.
+ *
+ * Every attempt takes its slot in one atomic upsert *before* the secret
+ * is checked ({@see hit()}) and a successful login gives it back
+ * ({@see release()}), so parallel requests can't slip under a limit.
  *
  * The address is `REMOTE_ADDR`. Behind a reverse proxy it must be the
  * client's (the Docker image's `mod_remoteip` with `SBPP_TRUSTED_PROXIES`),
- * otherwise every visitor shares the proxy's counter. IPv6 addresses are
- * cut to their /64, the block one client usually controls.
+ * otherwise every visitor shares the proxy's counter.
  *
- * `SBPP_LOGIN_IP_LIMIT` (config.php or env) overrides the limit; `0`
- * turns the per-address limit off.
+ * A missing table raises {@see ThrottleUnavailable}: callers refuse the
+ * sign-in. Pre-#106 it failed open, so a panel that never ran migration
+ * 818 had no limit at all and nothing said so.
  */
 final class LoginThrottle
 {
     public const DEFAULT_LIMIT = 20;
+    public const ACCOUNT_LIMIT = 5;
     public const WINDOW_SECONDS = 15 * 60;
 
-    /** Expired rows removed per login attempt, so GC stays cheap. */
+    public const RESET_IP_LIMIT = 5;
+    public const RESET_ACCOUNT_LIMIT = 3;
+    public const RESET_WINDOW_SECONDS = 60 * 60;
+
+    /** Expired rows removed per hit, so GC stays cheap. */
     private const GC_BATCH = 100;
+
+    /** @var array{charset: string, collation: string}|null */
+    private static ?array $nameCollation = null;
 
     public function __construct(private Database $dbs) {}
 
-    public static function limit(): int
+    /** Per-address limit: `SBPP_LOGIN_IP_LIMIT` (config.php or env), `0` turns it off. */
+    public static function ipLimit(): int
     {
         if (!defined('SBPP_LOGIN_IP_LIMIT')) {
             return self::DEFAULT_LIMIT;
@@ -53,10 +73,10 @@ final class LoginThrottle
     }
 
     /**
-     * Key for an address: hex of the packed IPv4 address, or of the first
-     * 8 bytes (/64) of an IPv6 one. Null when the address doesn't parse.
+     * Hex of the packed IPv4 address, or of the first 8 bytes (/64) of an
+     * IPv6 one. Null when the address doesn't parse.
      */
-    public static function key(string $ip): ?string
+    public static function addressKey(string $ip): ?string
     {
         $packed = @inet_pton($ip);
         if ($packed === false) {
@@ -73,87 +93,137 @@ final class LoginThrottle
     }
 
     /**
-     * Count one login attempt from `$ip`. Returns the number of seconds
-     * until the window ends when the address is over the limit (the
-     * caller must refuse the login without checking the password), or
-     * null when the attempt may go ahead.
+     * The username as `:prefix_admins.user` compares it: the column's
+     * collation weight string, hex. `Admin`, `ADMIN`, `ádmin` and
+     * `admin ` all reach the same account through `WHERE user = :user`,
+     * so they must share one counter, or rotating variants would give
+     * unlimited guesses on one account.
+     *
+     * Pass the stored name when the lookup matched and the submitted name
+     * otherwise: under a NO PAD collation `admin ` is not `admin`, but the
+     * trailing spaces are stripped for unknown names so the two still
+     * share a key.
+     *
+     * @throws ThrottleUnavailable
      */
-    public function reserve(string $ip, int $now): ?int
+    public function nameKey(string $name, bool $stored): string
     {
-        $limit = self::limit();
-        $key = self::key($ip);
-        if ($limit === 0 || $key === null) {
-            return null;
+        $collation = $this->nameCollation();
+        if (!$stored) {
+            $name = rtrim($name, ' ');
         }
-
-        $cutoff = $now - self::WINDOW_SECONDS;
         try {
-            return $this->count($key, $limit, $now, $cutoff);
+            $this->dbs->query(sprintf(
+                'SELECT HEX(WEIGHT_STRING(CONVERT(:name USING %s) COLLATE %s)) AS w',
+                $collation['charset'],
+                $collation['collation'],
+            ));
+            $this->dbs->bind(':name', $name);
+            $row = $this->dbs->single();
+        } catch (\PDOException $e) {
+            throw new ThrottleUnavailable('username key: ' . $e->getMessage(), 0, $e);
+        }
+        $weight = is_array($row) ? (string) ($row['w'] ?? '') : '';
+        return hash('sha256', $weight);
+    }
+
+    /**
+     * Count one attempt against `$key`. The returned hit says whether the
+     * caller must refuse it (without checking the secret).
+     *
+     * @throws ThrottleUnavailable when the table is missing (updater not run)
+     */
+    public function hit(string $key, int $limit, int $window, int $now): ThrottleHit
+    {
+        if ($limit <= 0) {
+            return new ThrottleHit(0, 0, 0);
+        }
+        try {
+            $this->gc($now);
+
+            // One statement, so concurrent attempts can't overwrite each
+            // other's count. `attempts` is assigned first and reads the old
+            // `expires`; `expires` then reads its own old value.
+            $this->dbs->query(
+                'INSERT INTO `:prefix_auth_throttle` (throttle_key, attempts, expires) VALUES (:k, 1, :exp)'
+                . ' ON DUPLICATE KEY UPDATE'
+                . ' attempts = IF(expires <= :now, 1, attempts + 1),'
+                . ' expires = IF(expires <= :now2, :exp2, expires)'
+            );
+            $this->dbs->bindMultiple([
+                ':k'    => $key,
+                ':exp'  => $now + $window,
+                ':now'  => $now,
+                ':now2' => $now,
+                ':exp2' => $now + $window,
+            ]);
+            $this->dbs->execute();
+
+            // Read back after the write: a concurrent attempt can only make
+            // the count higher, never let this one through wrongly.
+            $this->dbs->query('SELECT attempts, expires FROM `:prefix_auth_throttle` WHERE throttle_key = :k');
+            $this->dbs->bind(':k', $key);
+            $row = $this->dbs->single();
+        } catch (\PDOException $e) {
+            throw new ThrottleUnavailable('auth_throttle: ' . $e->getMessage(), 0, $e);
+        }
+
+        if (!is_array($row)) {
+            return new ThrottleHit(1, $limit, 0);
+        }
+        return new ThrottleHit((int) $row['attempts'], $limit, max(1, (int) $row['expires'] - $now));
+    }
+
+    /** Give back the attempt {@see hit()} counted: the sign-in succeeded. */
+    public function release(string $key): void
+    {
+        try {
+            $this->dbs->query(
+                'UPDATE `:prefix_auth_throttle` SET attempts = attempts - 1 WHERE throttle_key = :k AND attempts > 0'
+            );
+            $this->dbs->bind(':k', $key);
+            $this->dbs->execute();
         } catch (\PDOException) {
-            // The table is missing between uploading a release and running
-            // the updater (migration 818). Fail open: the per-account
-            // lockout still applies, and logins keep working until then.
-            return null;
+            // hit() already refused the sign-in if the table were missing.
         }
     }
 
-    private function count(string $key, int $limit, int $now, int $cutoff): ?int
+    /** @return array{charset: string, collation: string} */
+    private function nameCollation(): array
     {
-        $this->gc($cutoff);
-
-        // One statement, so concurrent attempts can't overwrite each
-        // other's count. `attempts` is assigned first and reads the old
-        // `window_start`; `window_start` then reads its own old value.
-        $this->dbs->query(
-            'INSERT INTO `:prefix_login_throttle` (ip, attempts, window_start) VALUES (:ip, 1, :now)'
-            . ' ON DUPLICATE KEY UPDATE'
-            . ' attempts = IF(window_start <= :cutoff, 1, attempts + 1),'
-            . ' window_start = IF(window_start <= :cutoff2, :now2, window_start)'
-        );
-        $this->dbs->bindMultiple([
-            ':ip'      => $key,
-            ':now'     => $now,
-            ':cutoff'  => $cutoff,
-            ':cutoff2' => $cutoff,
-            ':now2'    => $now,
-        ]);
-        $this->dbs->execute();
-
-        // Read back after the write: a concurrent attempt can only make
-        // the count higher, never let this one through wrongly.
-        $this->dbs->query('SELECT attempts, window_start FROM `:prefix_login_throttle` WHERE ip = :ip');
-        $this->dbs->bind(':ip', $key);
-        $row = $this->dbs->single();
-        if (!is_array($row) || (int) $row['attempts'] <= $limit) {
-            return null;
-        }
-        return max(1, (int) $row['window_start'] + self::WINDOW_SECONDS - $now);
-    }
-
-    /** Give back the attempt {@see reserve()} counted: the login succeeded. */
-    public function release(string $ip): void
-    {
-        $key = self::key($ip);
-        if (self::limit() === 0 || $key === null) {
-            return;
+        if (self::$nameCollation !== null) {
+            return self::$nameCollation;
         }
         try {
             $this->dbs->query(
-                'UPDATE `:prefix_login_throttle` SET attempts = attempts - 1 WHERE ip = :ip AND attempts > 0'
+                'SELECT CHARACTER_SET_NAME AS cs, COLLATION_NAME AS co FROM information_schema.COLUMNS'
+                . " WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = :t AND COLUMN_NAME = 'user'"
             );
-            $this->dbs->bind(':ip', $key);
-            $this->dbs->execute();
-        } catch (\PDOException) {
-            // Same as reserve(): table not created yet.
+            $this->dbs->bind(':t', $this->dbs->getPrefix() . '_admins');
+            $row = $this->dbs->single();
+        } catch (\PDOException $e) {
+            throw new ThrottleUnavailable('admins.user collation: ' . $e->getMessage(), 0, $e);
         }
+        $charset = is_array($row) ? (string) ($row['cs'] ?? '') : '';
+        $collation = is_array($row) ? (string) ($row['co'] ?? '') : '';
+        // Interpolated into SQL (CONVERT/COLLATE take no placeholders):
+        // identifiers only.
+        if (!preg_match('/^[A-Za-z0-9_]+$/D', $charset) || !preg_match('/^[A-Za-z0-9_]+$/D', $collation)) {
+            throw new ThrottleUnavailable('admins.user collation not found');
+        }
+        return self::$nameCollation = ['charset' => $charset, 'collation' => $collation];
     }
 
-    private function gc(int $cutoff): void
+    /** Tests switch DB_PREFIX / schemas; drop the cached collation. */
+    public static function clearCache(): void
     {
-        $this->dbs->query(
-            'DELETE FROM `:prefix_login_throttle` WHERE window_start <= :cutoff LIMIT ' . self::GC_BATCH
-        );
-        $this->dbs->bind(':cutoff', $cutoff);
+        self::$nameCollation = null;
+    }
+
+    private function gc(int $now): void
+    {
+        $this->dbs->query('DELETE FROM `:prefix_auth_throttle` WHERE expires <= :now LIMIT ' . self::GC_BATCH);
+        $this->dbs->bind(':now', $now);
         $this->dbs->execute();
     }
 }

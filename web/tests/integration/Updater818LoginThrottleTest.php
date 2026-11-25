@@ -8,8 +8,8 @@ use Sbpp\Tests\ApiTestCase;
 use Sbpp\Tests\Fixture;
 
 /**
- * #97: `web/updater/data/818.php` creates `:prefix_login_throttle`. Same
- * harness as Updater801LockoutColumnsTest.
+ * #97: `web/updater/data/818.php` creates `:prefix_login_throttle`, which
+ * 819 (#106) drops again. Same harness as Updater801LockoutColumnsTest.
  */
 final class Updater818LoginThrottleTest extends ApiTestCase
 {
@@ -37,21 +37,19 @@ final class Updater818LoginThrottleTest extends ApiTestCase
         return (bool) $ctx->run(ROOT . 'updater/data/818.php');
     }
 
-    public function testFreshSchemaAlreadyHasTheTableAndMigrationIsIdempotent(): void
+    public function testMigrationCreatesTheTableAndIsIdempotent(): void
     {
-        $this->assertTrue($this->tableExists(), 'struc.sql must create login_throttle.');
-        $this->assertTrue($this->runMigration());
-        $this->assertTrue($this->runMigration());
-    }
-
-    public function testMigrationCreatesTheTableOnAnUpgradedSchema(): void
-    {
-        Fixture::rawPdo()->exec('DROP TABLE `' . DB_PREFIX . '_login_throttle`');
-        $this->assertFalse($this->tableExists());
-
-        $this->assertTrue($this->runMigration());
-
-        $this->assertTrue($this->tableExists());
+        // Fresh installs no longer have it: 819 (#106) replaces it with
+        // `:prefix_auth_throttle`. 818 still runs on upgrades from before
+        // 818, then 819 drops the table again.
+        $this->assertFalse($this->tableExists(), 'struc.sql no longer creates login_throttle (#106).');
+        try {
+            $this->assertTrue($this->runMigration());
+            $this->assertTrue($this->tableExists());
+            $this->assertTrue($this->runMigration());
+        } finally {
+            Fixture::rawPdo()->exec('DROP TABLE IF EXISTS `' . DB_PREFIX . '_login_throttle`');
+        }
     }
 
     public function testMigrationIsRegisteredInStoreJson(): void

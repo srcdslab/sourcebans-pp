@@ -3,6 +3,10 @@
 // Licensed under the Elastic License 2.0.
 // See LICENSE.txt for the full license text and THIRD-PARTY-NOTICES.txt for attributions.
 
+use Sbpp\Auth\DeviceCookie;
+use Sbpp\Auth\LoginThrottle;
+use Sbpp\Auth\ThrottleHit;
+use Sbpp\Auth\ThrottleUnavailable;
 use Sbpp\Mail\EmailType;
 use Sbpp\Mail\Mail;
 
@@ -21,7 +25,7 @@ const API_AUTH_PASSWORD_RESET_TTL = 3600;
 
 function _api_auth_get_user(string $username): ?array
 {
-    $GLOBALS['PDO']->query("SELECT aid, password, attempts, lockout_until FROM `:prefix_admins` WHERE user = :user");
+    $GLOBALS['PDO']->query("SELECT aid, user, password FROM `:prefix_admins` WHERE user = :user");
     $GLOBALS['PDO']->bind(':user', $username);
     $row = $GLOBALS['PDO']->single();
     return $row ?: null;
@@ -39,9 +43,6 @@ function api_auth_login(array $params): array
         return Api::redirect('?p=login&m=failed');
     }
 
-    $maxAttempts = 5;
-    $lockoutTime = 10 * 60;
-
     // Checked before the user lookup so known and unknown usernames get
     // the same answer. Pre-#59 an empty password returned `empty_pwd` for
     // existing accounts and `failed` for the rest: a one-request oracle.
@@ -50,86 +51,119 @@ function api_auth_login(array $params): array
     }
 
     $now = time();
-
-    // Per-address limit (#97), checked before the user lookup so known
-    // and unknown usernames get the same answer. It counts this attempt
-    // now and gives it back on success.
     $clientIp = (string) ($_SERVER['REMOTE_ADDR'] ?? '');
-    $throttle = new \Sbpp\Auth\LoginThrottle($GLOBALS['PDO']);
-    $ipRetryAfter = $throttle->reserve($clientIp, $now);
-    if ($ipRetryAfter !== null) {
-        return Api::redirect('?p=login&m=locked&time=' . (int) ceil($ipRetryAfter / 60));
+    $throttle = new LoginThrottle($GLOBALS['PDO']);
+    $ipKey = LoginThrottle::addressKey($clientIp);
+    $ipCounter = $ipKey !== null && LoginThrottle::ipLimit() > 0 ? 'ip:' . $ipKey : null;
+
+    // Every counter takes its slot before the password is checked (#97)
+    // and gives it back on success. A missing table refuses the sign-in
+    // (#106): pre-#106 it let every attempt through uncounted.
+    try {
+        // Per address, before the user lookup: the same answer for known
+        // and unknown usernames.
+        if ($ipCounter !== null) {
+            $ipHit = $throttle->hit($ipCounter, LoginThrottle::ipLimit(), LoginThrottle::WINDOW_SECONDS, $now);
+            if ($ipHit->blocked()) {
+                if ($ipHit->trippedNow()) {
+                    _api_auth_log_address_throttled($clientIp, $ipHit);
+                }
+                return _api_auth_locked_redirect($ipHit->retryAfter);
+            }
+        }
+
+        // Per username (#106). The key is the name as the `user` column
+        // compares it, so case or accent variants share one counter, and
+        // unknown names are counted like real ones. A browser holding a
+        // device cookie for this name is charged on its own counter, so
+        // filling the shared one can't lock the real admin out.
+        $user = _api_auth_get_user($username);
+        $nameKey = $throttle->nameKey($user !== null ? (string) $user['user'] : $username, $user !== null);
+        $deviceNonce = DeviceCookie::nonceFor($nameKey, $now);
+        $counter = $deviceNonce !== null ? DeviceCookie::counterKey($deviceNonce) : 'n:' . $nameKey;
+        $hit = $throttle->hit($counter, LoginThrottle::ACCOUNT_LIMIT, LoginThrottle::WINDOW_SECONDS, $now);
+    } catch (ThrottleUnavailable $e) {
+        error_log('[sbpp] password sign-in refused, the sign-in counters are unavailable (run the updater): ' . $e->getMessage());
+        return Api::redirect('?p=login&m=unavailable');
     }
 
-    $user = _api_auth_get_user($username);
-    if (!$user) {
+    if ($hit->blocked()) {
+        // No password check: known and unknown names both answer at once.
+        if ($hit->trippedNow() && $user !== null) {
+            _api_auth_log_account_throttled((string) $user['user'], $deviceNonce !== null);
+        }
+        return _api_auth_locked_redirect($hit->retryAfter);
+    }
+
+    if ($user === null) {
         // Pay the same bcrypt cost a known account does, so response time
         // doesn't reveal whether the username exists (#59).
         password_verify($password, API_AUTH_TIMING_DUMMY_HASH);
         return Api::redirect('?p=login&m=failed');
     }
 
-    // Reserve this attempt on the account before checking the password
-    // (#97). The lockout check, the increment and setting the lock are one
-    // statement: requests sent in parallel each take a slot, and once the
-    // slot that reaches $maxAttempts is taken the rest see the lock and
-    // never reach password_verify(). Pre-#97 the check and the increment
-    // were separate statements around the bcrypt check, so every parallel
-    // request passed the check and got a guess.
-    //
-    // `lockout_until` is assigned first so it reads the old `attempts`.
-    // Times are PHP-side `Y-m-d H:i:s`, as everywhere `lockout_until` is
-    // read. Keeps the pre-#97 rule: after a lock expires, `attempts` is
-    // still >= $maxAttempts, so one more wrong password locks again.
-    $GLOBALS['PDO']->query(
-        "UPDATE `:prefix_admins`
-            SET lockout_until = IF(attempts + 1 >= :max, :until, lockout_until),
-                attempts = attempts + 1
-          WHERE aid = :aid AND (lockout_until IS NULL OR lockout_until <= :now)"
-    );
-    $GLOBALS['PDO']->bindMultiple([
-        ':max'   => $maxAttempts,
-        ':until' => date('Y-m-d H:i:s', $now + $lockoutTime),
-        ':aid'   => (int) $user['aid'],
-        ':now'   => date('Y-m-d H:i:s', $now),
-    ]);
-    $GLOBALS['PDO']->execute();
-    if ($GLOBALS['PDO']->rowCount() === 0) {
-        // Locked, by an earlier request or a concurrent one.
-        return _api_auth_locked_redirect((int) $user['aid'], $now, $lockoutTime);
-    }
-
     $auth = new NormalAuthHandler($GLOBALS['PDO'], $username, $password, $remember);
 
     if (!$auth->getResult()) {
-        // The reservation above already counted the failure, and set the
-        // lock if this was the last allowed attempt.
-        $after = _api_auth_get_user($username);
-        if (!empty($after['lockout_until']) && strtotime((string) $after['lockout_until']) > $now) {
-            return _api_auth_locked_redirect((int) $user['aid'], $now, $lockoutTime);
-        }
+        // The hits above already counted the failure.
         return Api::redirect('?p=login&m=failed');
     }
 
-    $GLOBALS['PDO']->query("UPDATE `:prefix_admins` SET attempts = 0, lockout_until = NULL WHERE aid = :aid");
-    $GLOBALS['PDO']->bind(':aid', (int) $user['aid']);
-    $GLOBALS['PDO']->execute();
-    $throttle->release($clientIp);
+    $throttle->release($counter);
+    if ($ipCounter !== null) {
+        $throttle->release($ipCounter);
+    }
+    DeviceCookie::issue($nameKey, $now);
 
     return Api::redirect('?' . $redirect);
 }
 
-/**
- * `?p=login&m=locked&time=<minutes left>` for a locked account.
- */
-function _api_auth_locked_redirect(int $aid, int $now, int $lockoutTime): array
+/** `?p=login&m=locked&time=<minutes left>`, the same for every counter. */
+function _api_auth_locked_redirect(int $retryAfter): array
 {
-    $GLOBALS['PDO']->query("SELECT lockout_until FROM `:prefix_admins` WHERE aid = :aid");
-    $GLOBALS['PDO']->bind(':aid', $aid);
-    $row = $GLOBALS['PDO']->single();
-    $until = is_array($row) && !empty($row['lockout_until']) ? strtotime((string) $row['lockout_until']) : false;
-    $remaining = $until !== false && $until > $now ? $until - $now : $lockoutTime;
-    return Api::redirect('?p=login&m=locked&time=' . round($remaining / 60));
+    return Api::redirect('?p=login&m=locked&time=' . max(1, (int) ceil($retryAfter / 60)));
+}
+
+/**
+ * One audit entry when an address reaches its limit (#106): the first
+ * refused attempt of the window, so a flood writes one row, not one per
+ * request. The `host` column records the address.
+ */
+function _api_auth_log_address_throttled(string $ip, ThrottleHit $hit): void
+{
+    $message = sprintf(
+        '%d failed password sign-ins from this address in %d minutes. Password sign-in from it is refused for %d more minutes.',
+        $hit->limit,
+        intdiv(LoginThrottle::WINDOW_SECONDS, 60),
+        max(1, (int) ceil($hit->retryAfter / 60)),
+    );
+    if (filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE) === false) {
+        // A private address is usually the reverse proxy: then every
+        // visitor shares its counter.
+        $message .= ' This is a private address: if it is your reverse proxy, the panel does not see client'
+            . ' addresses and every visitor shares this limit (set SBPP_TRUSTED_PROXIES, or your web server\'s'
+            . ' real-IP module).';
+    }
+    Log::add(LogType::Warning, 'Sign-in throttled', $message);
+}
+
+/** One audit entry when an existing account's counter reaches its limit (#106). */
+function _api_auth_log_account_throttled(string $user, bool $trustedDevice): void
+{
+    $minutes = intdiv(LoginThrottle::WINDOW_SECONDS, 60);
+    $message = $trustedDevice
+        ? sprintf(
+            '%d failed password sign-ins for admin "%s" in %d minutes from a browser that signed in as this admin before.'
+            . ' That browser is refused for up to %d minutes; other browsers are not affected.',
+            LoginThrottle::ACCOUNT_LIMIT, $user, $minutes, $minutes,
+        )
+        : sprintf(
+            '%d failed password sign-ins for admin "%s" in %d minutes from browsers that never signed in as this admin.'
+            . ' Those browsers are refused for up to %d minutes. Browsers that signed in as this admin before,'
+            . ' and Steam sign-in, still work.',
+            LoginThrottle::ACCOUNT_LIMIT, $user, $minutes, $minutes,
+        );
+    Log::add(LogType::Warning, 'Sign-in locked', $message);
 }
 
 /**
@@ -224,6 +258,34 @@ function api_auth_lost_password(array $params): array
 
     $email = (string)($params['email'] ?? '');
 
+    // #106: reset requests are limited per address (before the lookup, so
+    // known and unknown emails answer the same) and per account (so a
+    // known address can't be mailed over and over, which also rolled the
+    // owner's pending reset link on every request). Over a limit, or with
+    // the counters unavailable, the request gets the generic answer and
+    // nothing is sent.
+    $now = time();
+    $throttle = new LoginThrottle($GLOBALS['PDO']);
+    $ipKey = LoginThrottle::addressKey((string) ($_SERVER['REMOTE_ADDR'] ?? ''));
+    try {
+        // SBPP_LOGIN_IP_LIMIT=0 means the panel can't see client
+        // addresses: don't limit per address here either.
+        if ($ipKey !== null && LoginThrottle::ipLimit() > 0) {
+            $ipHit = $throttle->hit(
+                'lpi:' . $ipKey,
+                LoginThrottle::RESET_IP_LIMIT,
+                LoginThrottle::RESET_WINDOW_SECONDS,
+                $now,
+            );
+            if ($ipHit->blocked()) {
+                return _api_auth_lost_password_generic_response();
+            }
+        }
+    } catch (ThrottleUnavailable $e) {
+        error_log('[sbpp] password reset refused, the sign-in counters are unavailable (run the updater): ' . $e->getMessage());
+        return _api_auth_lost_password_generic_response();
+    }
+
     // `email` uses the table's case- and accent-insensitive collation, so
     // the request value can differ from the stored address. Everything
     // past the lookup keys on the stored row (`aid`, `email`), never on
@@ -241,6 +303,35 @@ function api_auth_lost_password(array $params): array
     // that did NOT request a reset, since that would turn the form
     // into an open mail relay / spam vector.
     if (empty($row['aid'])) {
+        return _api_auth_lost_password_generic_response();
+    }
+
+    try {
+        $accountHit = $throttle->hit(
+            'lpa:' . (int) $row['aid'],
+            LoginThrottle::RESET_ACCOUNT_LIMIT,
+            LoginThrottle::RESET_WINDOW_SECONDS,
+            $now,
+        );
+    } catch (ThrottleUnavailable $e) {
+        error_log('[sbpp] password reset refused, the sign-in counters are unavailable (run the updater): ' . $e->getMessage());
+        return _api_auth_lost_password_generic_response();
+    }
+    if ($accountHit->blocked()) {
+        if ($accountHit->trippedNow()) {
+            Log::add(
+                LogType::Warning,
+                'Password reset throttled',
+                sprintf(
+                    '%d password reset requests for admin "%s" in %d minutes. Further requests send no mail for up to %d minutes;'
+                    . ' the last reset link sent stays valid.',
+                    LoginThrottle::RESET_ACCOUNT_LIMIT,
+                    (string) $row['user'],
+                    intdiv(LoginThrottle::RESET_WINDOW_SECONDS, 60),
+                    max(1, (int) ceil($accountHit->retryAfter / 60)),
+                ),
+            );
+        }
         return _api_auth_lost_password_generic_response();
     }
 

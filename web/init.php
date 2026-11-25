@@ -130,7 +130,8 @@ if (!defined('SBPP_PANEL_URL')) {
 
 // SBPP_LOGIN_IP_LIMIT (#97): failed password logins allowed per client
 // address per 15 minutes (`Sbpp\Auth\LoginThrottle`). `0` turns the
-// per-address limit off, e.g. behind a proxy that hides client IPs.
+// per-address limits off (sign-in and password reset, #106), e.g.
+// behind a proxy that hides client IPs.
 // config.php wins, then the env var; undefined uses the default (20).
 if (!defined('SBPP_LOGIN_IP_LIMIT')) {
     $envLoginLimit = getenv('SBPP_LOGIN_IP_LIMIT');

@@ -21,6 +21,9 @@ abstract class ApiTestCase extends TestCase
         Fixture::reset();
         // Reset session so CSRF tokens don't leak across tests.
         $_SESSION = [];
+        // A device cookie issued by a successful login (#106) would carry
+        // into the next test and change which counter it hits.
+        unset($_COOKIE[\Sbpp\Auth\DeviceCookie::COOKIE]);
         \CSRF::init();
         $GLOBALS['userbank'] = new \CUserManager(null);
         $GLOBALS['username'] = 'tester';
